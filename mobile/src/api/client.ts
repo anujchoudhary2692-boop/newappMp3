@@ -1,4 +1,4 @@
-import {getApiBaseUrl, getApiKey, getServerCandidates, setApiBaseUrl} from '../config';
+import {getApiBaseUrl, getApiKey, getServerCandidates, isProductionMode, setApiBaseUrl} from '../config';
 import {normalizeFaceImage} from '../utils/imageUpload';
 
 export interface ApiResponse<T> {
@@ -138,10 +138,11 @@ export async function discoverServer(
   candidates = getServerCandidates(),
 ): Promise<string | null> {
   const apiKey = getApiKey();
+  const timeoutMs = isProductionMode() ? 90000 : 8000;
   for (const base of candidates) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       const headers: Record<string, string> = {Accept: 'application/json'};
       if (apiKey) {
         headers['X-API-Key'] = apiKey;

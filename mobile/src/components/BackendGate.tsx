@@ -57,7 +57,7 @@ export function BackendGate({children}: {children: React.ReactNode}) {
         </View>
         <Text style={styles.appName}>MediaFace</Text>
         <Text style={styles.tagline}>
-          {production ? 'Connecting to server…' : 'Finding your Mac on Wi‑Fi…'}
+          {production ? 'Connecting to Render (may take ~1 min on first load)…' : 'Finding your Mac on Wi‑Fi…'}
         </Text>
         <ActivityIndicator color={COLORS.primary} style={styles.spinner} />
         <Text style={styles.host}>{triedUrls.join('\n')}</Text>

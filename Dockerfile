@@ -1,8 +1,8 @@
-# Multi-stage build: Maven compile + runtime with yt-dlp/ffmpeg
+# Render.com deploy — builds Spring Boot backend from ./backend
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /build
-COPY pom.xml .
-COPY src ./src
+COPY backend/pom.xml .
+COPY backend/src ./src
 RUN mvn -q package -DskipTests
 
 FROM eclipse-temurin:17-jre-jammy
@@ -14,7 +14,7 @@ WORKDIR /app
 COPY --from=build /build/target/media-face-backend-*.jar app.jar
 
 ENV SPRING_PROFILES_ACTIVE=prod
-ENV JAVA_OPTS="-Xmx1g -XX:+UseG1GC"
+ENV JAVA_OPTS="-Xmx512m -XX:+UseG1GC"
 
 EXPOSE 8080
 

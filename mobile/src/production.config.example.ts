@@ -12,7 +12,8 @@
 export const APP_MODE: 'development' | 'production' = 'development';
 
 /** Full API base URL — no trailing slash */
-export const PRODUCTION_API_URL = 'https://api.yourdomain.com';
+/** Render: https://newappmp3.onrender.com — or your custom domain */
+export const PRODUCTION_API_URL = 'https://newappmp3.onrender.com';
 
 /** Must match backend API_KEY env var when require-api-key is true */
 export const PRODUCTION_API_KEY = '';
