@@ -231,14 +231,22 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   }, [clearQueue, goToQueueIndex]);
 
   const syncFromRoute = useCallback((nextMedia: PlayableMedia, nextStreamUrl: string) => {
-    const same = media?.title === nextMedia.title && streamUrl === nextStreamUrl;
+    const urlSame = (streamUrl ?? '') === (nextStreamUrl ?? '');
+    const mediaSame =
+      media?.title === nextMedia.title &&
+      media?.type === nextMedia.type &&
+      media?.videoId === nextMedia.videoId &&
+      media?.libraryId === nextMedia.libraryId &&
+      urlSame;
 
-    if (!same) {
-      setMedia(nextMedia);
-      setStreamUrl(nextStreamUrl);
-      setStreamKey(key => key + 1);
-      setBuffering(true);
+    if (mediaSame) {
+      return;
     }
+
+    setMedia(nextMedia);
+    setStreamUrl(nextStreamUrl || null);
+    setStreamKey(key => key + 1);
+    setBuffering(true);
     setPaused(false);
   }, [media, streamUrl]);
 

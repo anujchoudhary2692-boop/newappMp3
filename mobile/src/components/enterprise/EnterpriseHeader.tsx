@@ -2,6 +2,7 @@ import React from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {AppLogo} from '../AppLogo';
 import {ENTERPRISE} from '../../theme/enterprise';
 import {useLayoutMetrics} from '../../utils/layout';
 import {openSettings} from '../../navigation/navigationRef';
@@ -38,21 +39,13 @@ export function EnterpriseHeader({
             <Icon name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
         ) : (
-          <View style={styles.brandBlock}>
-            <View style={styles.logoMark}>
-              <Icon name="play" size={14} color={ENTERPRISE.brandDark} />
-            </View>
-            <View style={styles.brandText}>
-              <Text style={[styles.brandTitle, {fontSize: layout.font.lg}]} numberOfLines={1}>
-                {title}
-              </Text>
-              {subtitle ? (
-                <Text style={[styles.brandSub, {fontSize: layout.font.xs}]} numberOfLines={1}>
-                  {subtitle}
-                </Text>
-              ) : null}
-            </View>
-          </View>
+          <AppLogo
+            size={32}
+            variant="full"
+            title={title}
+            subtitle={subtitle}
+            style={styles.brandBlock}
+          />
         )}
 
         <View style={styles.actions}>
@@ -90,30 +83,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   brandBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
     flex: 1,
     minWidth: 0,
-  },
-  logoMark: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandText: {flex: 1, minWidth: 0},
-  brandTitle: {
-    color: '#fff',
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
-  brandSub: {
-    color: '#C7CED4',
-    fontWeight: '600',
-    marginTop: 1,
   },
   actions: {
     flexDirection: 'row',

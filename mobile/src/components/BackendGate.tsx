@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import {AppLogo} from './AppLogo';
 import {discoverServer} from '../api/client';
 import {
   COLORS,
@@ -65,10 +66,11 @@ export function BackendGate({children}: {children: React.ReactNode}) {
   if (status === 'checking') {
     return (
       <View style={[styles.screen, {padding: layout.hPad, backgroundColor: '#0F1117'}]}>
-        <View style={[styles.logoCircle, {width: layout.emptyIcon, height: layout.emptyIcon, borderRadius: layout.emptyIcon / 2, borderColor: '#FF9900'}]}>
-          <Icon name="play-circle" size={layout.emptyIcon * 0.48} color="#FF9900" />
-        </View>
-        <Text style={[styles.appName, {fontSize: layout.font.hero * 0.4, color: '#fff'}]}>MediaFace</Text>
+        <AppLogo
+          size={layout.emptyIcon}
+          variant="splash"
+          style={styles.splashLogo}
+        />
         <Text style={[styles.tagline, {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW}]}>
           {production
             ? 'Getting things ready…'
@@ -119,6 +121,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: SPACING.xl,
+  },
+  splashLogo: {
+    marginBottom: SPACING.lg,
   },
   logoCircle: {
     width: 88,

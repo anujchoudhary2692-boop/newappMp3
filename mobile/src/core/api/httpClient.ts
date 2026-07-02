@@ -108,16 +108,14 @@ export async function discoverServer(
 }
 
 export async function ensureMediaServer(): Promise<string> {
-  const current = getApiBaseUrl();
-  if (current) {
-    return current;
-  }
   const candidates = getMediaServerCandidates();
-  if (candidates.length === 0) {
-    return current;
+  if (candidates.length > 0) {
+    const found = await discoverServer(candidates);
+    if (found) {
+      return found;
+    }
   }
-  const found = await discoverServer(candidates);
-  return found || current;
+  return getApiBaseUrl();
 }
 
 export async function discoverMediaServer(): Promise<string | null> {

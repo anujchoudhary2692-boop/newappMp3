@@ -52,7 +52,11 @@ public class MediaController {
             @PathVariable String videoId,
             @RequestParam MediaType type) {
         try {
-            return ResponseEntity.ok(ApiResponse.ok(mediaService.preparePlayback(videoId, type)));
+            PlayUrlDto dto = mediaService.preparePlayback(videoId, type);
+            if (dto.getStreamUrl() != null && dto.getStreamUrl().contains("/api/media/prepare/")) {
+                mediaCacheService.prepare(videoId, type);
+            }
+            return ResponseEntity.ok(ApiResponse.ok(dto));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
@@ -111,14 +115,18 @@ public class MediaController {
 
     @PostMapping("/download")
     public ResponseEntity<ApiResponse<MediaItemDto>> download(@RequestBody DownloadRequest request) {
-        featureFlagsService.requireEnabled("mediaDownload");
-        MediaItem item = mediaService.download(
-                request.getVideoId(),
-                request.getTitle(),
-                request.getSourceUrl(),
-                request.getType()
-        );
-        return ResponseEntity.ok(ApiResponse.ok("Download complete", toDto(item)));
+        try {
+            featureFlagsService.requireEnabled("mediaDownload");
+            MediaItem item = mediaService.download(
+                    request.getVideoId(),
+                    request.getTitle(),
+                    request.getSourceUrl(),
+                    request.getType()
+            );
+            return ResponseEntity.ok(ApiResponse.ok("Download complete", toDto(item)));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @GetMapping("/library/audio")

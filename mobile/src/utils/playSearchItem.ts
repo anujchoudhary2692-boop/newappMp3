@@ -132,10 +132,9 @@ export async function waitForMediaReady(
   await ensureMediaServer();
   onStatus?.('Starting stream…');
 
-  const fastPlayPromise = tryFastPlayUrl(videoId, type);
+  // Start prepare job immediately; check server cache in parallel.
   const pollPromise = pollPrepareUntilReady(videoId, type, onStatus);
-
-  const fastPlay = await fastPlayPromise;
+  const fastPlay = await tryFastPlayUrl(videoId, type);
   if (fastPlay) {
     putSessionStream(videoId, type, fastPlay.streamPath, fastPlay.quality);
     return fastPlay;
@@ -210,6 +209,7 @@ export async function prepareAndStartPlayback(
       quality: quality || mediaBase.quality,
     };
     playback.attachStreamUrl(media, streamUrl);
+    openPlayerScreen(media, streamUrl);
   } catch (error) {
     showPlaybackError(error);
     throw error;

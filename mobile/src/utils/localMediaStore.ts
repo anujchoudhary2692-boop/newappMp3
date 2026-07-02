@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactNativeBlobUtil from 'react-native-blob-util';
-import {MediaItem, MediaSearchResult, api, discoverMediaServer} from '../api/client';
+import {ensureMediaServer} from '../core/api/httpClient';
+import {mediaApi} from '../features/media/api/mediaApi';
+import type {MediaItem, MediaSearchResult} from '../features/media/domain/types';
 import {getApiKey} from '../config';
 import {mediaStreamHeaders, resolveStreamUrl} from './mediaPlayback';
 
@@ -184,13 +186,19 @@ export async function downloadMediaToDevice(
     return existing;
   }
 
-  await discoverMediaServer();
-  const response = await api.downloadMedia({
-    videoId: payload.videoId,
-    title: payload.title,
-    sourceUrl: payload.sourceUrl,
-    type: payload.type,
-  });
+  await ensureMediaServer();
+  let response;
+  try {
+    response = await mediaApi.download({
+      videoId: payload.videoId,
+      title: payload.title,
+      sourceUrl: payload.sourceUrl,
+      type: payload.type,
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Server download failed';
+    throw new Error(msg);
+  }
 
   if (!response.success || !response.data) {
     throw new Error(response.message || 'Server download failed');
@@ -215,7 +223,6 @@ export async function downloadMediaToDevice(
   const task = ReactNativeBlobUtil.config({
     path: localPath,
     fileCache: true,
-    appendExt: ext,
   }).fetch('GET', remoteUrl, headers);
 
   task.progress((received, total) => {
@@ -228,7 +235,15 @@ export async function downloadMediaToDevice(
     });
   });
 
-  const result = await task;
+  let result;
+  try {
+    result = await task;
+  } catch (error) {
+    const hint = error instanceof Error ? error.message : 'Could not save file on device';
+    throw new Error(
+      `Saved on server but phone copy failed: ${hint}. You can still play from your library while online.`,
+    );
+  }
   const stat = await ReactNativeBlobUtil.fs.stat(result.path());
   const record: LocalMediaRecord = {
     id: serverItem.id || recordKey(payload.videoId, payload.type),

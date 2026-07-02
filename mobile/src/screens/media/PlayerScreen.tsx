@@ -182,16 +182,19 @@ export function PlayerScreen({route, navigation}: Props) {
   const insets = useSafeAreaInsets();
   const layout = useLayoutMetrics(true);
   const playback = usePlayback();
-  const {item, media, streamUrl} = route.params;
+  const {item, media} = route.params;
+  const routeStreamUrl = route.params.streamUrl ?? '';
+  const effectiveStreamUrl =
+    routeStreamUrl.length > 0 ? routeStreamUrl : (playback.streamUrl ?? '');
   const playable = useMemo(
     () => media ?? (item ? {
       title: item.title,
       type: item.type,
-      streamUrl,
+      streamUrl: effectiveStreamUrl,
       thumbnailUrl: item.thumbnailUrl,
       quality: item.quality,
     } : null),
-    [item, media, streamUrl],
+    [item, media, effectiveStreamUrl],
   );
 
   const toPlayableMedia = useCallback((): PlayableMedia => {
@@ -201,21 +204,21 @@ export function PlayerScreen({route, navigation}: Props) {
     return {
       title: item!.title,
       type: item!.type,
-      streamUrl,
+      streamUrl: effectiveStreamUrl,
       thumbnailUrl: item!.thumbnailUrl,
       quality: item!.quality,
       sourceUrl: item!.sourceUrl,
     };
-  }, [item, media, streamUrl]);
+  }, [item, media, effectiveStreamUrl]);
 
   const videoRef = useRef<VideoRef>(null);
   const fullscreenVideoRef = useRef<VideoRef>(null);
   const currentTimeRef = useRef(0);
   const resumeAtRef = useRef(0);
-  const streamUrlRef = useRef(streamUrl);
+  const streamUrlRef = useRef(effectiveStreamUrl);
   const mediaRef = useRef(toPlayableMedia());
   const prevStreamUrlRef = useRef<string | null>(null);
-  streamUrlRef.current = streamUrl;
+  streamUrlRef.current = effectiveStreamUrl;
   mediaRef.current = toPlayableMedia();
 
   const [buffering, setBuffering] = useState(true);
@@ -292,36 +295,45 @@ export function PlayerScreen({route, navigation}: Props) {
     }
   }, [playable?.title]);
 
+  const playbackRef = useRef(playback);
+  playbackRef.current = playback;
+
   useFocusEffect(
     useCallback(() => {
       if (!playable) {
         return undefined;
       }
-      const nextMedia = mediaRef.current;
-      playback.syncFromRoute(nextMedia, streamUrlRef.current);
+      const pb = playbackRef.current;
+      pb.syncFromRoute(mediaRef.current, streamUrlRef.current);
       const handoffTime =
-        playback.streamUrl === streamUrlRef.current && playback.engineActive
-          ? playback.currentTime
+        pb.streamUrl === streamUrlRef.current && pb.engineActive
+          ? pb.currentTime
           : 0;
       resumeAtRef.current = handoffTime;
-      playback.deactivateEngine();
+      pb.deactivateEngine();
       setPaused(false);
       setBuffering(true);
       setStreamKey(key => key + 1);
       return () => {
-        playback.syncFromRoute(mediaRef.current, streamUrlRef.current);
-        playback.activateEngine(currentTimeRef.current);
+        const active = playbackRef.current;
+        active.syncFromRoute(mediaRef.current, streamUrlRef.current);
+        active.activateEngine(currentTimeRef.current);
       };
-    }, [playable, playback]),
+    }, [playable]),
   );
 
   useEffect(() => {
-    if (!playable) {
+    if (!playable || !effectiveStreamUrl) {
       return;
     }
-    const isTrackChange =
-      prevStreamUrlRef.current !== null && prevStreamUrlRef.current !== streamUrl;
-    prevStreamUrlRef.current = streamUrl;
+
+    const previousUrl = prevStreamUrlRef.current;
+    if (previousUrl === effectiveStreamUrl) {
+      return;
+    }
+
+    const isTrackChange = previousUrl !== null && previousUrl !== effectiveStreamUrl;
+    prevStreamUrlRef.current = effectiveStreamUrl;
 
     if (isTrackChange) {
       resumeAtRef.current = 0;
@@ -334,8 +346,12 @@ export function PlayerScreen({route, navigation}: Props) {
     setPaused(false);
     setBuffering(true);
     setStreamKey(key => key + 1);
-    playback.syncFromRoute(toPlayableMedia(), streamUrl);
-  }, [streamUrl, playable, playback, toPlayableMedia]);
+
+    // Route-owned navigation (library/queue). Search play uses attachStreamUrl on context.
+    if (routeStreamUrl.length > 0) {
+      playbackRef.current.syncFromRoute(toPlayableMedia(), effectiveStreamUrl);
+    }
+  }, [effectiveStreamUrl, routeStreamUrl, playable, toPlayableMedia]);
 
   useEffect(() => {
     const isVideoTrack = playable?.type === 'VIDEO';
@@ -486,9 +502,9 @@ export function PlayerScreen({route, navigation}: Props) {
         ? 'Video'
         : 'Audio';
 
-  const streamReady = !!streamUrl && streamUrl.length > 0;
+  const streamReady = !!effectiveStreamUrl && effectiveStreamUrl.length > 0;
   const videoSource = streamReady
-    ? buildMediaSource(streamUrl, isVideo ? 'VIDEO' : 'AUDIO')
+    ? buildMediaSource(effectiveStreamUrl, isVideo ? 'VIDEO' : 'AUDIO')
     : null;
 
   const videoWidth = layout.contentW;
