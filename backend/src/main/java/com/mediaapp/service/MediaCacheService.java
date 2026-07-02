@@ -4,6 +4,7 @@ import com.mediaapp.dto.PrepareStatusDto;
 import com.mediaapp.model.MediaType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
@@ -19,12 +20,14 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class MediaCacheService {
 
-    private static final long PREPARE_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(4);
-
     private final MediaService mediaService;
+    private final YtDlpService ytDlpService;
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final Map<String, PrepareStatusDto> jobs = new ConcurrentHashMap<>();
     private final Map<String, Long> jobStartedAt = new ConcurrentHashMap<>();
+
+    @Value("${app.media.prepare-timeout-seconds:180}")
+    private long prepareTimeoutSeconds;
 
     public PrepareStatusDto prepare(String videoId, MediaType type) {
         String key = jobKey(videoId, type);
@@ -46,8 +49,8 @@ public class MediaCacheService {
             }
             if (existing.getStatus() == PrepareStatusDto.Status.PREPARING) {
                 Long started = jobStartedAt.get(key);
-                if (started != null && System.currentTimeMillis() - started < PREPARE_TIMEOUT_MS) {
-                    return existing;
+                if (started != null && System.currentTimeMillis() - started < prepareTimeoutMs()) {
+                    return withElapsedMessage(existing, started);
                 }
                 jobs.remove(key);
                 jobStartedAt.remove(key);
@@ -58,13 +61,17 @@ public class MediaCacheService {
             }
         }
 
+        if (!ytDlpService.isAvailable()) {
+            return failedDto(videoId, type, "Media engine unavailable. Redeploy backend with yt-dlp.");
+        }
+
         PrepareStatusDto preparing = PrepareStatusDto.builder()
                 .videoId(videoId)
                 .type(type)
                 .status(PrepareStatusDto.Status.PREPARING)
                 .contentType(mediaService.getStreamContentType(type))
                 .quality(type == MediaType.AUDIO ? "Preparing audio…" : "Preparing video…")
-                .message("Downloading for playback. This may take 1–2 minutes on cloud.")
+                .message(prepareMessage(type))
                 .build();
         jobs.put(key, preparing);
         jobStartedAt.put(key, System.currentTimeMillis());
@@ -96,15 +103,43 @@ public class MediaCacheService {
             jobs.put(key, readyDto(videoId, type, cached, "Cached on server"));
         } catch (Exception e) {
             log.error("Prepare failed for {} {}", videoId, type, e);
+            jobs.put(key, failedDto(videoId, type, mediaService.friendlyMediaError(e.getMessage())));
+        } finally {
             jobStartedAt.remove(key);
-            jobs.put(key, PrepareStatusDto.builder()
-                    .videoId(videoId)
-                    .type(type)
-                    .status(PrepareStatusDto.Status.FAILED)
-                    .contentType(mediaService.getStreamContentType(type))
-                    .message(mediaService.friendlyMediaError(e.getMessage()))
-                    .build());
         }
+    }
+
+    private PrepareStatusDto withElapsedMessage(PrepareStatusDto dto, long startedAt) {
+        long elapsedSec = (System.currentTimeMillis() - startedAt) / 1000;
+        return PrepareStatusDto.builder()
+                .videoId(dto.getVideoId())
+                .type(dto.getType())
+                .status(dto.getStatus())
+                .streamUrl(dto.getStreamUrl())
+                .contentType(dto.getContentType())
+                .quality(dto.getQuality())
+                .message("Preparing… " + elapsedSec + "s (up to " + prepareTimeoutSeconds + "s)")
+                .build();
+    }
+
+    private String prepareMessage(MediaType type) {
+        String base = type == MediaType.AUDIO
+                ? "Preparing audio for playback."
+                : "Preparing video for playback.";
+        if (!ytDlpService.hasCookies()) {
+            return base + " Cloud may need YouTube cookies — or use Mac backend on Wi‑Fi.";
+        }
+        return base + " Usually 30–90 seconds.";
+    }
+
+    private PrepareStatusDto failedDto(String videoId, MediaType type, String message) {
+        return PrepareStatusDto.builder()
+                .videoId(videoId)
+                .type(type)
+                .status(PrepareStatusDto.Status.FAILED)
+                .contentType(mediaService.getStreamContentType(type))
+                .message(message)
+                .build();
     }
 
     private PrepareStatusDto readyDto(String videoId, MediaType type, Path cached, String message) {
@@ -117,6 +152,10 @@ public class MediaCacheService {
                 .quality(type == MediaType.AUDIO ? "Cached Audio" : mediaService.videoQualityLabelPublic())
                 .message(message)
                 .build();
+    }
+
+    private long prepareTimeoutMs() {
+        return TimeUnit.SECONDS.toMillis(prepareTimeoutSeconds);
     }
 
     private static String jobKey(String videoId, MediaType type) {

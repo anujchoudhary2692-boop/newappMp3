@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mediaapp.service.MediaDiagnosticsService;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -17,6 +19,7 @@ import java.util.Map;
 public class HealthController {
 
     private final MongoTemplate mongoTemplate;
+    private final MediaDiagnosticsService mediaDiagnosticsService;
 
     @GetMapping("/health")
     public ResponseEntity<ApiResponse<Map<String, Object>>> health() {
@@ -29,6 +32,17 @@ public class HealthController {
             data.put("mongodb", "UP");
         } catch (Exception e) {
             data.put("mongodb", "DOWN");
+            data.put("status", "DEGRADED");
+        }
+
+        Map<String, Object> media = mediaDiagnosticsService.snapshot();
+        data.put("media", media);
+        String mediaStatus = mediaDiagnosticsService.overallMediaStatus();
+        data.put("mediaStatus", mediaStatus);
+
+        if ("DOWN".equals(mediaStatus)) {
+            data.put("status", "DEGRADED");
+        } else if ("DEGRADED".equals(mediaStatus) && "UP".equals(data.get("status"))) {
             data.put("status", "DEGRADED");
         }
 

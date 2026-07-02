@@ -121,6 +121,24 @@ export interface FaceStatus {
   message: string;
 }
 
+export interface MediaDiagnostics {
+  ytDlp: 'UP' | 'DOWN';
+  ytDlpVersion?: string;
+  ffmpeg: 'UP' | 'DOWN';
+  youtubeCookies: 'CONFIGURED' | 'MISSING';
+  playDownload: 'UP' | 'LIMITED' | 'DOWN';
+  cacheDirWritable?: boolean;
+  hints?: Record<string, string>;
+}
+
+export interface HealthResponse {
+  status: 'UP' | 'DEGRADED' | 'DOWN';
+  app: string;
+  mongodb?: 'UP' | 'DOWN';
+  mediaStatus?: 'UP' | 'DEGRADED' | 'DOWN';
+  media?: MediaDiagnostics;
+}
+
 export interface FaceCandidate {
   personId: string;
   personName: string;
@@ -246,6 +264,9 @@ async function request<T>(
     }
     return json;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
         throw new Error(requestTimeoutMessage());
@@ -262,15 +283,20 @@ async function request<T>(
 
 export const api = {
   health: () =>
-    request<{status: string; app: string}>(
+    request<HealthResponse>(
       '/api/health',
       {},
       isProductionMode() ? 180000 : 8000,
     ),
 
-  searchMedia: (q: string) =>
+  mediaStatus: () =>
+    request<MediaDiagnostics>('/api/media/status'),
+
+  searchMedia: (q: string, signal?: AbortSignal) =>
     request<MediaSearchResult[]>(
       `/api/media/search?q=${encodeURIComponent(q)}&limit=15`,
+      signal ? {signal} : {},
+      isProductionMode() ? 60000 : 30000,
     ),
 
   downloadMedia: (payload: {

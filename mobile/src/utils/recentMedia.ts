@@ -28,18 +28,17 @@ export async function loadRecentMedia(): Promise<RecentMediaEntry[]> {
   }
 }
 
-export async function pushRecentMedia(media: PlayableMedia, streamUrl: string): Promise<void> {
+export async function pushRecentMedia(media: PlayableMedia, _streamUrl: string): Promise<void> {
   try {
     const id =
       media.libraryId ||
       media.videoId ||
-      `${media.type}:${media.title}:${streamUrl}`;
+      `${media.type}:${media.title}`;
     const entry: RecentMediaEntry = {
       id,
       title: media.title,
       thumbnailUrl: media.thumbnailUrl,
       type: media.type,
-      streamUrl,
       videoId: media.videoId,
       sourceUrl: media.sourceUrl,
       libraryId: media.libraryId,

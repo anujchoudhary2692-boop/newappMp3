@@ -64,17 +64,17 @@ export function BackendGate({children}: {children: React.ReactNode}) {
 
   if (status === 'checking') {
     return (
-      <View style={[styles.screen, {padding: layout.hPad}]}>
-        <View style={[styles.logoCircle, {width: layout.emptyIcon, height: layout.emptyIcon, borderRadius: layout.emptyIcon / 2}]}>
-          <Icon name="cloud" size={layout.emptyIcon * 0.48} color={COLORS.primary} />
+      <View style={[styles.screen, {padding: layout.hPad, backgroundColor: '#0F1117'}]}>
+        <View style={[styles.logoCircle, {width: layout.emptyIcon, height: layout.emptyIcon, borderRadius: layout.emptyIcon / 2, borderColor: '#FF9900'}]}>
+          <Icon name="play-circle" size={layout.emptyIcon * 0.48} color="#FF9900" />
         </View>
-        <Text style={[styles.appName, {fontSize: layout.font.hero * 0.4}]}>MediaFace</Text>
+        <Text style={[styles.appName, {fontSize: layout.font.hero * 0.4, color: '#fff'}]}>MediaFace</Text>
         <Text style={[styles.tagline, {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW}]}>
           {production
             ? 'Getting things ready…'
             : 'Connecting to your library…'}
         </Text>
-        <ActivityIndicator color={COLORS.primary} style={styles.spinner} />
+        <ActivityIndicator color="#FF9900" style={styles.spinner} />
         <Text style={[styles.host, {fontSize: layout.font.xs}]}>{triedUrls.join('\n')}</Text>
       </View>
     );
@@ -115,7 +115,7 @@ export function BackendGate({children}: {children: React.ReactNode}) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#0F1117',
     alignItems: 'center',
     justifyContent: 'center',
     padding: SPACING.xl,

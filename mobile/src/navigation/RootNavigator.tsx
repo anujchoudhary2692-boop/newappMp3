@@ -13,15 +13,10 @@ import {MiniPlayer} from '../components/MiniPlayer';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {GuideScreen} from '../screens/GuideScreen';
 import {useTheme} from '../context/ThemeContext';
-import {SHADOW} from '../config';
 import {navigationRef} from './navigationRef';
 import {RootStackParamList, RootTabParamList} from './types';
-import {
-  TAB_BAR_FLOAT_MARGIN,
-  TAB_BAR_SIDE_MARGIN,
-  rs,
-  tabBarVisualHeight,
-} from '../utils/layout';
+import {ENTERPRISE} from '../theme/enterprise';
+import {tabBarVisualHeight} from '../utils/layout';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<RootTabParamList>();
@@ -40,33 +35,24 @@ function tabIcon(routeName: string, focused: boolean, color: string, size: numbe
   return <Icon name={focused ? 'scan-circle' : 'scan-circle-outline'} size={s} color={color} />;
 }
 
-function tabColor(routeName: string, colors: ReturnType<typeof useTheme>['colors']): string {
-  if (routeName === 'Home') return colors.accent;
-  if (routeName === 'Media') return colors.primary;
-  if (routeName === 'Camera') return colors.camera;
-  return colors.face;
-}
-
 function MainTabs(_props: {routeVersion: number}) {
   const insets = useSafeAreaInsets();
   const {width} = useWindowDimensions();
-  const {colors} = useTheme();
-  const bottom = Math.max(insets.bottom, TAB_BAR_FLOAT_MARGIN);
-  const side = rs(TAB_BAR_SIDE_MARGIN, width);
-  const tabHeight = tabBarVisualHeight(width);
+  const tabHeight = tabBarVisualHeight(width) + Math.max(insets.bottom, 0);
 
   const defaultTabBarStyle = {
     position: 'absolute' as const,
-    left: side,
-    right: side,
-    bottom,
+    left: 0,
+    right: 0,
+    bottom: 0,
     height: tabHeight,
-    paddingBottom: Platform.OS === 'ios' ? 6 : 4,
-    paddingTop: 6,
-    borderRadius: rs(26, width),
-    borderTopWidth: 0,
-    backgroundColor: `${colors.surface}F5`,
-    ...SHADOW.md,
+    paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 8 : 6),
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: ENTERPRISE.headerBorder,
+    backgroundColor: ENTERPRISE.headerBg,
+    elevation: 0,
+    shadowOpacity: 0,
   };
 
   return (
@@ -75,20 +61,19 @@ function MainTabs(_props: {routeVersion: number}) {
       screenOptions={({route}) => ({
         headerShown: false,
         tabBarStyle: defaultTabBarStyle,
-        tabBarActiveTintColor: tabColor(route.name, colors),
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: ENTERPRISE.brand,
+        tabBarInactiveTintColor: '#879596',
         tabBarIcon: ({color, size, focused}) =>
           tabIcon(route.name, focused, color, size),
         tabBarLabelStyle: {
           fontWeight: '700',
-          fontSize: width < 360 ? 9 : width >= 768 ? 11 : 10,
-          letterSpacing: 0.2,
-          marginTop: -2,
+          fontSize: width < 360 ? 10 : 11,
+          letterSpacing: 0.1,
         },
         tabBarHideOnKeyboard: true,
       })}>
       <Tab.Screen name="Home" component={HomeScreen} options={{title: 'Home'}} />
-      <Tab.Screen name="Media" component={MediaNavigator} options={{title: 'Media'}} />
+      <Tab.Screen name="Media" component={MediaNavigator} options={{title: 'Browse'}} />
       <Tab.Screen
         name="Camera"
         component={CameraNavigator}
@@ -109,18 +94,18 @@ function MainTabs(_props: {routeVersion: number}) {
 }
 
 export function RootNavigator() {
-  const {colors, themeId} = useTheme();
+  const {themeId} = useTheme();
   const [routeVersion, setRouteVersion] = useState(0);
 
   const navTheme = {
     ...DefaultTheme,
     colors: {
       ...DefaultTheme.colors,
-      background: colors.background,
-      card: colors.surface,
-      text: colors.text,
-      border: colors.border,
-      primary: colors.primary,
+      background: ENTERPRISE.pageBg,
+      card: ENTERPRISE.cardBg,
+      text: '#fff',
+      border: ENTERPRISE.divider,
+      primary: ENTERPRISE.brand,
     },
   };
 
@@ -153,5 +138,5 @@ export function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
-  rootShell: {flex: 1},
+  rootShell: {flex: 1, backgroundColor: ENTERPRISE.pageBg},
 });

@@ -24,4 +24,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=15s --start-period=180s --retries=3 \
     CMD sh -c 'curl -sf "http://localhost:${PORT:-8080}/api/health" || exit 1'
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "yt-dlp --update-to stable 2>/dev/null || true; java $JAVA_OPTS -jar app.jar"]

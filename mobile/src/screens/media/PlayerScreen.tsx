@@ -26,11 +26,11 @@ import {SeekableProgressBar} from '../../components/SeekableProgressBar';
 import {useAutoHideControls} from '../../hooks/useAutoHideControls';
 import {COLORS, GRADIENTS, RADIUS, SHADOW, SPACING} from '../../config';
 import {MediaStackParamList} from '../../navigation/types';
-import {api, discoverMediaServer, PlayableMedia} from '../../api/client';
+import {PlayableMedia} from '../../api/client';
 import {usePlayback} from '../../context/PlaybackContext';
 import {useLayoutMetrics} from '../../utils/layout';
 import {buildMediaSource} from '../../utils/mediaPlayback';
-import {showDownloadError} from '../../utils/playSearchItem';
+import {saveMediaToDevice, showDownloadError} from '../../utils/playSearchItem';
 
 type Props = NativeStackScreenProps<MediaStackParamList, 'Player'>;
 
@@ -728,16 +728,17 @@ export function PlayerScreen({route, navigation}: Props) {
               style={[styles.downloadBtn, styles.audioDownload]}
               disabled={!!downloading}
               onPress={async () => {
-                if (!media.sourceUrl) return;
+                if (!media.sourceUrl || !media.videoId) return;
                 setDownloading('AUDIO');
                 try {
-                  await discoverMediaServer();
-                  const response = await api.downloadMedia({
-                    videoId: media.videoId!, title: media.title,
-                    sourceUrl: media.sourceUrl, type: 'AUDIO',
+                  await saveMediaToDevice({
+                    videoId: media.videoId,
+                    title: media.title,
+                    sourceUrl: media.sourceUrl,
+                    type: 'AUDIO',
+                    thumbnailUrl: media.thumbnailUrl,
                   });
-                  Alert.alert(response.success ? 'Saved' : 'Failed',
-                    response.success ? 'Audio added to library' : response.message || 'Download failed');
+                  Alert.alert('Saved on device', 'Audio saved to your phone and cloud library.');
                 } catch (e) {
                   showDownloadError(e);
                 } finally { setDownloading(null); }
@@ -753,16 +754,17 @@ export function PlayerScreen({route, navigation}: Props) {
               style={[styles.downloadBtn, styles.videoDownload]}
               disabled={!!downloading}
               onPress={async () => {
-                if (!media.sourceUrl) return;
+                if (!media.sourceUrl || !media.videoId) return;
                 setDownloading('VIDEO');
                 try {
-                  await discoverMediaServer();
-                  const response = await api.downloadMedia({
-                    videoId: media.videoId!, title: media.title,
-                    sourceUrl: media.sourceUrl, type: 'VIDEO',
+                  await saveMediaToDevice({
+                    videoId: media.videoId,
+                    title: media.title,
+                    sourceUrl: media.sourceUrl,
+                    type: 'VIDEO',
+                    thumbnailUrl: media.thumbnailUrl,
                   });
-                  Alert.alert(response.success ? 'Saved' : 'Failed',
-                    response.success ? 'Video added to library' : response.message || 'Download failed');
+                  Alert.alert('Saved on device', 'Video saved to your phone and cloud library.');
                 } catch (e) {
                   showDownloadError(e);
                 } finally { setDownloading(null); }

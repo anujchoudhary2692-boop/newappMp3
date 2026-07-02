@@ -17,11 +17,12 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {AppHeader} from '../../components/AppHeader';
+import {EnterpriseHeader} from '../../components/enterprise/EnterpriseHeader';
 import {EmptyState} from '../../components/EmptyState';
 import {PersonListSkeleton} from '../../components/Skeleton';
 import {api, Person} from '../../api/client';
 import {COLORS, GRADIENTS, RADIUS, SHADOW, SPACING} from '../../config';
+import {ENTERPRISE, enterpriseStyles} from '../../theme/enterprise';
 import {FaceStackParamList} from '../../navigation/types';
 import {useLayoutMetrics} from '../../utils/layout';
 
@@ -131,13 +132,8 @@ export function FaceHomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <AppHeader
-        title="People"
-        accentColor={COLORS.face}
-        variant="minimal"
-        showSettings
-      />
+    <View style={enterpriseStyles.page}>
+      <EnterpriseHeader title="Face Recognition" subtitle="Identify people in photos" showSettings />
       <LinearGradient
         colors={GRADIENTS.face}
         style={[styles.hero, {paddingHorizontal: layout.hPad}]}>
@@ -282,7 +278,7 @@ export function FaceHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: ENTERPRISE.pageBg,
   },
   hero: {
     paddingBottom: SPACING.md,
@@ -329,14 +325,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
-    backgroundColor: COLORS.face,
+    backgroundColor: ENTERPRISE.brand,
     paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
+    borderRadius: ENTERPRISE.radius.md,
     ...SHADOW.sm,
   },
   primaryBtnText: {
-    color: COLORS.background,
-    fontWeight: '700',
+    color: '#111',
+    fontWeight: '800',
   },
   secondaryBtn: {
     flex: 1,
@@ -369,12 +365,12 @@ const styles = StyleSheet.create({
   personCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: ENTERPRISE.cardBg,
     marginBottom: SPACING.sm,
     padding: SPACING.md,
-    borderRadius: RADIUS.lg,
+    borderRadius: ENTERPRISE.radius.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: ENTERPRISE.cardBorder,
     ...SHADOW.sm,
   },
   avatarRing: {

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {COLORS, RADIUS, SHADOW, SPACING} from '../config';
+import {ENTERPRISE} from '../theme/enterprise';
 import {useLayoutMetrics} from '../utils/layout';
 
 interface MediaCardProps {
@@ -193,15 +194,15 @@ export {formatDuration};
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
+    backgroundColor: ENTERPRISE.cardBg,
+    borderRadius: ENTERPRISE.radius.md,
     marginBottom: SPACING.md,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: ENTERPRISE.cardBorder,
   },
   cardActive: {
-    backgroundColor: 'rgba(124, 92, 255, 0.07)',
+    backgroundColor: '#1A222D',
   },
   activeStrip: {
     position: 'absolute',
@@ -246,13 +247,13 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.md,
   },
   title: {
-    color: COLORS.text,
+    color: '#fff',
     fontSize: 15,
     fontWeight: '600',
     lineHeight: 20,
   },
   subtitle: {
-    color: COLORS.textSecondary,
+    color: '#879596',
     fontSize: 13,
     marginTop: 4,
   },
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
     paddingBottom: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: ENTERPRISE.divider,
   },
   iconAction: {alignItems: 'center', flex: 1, minWidth: 0},
   iconCircle: {
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 6,
   },
-  audioCircle: {backgroundColor: COLORS.audio},
+  audioCircle: {backgroundColor: ENTERPRISE.brand},
   videoCircle: {backgroundColor: COLORS.video},
   audioOutlineCircle: {
     backgroundColor: 'rgba(124, 92, 255, 0.15)',
@@ -384,13 +385,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.primary,
+    backgroundColor: ENTERPRISE.brand,
     paddingVertical: 14,
-    borderRadius: RADIUS.md,
+    borderRadius: ENTERPRISE.radius.md,
     minHeight: 48,
   },
   playLibraryText: {
-    color: COLORS.text,
+    color: '#111',
     fontWeight: '800',
     fontSize: 14,
   },

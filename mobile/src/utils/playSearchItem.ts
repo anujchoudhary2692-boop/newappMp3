@@ -1,11 +1,32 @@
 import {Alert} from 'react-native';
-import {api, discoverMediaServer, MediaSearchResult, PlayableMedia} from '../api/client';
+import {
+  api,
+  discoverMediaServer,
+  MediaSearchResult,
+  PlayableMedia,
+} from '../api/client';
 import {getApiBaseUrl} from '../config';
 import {openPlayerScreen} from '../navigation/navigationRef';
+import {
+  DownloadProgress,
+  downloadMediaToDevice,
+  downloadSearchItemToDevice,
+  getLocalPlaybackUri,
+} from './localMediaStore';
 import {resolveStreamUrl} from './mediaPlayback';
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function pollDelay(attempt: number): number {
+  if (attempt < 4) {
+    return 800;
+  }
+  if (attempt < 10) {
+    return 1500;
+  }
+  return 3000;
 }
 
 function isBrokenPipeUrl(url: string): boolean {
@@ -22,7 +43,8 @@ function isPlayablePath(path: string): boolean {
   return (
     path.startsWith('http://') ||
     path.startsWith('https://') ||
-    path.startsWith('/files/')
+    path.startsWith('/files/') ||
+    path.startsWith('file://')
   );
 }
 
@@ -38,14 +60,35 @@ function mediaServerHint(): string {
   return 'Cloud cannot download from YouTube without cookies. Start Mac backend on same Wi‑Fi, or set YOUTUBE_COOKIES_BASE64 on Render.';
 }
 
-/** Wait for server-side cache/CDN URL — required on Render (pipe stream times out). */
+/** Fast playback: device file → server play URL → prepare poll. */
 export async function waitForMediaReady(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
   onStatus?: (message?: string) => void,
 ): Promise<{streamPath: string; quality?: string}> {
+  const localUri = await getLocalPlaybackUri(videoId, type);
+  if (localUri) {
+    onStatus?.('Playing from device storage…');
+    return {streamPath: localUri, quality: 'On device · Offline'};
+  }
+
   await discoverMediaServer();
-  onStatus?.('Preparing stream…');
+  onStatus?.('Connecting…');
+
+  try {
+    const play = await api.preparePlayUrl(videoId, type);
+    if (play.success && play.data?.streamUrl) {
+      const path = play.data.streamUrl;
+      if (path.includes('/api/media/prepare/')) {
+        onStatus?.('Preparing stream…');
+      } else if (isPlayablePath(path)) {
+        onStatus?.(play.data.cached ? 'Cached on server…' : 'Starting stream…');
+        return {streamPath: path, quality: play.data.quality};
+      }
+    }
+  } catch {
+    onStatus?.('Preparing stream…');
+  }
 
   for (let attempt = 0; attempt < 60; attempt += 1) {
     const status = await api.prepareMedia(videoId, type);
@@ -67,7 +110,7 @@ export async function waitForMediaReady(
       return {streamPath: data.streamUrl, quality: data.quality};
     }
 
-    await sleep(3000);
+    await sleep(pollDelay(attempt));
   }
 
   throw new Error(`Prepare timed out.\n\n${mediaServerHint()}`);
@@ -96,6 +139,39 @@ export async function prepareAndStartPlayback(
   openPlayerScreen(media, streamUrl);
 }
 
+export async function saveMediaToDevice(
+  payload: {
+    videoId: string;
+    title: string;
+    sourceUrl: string;
+    type: 'AUDIO' | 'VIDEO';
+    thumbnailUrl?: string;
+  },
+  onProgress?: (message: string) => void,
+): Promise<void> {
+  await downloadMediaToDevice(payload, progress => {
+    if (progress.percent > 0 && progress.percent < 100) {
+      onProgress?.(`Saving to device… ${progress.percent}%`);
+    } else if (progress.percent >= 100) {
+      onProgress?.('Saved on this device');
+    }
+  });
+}
+
+export async function saveSearchItemToDevice(
+  item: MediaSearchResult,
+  type: 'AUDIO' | 'VIDEO',
+  onProgress?: (message: string) => void,
+): Promise<void> {
+  await downloadSearchItemToDevice(item, type, progress => {
+    if (progress.percent > 0 && progress.percent < 100) {
+      onProgress?.(`Saving to device… ${progress.percent}%`);
+    } else if (progress.percent >= 100) {
+      onProgress?.('Saved on this device');
+    }
+  });
+}
+
 export function showPlaybackError(error: unknown): void {
   const raw =
     error instanceof Error
@@ -112,3 +188,5 @@ export function showDownloadError(error: unknown): void {
   const message = isYoutubeBlockedMessage(raw) ? `${raw}\n\n${mediaServerHint()}` : raw;
   Alert.alert('Download failed', message);
 }
+
+export type {DownloadProgress};

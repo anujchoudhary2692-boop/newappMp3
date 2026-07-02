@@ -9,69 +9,69 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import LinearGradient from 'react-native-linear-gradient';
 import {useFocusEffect} from '@react-navigation/native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {BrowseTile} from '../components/BrowseTile';
-import {FeatureCard} from '../components/FeatureCard';
-import {HomeMediaRow} from '../components/HomeMediaRow';
-import {SectionHeader} from '../components/SectionHeader';
+import {CatalogCard} from '../components/enterprise/CatalogCard';
+import {CatalogSection} from '../components/enterprise/CatalogSection';
+import {EnterpriseHeader} from '../components/enterprise/EnterpriseHeader';
+import {EnterpriseSearchBar} from '../components/enterprise/EnterpriseSearchBar';
+import {HeroBanner} from '../components/enterprise/HeroBanner';
+import {ServiceGrid, ServiceItem} from '../components/enterprise/ServiceGrid';
 import {api, discoverServer, MediaItem} from '../api/client';
-import {COLORS, GRADIENTS, RADIUS, SPACING} from '../config';
 import {usePlayback} from '../context/PlaybackContext';
 import {useTheme} from '../context/ThemeContext';
 import {
   goToCameraTab,
   goToFacesTab,
   goToMediaTab,
+  openGuide,
   openPlayerScreen,
   openSettings,
 } from '../navigation/navigationRef';
-import {resolveStreamUrl} from '../utils/mediaPlayback';
+import {ENTERPRISE, enterpriseStyles} from '../theme/enterprise';
+import {formatBytes, listLocalMedia, localRecordToMediaItem} from '../utils/localMediaStore';
+import {prepareAndStartPlayback} from '../utils/playSearchItem';
+import {resolveLibraryStreamUrl} from '../utils/playbackQueue';
 import {loadRecentMedia, RecentMediaEntry} from '../utils/recentMedia';
 import {useLayoutMetrics} from '../utils/layout';
 
-const BROWSE = [
-  {title: 'Bollywood', subtitle: 'Top hits', icon: 'sparkles', query: 'Bollywood hits', colors: ['#5B4FCF', '#2A2060'] as [string, string]},
-  {title: 'Lo-fi', subtitle: 'Chill beats', icon: 'cafe', query: 'Lo-fi beats', colors: ['#1E6B5C', '#0E2820'] as [string, string]},
-  {title: 'Pop', subtitle: 'Fresh tracks', icon: 'radio', query: 'Pop music 2024', colors: ['#C0267A', '#4A1030'] as [string, string]},
-  {title: 'Music videos', subtitle: 'HD playback', icon: 'play-circle', query: 'Music video HD', colors: ['#2563EB', '#0F172A'] as [string, string]},
+const TRENDING = [
+  {query: 'Bollywood hits', title: 'Bollywood', sub: 'Trending now'},
+  {query: 'Lo-fi beats', title: 'Lo-fi', sub: 'Focus & chill'},
+  {query: 'Pop music 2024', title: 'Pop', sub: 'Top charts'},
+  {query: 'Music video HD', title: 'HD Videos', sub: 'Watch in HD'},
 ];
-
-function timeGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) {
-    return 'Good morning';
-  }
-  if (hour < 17) {
-    return 'Good afternoon';
-  }
-  return 'Good evening';
-}
 
 export function HomeScreen() {
   const {colors} = useTheme();
   const layout = useLayoutMetrics(true);
-  const insets = useSafeAreaInsets();
   const {media, streamUrl, paused, togglePause, play} = usePlayback();
   const [savedItems, setSavedItems] = useState<MediaItem[]>([]);
   const [recentItems, setRecentItems] = useState<RecentMediaEntry[]>([]);
+  const [peopleCount, setPeopleCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const [audio, video, recent] = await Promise.allSettled([
+    const [audio, video, recent, people, localAudio, localVideo] = await Promise.allSettled([
       api.getAudioLibrary(),
       api.getVideoLibrary(),
       loadRecentMedia(),
+      api.getPersons(),
+      listLocalMedia('AUDIO'),
+      listLocalMedia('VIDEO'),
     ]);
 
     const audioList = audio.status === 'fulfilled' ? audio.value.data || [] : [];
     const videoList = video.status === 'fulfilled' ? video.value.data || [] : [];
-    const merged = [...audioList, ...videoList]
+    const localItems = [
+      ...(localAudio.status === 'fulfilled' ? localAudio.value : []),
+      ...(localVideo.status === 'fulfilled' ? localVideo.value : []),
+    ].map(localRecordToMediaItem);
+    const merged = [...audioList, ...videoList, ...localItems]
       .sort((a, b) => (b.downloadedAt || '').localeCompare(a.downloadedAt || ''))
-      .slice(0, 10);
+      .slice(0, 12);
     setSavedItems(merged);
     setRecentItems(recent.status === 'fulfilled' ? recent.value : []);
+    setPeopleCount(people.status === 'fulfilled' ? people.value.data?.length ?? 0 : 0);
   }, []);
 
   useFocusEffect(
@@ -87,332 +87,307 @@ export function HomeScreen() {
     setRefreshing(false);
   };
 
-  const resumePlayback = () => {
-    if (media && streamUrl) {
-      openPlayerScreen(media, streamUrl);
-    }
-  };
-
-  const playRecent = (item: RecentMediaEntry) => {
-    if (!item.streamUrl) {
-      goToMediaTab('SearchTab');
+  const playItem = async (
+    title: string,
+    type: 'AUDIO' | 'VIDEO',
+    streamPath: string,
+    thumbnailUrl?: string,
+    libraryId?: string,
+    sourceUrl?: string,
+    videoId?: string,
+  ) => {
+    if (videoId && !streamPath.startsWith('file://')) {
+      await prepareAndStartPlayback(
+        {
+          videoId,
+          title,
+          thumbnailUrl: thumbnailUrl || '',
+          channel: '',
+          sourceUrl: sourceUrl || `https://www.youtube.com/watch?v=${videoId}`,
+        },
+        type,
+        play,
+      );
       return;
     }
-    const url = resolveStreamUrl(item.streamUrl);
+    const url = streamPath.startsWith('file://')
+      ? streamPath
+      : await resolveLibraryStreamUrl({
+          id: libraryId || title,
+          title,
+          type,
+          streamUrl: streamPath,
+          fileName: '',
+          thumbnailUrl: thumbnailUrl || '',
+          sourceUrl: sourceUrl || '',
+        });
     const playable = {
-      title: item.title,
-      type: item.type,
+      title,
+      type,
       streamUrl: url,
-      thumbnailUrl: item.thumbnailUrl,
-      videoId: item.videoId,
-      sourceUrl: item.sourceUrl,
-      libraryId: item.libraryId,
+      thumbnailUrl,
+      libraryId,
+      sourceUrl,
+      videoId,
     };
     play(playable, url);
     openPlayerScreen(playable, url);
   };
 
-  const playSaved = (item: MediaItem) => {
-    const url = resolveStreamUrl(item.streamUrl);
-    const playable = {
-      title: item.title,
-      type: item.type,
-      streamUrl: url,
-      thumbnailUrl: item.thumbnailUrl,
-      libraryId: item.id,
-      sourceUrl: item.sourceUrl,
-    };
-    play(playable, url);
-    openPlayerScreen(playable, url);
-  };
-
-  const gridW = layout.halfGridWidth;
+  const services: ServiceItem[] = [
+    {id: 'search', label: 'Search', icon: 'search', color: colors.primary, onPress: () => goToMediaTab('SearchTab')},
+    {id: 'music', label: 'Music', icon: 'musical-notes', color: colors.audio, onPress: () => goToMediaTab('AudioTab')},
+    {id: 'video', label: 'Videos', icon: 'videocam', color: colors.video, onPress: () => goToMediaTab('VideoTab')},
+    {id: 'camera', label: 'Camera', icon: 'camera', color: colors.camera, onPress: goToCameraTab},
+    {id: 'faces', label: 'Face AI', icon: 'scan', color: colors.face, onPress: goToFacesTab},
+    {id: 'library', label: 'Downloads', icon: 'download', color: ENTERPRISE.brand, onPress: () => goToMediaTab('AudioTab')},
+    {id: 'guide', label: 'Help', icon: 'book', color: colors.accent, onPress: openGuide},
+    {id: 'settings', label: 'Account', icon: 'person', color: '#C7CED4', onPress: openSettings},
+  ];
 
   return (
-    <LinearGradient colors={GRADIENTS.media} style={styles.root}>
+    <View style={enterpriseStyles.page}>
+      <EnterpriseHeader
+        subtitle="Media · AI · Cloud"
+        showGuide
+        onGuide={openGuide}
+        searchSlot={
+          <EnterpriseSearchBar
+            editable={false}
+            placeholder="Search MediaFace"
+            onPress={() => goToMediaTab('SearchTab')}
+          />
+        }
+      />
+
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingTop: insets.top + SPACING.sm,
-            paddingBottom: layout.contentBottomPad + SPACING.lg,
-          },
-        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-        }>
-        {/* Top bar */}
-        <View style={[styles.topBar, {paddingHorizontal: layout.hPad}]}>
-          <View style={styles.topCopy}>
-            <Text style={[styles.greeting, {fontSize: layout.font.sm, color: colors.textMuted}]}>
-              {timeGreeting()}
-            </Text>
-            <Text style={[styles.headline, {fontSize: layout.font.xl, lineHeight: layout.font.lineLg}]}>
-              What do you want to play?
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.settingsBtn, {width: layout.headerBtn, height: layout.headerBtn}]}
-            onPress={openSettings}
-            hitSlop={8}>
-            <Icon name="settings-outline" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search entry */}
-        <TouchableOpacity
-          style={[styles.searchEntry, {marginHorizontal: layout.hPad}]}
-          onPress={() => goToMediaTab('SearchTab')}
-          activeOpacity={0.9}>
-          <Icon name="search" size={20} color={colors.textMuted} />
-          <Text style={[styles.searchPlaceholder, {fontSize: layout.font.md}]}>
-            Songs, artists, music videos…
-          </Text>
-        </TouchableOpacity>
-
-        {/* Now playing */}
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ENTERPRISE.brand} />
+        }
+        contentContainerStyle={{paddingBottom: layout.contentBottomPad + 16}}>
         {media && streamUrl ? (
           <TouchableOpacity
-            style={[styles.nowPlaying, {marginHorizontal: layout.hPad, borderColor: `${colors.primary}44`}]}
-            onPress={resumePlayback}
-            activeOpacity={0.9}>
-            <LinearGradient
-              colors={[`${colors.primary}33`, `${colors.accent}12`]}
-              style={styles.nowPlayingInner}>
+            style={styles.nowPlaying}
+            onPress={() => openPlayerScreen(media, streamUrl)}
+            activeOpacity={0.94}>
+            <View style={styles.nowInner}>
               {media.thumbnailUrl ? (
                 <Image source={{uri: media.thumbnailUrl}} style={styles.nowThumb} />
               ) : (
-                <View style={[styles.nowThumb, styles.nowThumbFallback, {backgroundColor: `${colors.primary}44`}]}>
-                  <Icon
-                    name={media.type === 'VIDEO' ? 'videocam' : 'musical-notes'}
-                    size={20}
-                    color={colors.text}
-                  />
+                <View style={[styles.nowThumb, styles.nowFallback]}>
+                  <Icon name="musical-notes" size={18} color="#fff" />
                 </View>
               )}
               <View style={styles.nowMeta}>
-                <Text style={[styles.nowLabel, {color: colors.primary, fontSize: layout.font.xs}]}>
-                  {paused ? 'Paused' : 'Now playing'}
-                </Text>
-                <Text style={[styles.nowTitle, {fontSize: layout.font.md}]} numberOfLines={1}>
+                <Text style={styles.nowEyebrow}>{paused ? 'PAUSED' : 'NOW PLAYING'}</Text>
+                <Text style={styles.nowTitle} numberOfLines={1}>
                   {media.title}
                 </Text>
               </View>
               <TouchableOpacity
-                style={[styles.nowPlayBtn, {backgroundColor: colors.primary}]}
+                style={styles.nowBtn}
                 onPress={e => {
                   e.stopPropagation?.();
                   togglePause();
                 }}>
-                <Icon name={paused ? 'play' : 'pause'} size={18} color="#fff" />
+                <Icon name={paused ? 'play' : 'pause'} size={18} color="#111" />
               </TouchableOpacity>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         ) : null}
 
-        <SectionHeader title="Browse" />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.hScroll, {paddingHorizontal: layout.hPad}]}>
-          {BROWSE.map(item => (
-            <BrowseTile
-              key={item.title}
+        <HeroBanner
+          title="Stream unlimited music & HD video"
+          subtitle="Search, play offline, and manage your library in one place."
+          cta="Start exploring"
+          icon="play-circle"
+          colors={['#146EB4', '#0B2845']}
+          onPress={() => goToMediaTab('SearchTab')}
+        />
+
+        <View style={enterpriseStyles.section}>
+          <Text style={[styles.sectionLabel, {paddingHorizontal: layout.hPad}]}>Shop by category</Text>
+          <ServiceGrid items={services} />
+        </View>
+
+        <CatalogSection
+          title="Trending searches"
+          subtitle="Popular picks this week"
+          actionLabel="Search all"
+          onAction={() => goToMediaTab('SearchTab')}>
+          {TRENDING.map(item => (
+            <CatalogCard
+              key={item.query}
               title={item.title}
-              subtitle={item.subtitle}
-              icon={item.icon}
-              colors={item.colors}
+              subtitle={item.sub}
+              type={item.query.includes('video') ? 'VIDEO' : 'AUDIO'}
+              badge="HOT"
               onPress={() => goToMediaTab('SearchTab', item.query)}
             />
           ))}
-        </ScrollView>
+        </CatalogSection>
 
         {savedItems.length > 0 ? (
-          <>
-            <SectionHeader
-              title="Your saves"
-              actionLabel="Library"
-              onAction={() => goToMediaTab('AudioTab')}
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[styles.hScroll, {paddingHorizontal: layout.hPad}]}>
-              {savedItems.map(item => (
-                <HomeMediaRow
-                  key={item.id}
-                  title={item.title}
-                  subtitle={item.type === 'AUDIO' ? 'Music' : 'Video'}
-                  thumbnailUrl={item.thumbnailUrl}
-                  type={item.type}
-                  onPress={() => playSaved(item)}
-                />
-              ))}
-            </ScrollView>
-          </>
+          <CatalogSection
+            title="Your library"
+            subtitle={`${savedItems.length} saved items`}
+            onAction={() => goToMediaTab('AudioTab')}>
+            {savedItems.map(item => (
+              <CatalogCard
+                key={item.id}
+                title={item.title}
+                subtitle={item.streamUrl.startsWith('file://') ? 'On device · Offline' : item.type === 'AUDIO' ? 'Music · Cloud' : 'Video · Cloud'}
+                thumbnailUrl={item.thumbnailUrl}
+                type={item.type}
+                badge={item.type === 'AUDIO' ? 'MP3' : 'HD'}
+                onPress={() =>
+                  playItem(
+                    item.title,
+                    item.type,
+                    item.streamUrl,
+                    item.thumbnailUrl,
+                    item.id,
+                    item.sourceUrl,
+                  )
+                }
+              />
+            ))}
+          </CatalogSection>
         ) : null}
 
-        {recentItems.length > 0 && !media ? (
-          <>
-            <SectionHeader title="Listen again" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[styles.hScroll, {paddingHorizontal: layout.hPad}]}>
-              {recentItems.slice(0, 8).map(item => (
-                <HomeMediaRow
-                  key={item.id}
-                  title={item.title}
-                  subtitle={item.type === 'AUDIO' ? 'Audio' : 'Video'}
-                  thumbnailUrl={item.thumbnailUrl}
-                  type={item.type}
-                  onPress={() => playRecent(item)}
-                />
-              ))}
-            </ScrollView>
-          </>
+        {recentItems.length > 0 ? (
+          <CatalogSection title="Continue listening" subtitle="Pick up where you left off">
+            {recentItems.slice(0, 10).map(item => (
+              <CatalogCard
+                key={item.id}
+                title={item.title}
+                subtitle={item.type === 'AUDIO' ? 'Audio' : 'Video'}
+                thumbnailUrl={item.thumbnailUrl}
+                type={item.type}
+                onPress={() => {
+                  if (item.videoId) {
+                    playItem(
+                      item.title,
+                      item.type,
+                      '',
+                      item.thumbnailUrl,
+                      item.libraryId,
+                      item.sourceUrl,
+                      item.videoId,
+                    );
+                  } else {
+                    goToMediaTab('SearchTab');
+                  }
+                }}
+              />
+            ))}
+          </CatalogSection>
         ) : null}
 
-        <SectionHeader title="Explore" />
-        <View style={[styles.exploreGrid, {paddingHorizontal: layout.hPad, gap: layout.gap}]}>
-          <FeatureCard
-            icon="search"
-            title="Search"
-            subtitle="Find anything"
-            colors={[`${colors.primary}55`, `${colors.primary}15`]}
-            accent={colors.primary}
-            layout="grid"
-            width={gridW}
-            onPress={() => goToMediaTab('SearchTab')}
-          />
-          <FeatureCard
-            icon="library"
-            title="Library"
-            subtitle="Offline saves"
-            colors={[`${colors.audio}50`, `${colors.audio}12`]}
-            accent={colors.audio}
-            layout="grid"
-            width={gridW}
-            badge={savedItems.length > 0 ? String(savedItems.length) : undefined}
-            onPress={() => goToMediaTab('AudioTab')}
-          />
-          <FeatureCard
-            icon="camera"
-            title="Camera"
-            subtitle="Geo photos"
-            colors={[`${colors.camera}50`, `${colors.camera}12`]}
-            accent={colors.camera}
-            layout="grid"
-            width={gridW}
-            onPress={goToCameraTab}
-          />
-          <FeatureCard
-            icon="happy"
-            title="Faces"
-            subtitle="Who is this?"
-            colors={[`${colors.face}45`, `${colors.face}10`]}
-            accent={colors.face}
-            layout="grid"
-            width={gridW}
-            onPress={goToFacesTab}
-          />
+        <View style={[enterpriseStyles.section, {paddingHorizontal: layout.hPad}]}>
+          <Text style={styles.promoTitle}>MediaFace Prime features</Text>
+          <View style={styles.promoGrid}>
+            <PromoTile icon="cloud-done" label="Cloud sync" detail="Works when Mac is off" />
+            <PromoTile icon="scan" label="Face AI" detail={`${peopleCount} people registered`} />
+            <PromoTile icon="location" label="Geo camera" detail="GPS tagged captures" />
+            <PromoTile icon="download" label="Offline mode" detail="Save MP3 & HD video" />
+          </View>
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
+  );
+}
+
+function PromoTile({icon, label, detail}: {icon: string; label: string; detail: string}) {
+  return (
+    <View style={styles.promoTile}>
+      <Icon name={icon} size={20} color={ENTERPRISE.brand} />
+      <Text style={styles.promoLabel}>{label}</Text>
+      <Text style={styles.promoDetail}>{detail}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {flex: 1},
-  content: {},
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.md,
-    gap: SPACING.sm,
-  },
-  topCopy: {flex: 1, minWidth: 0},
-  greeting: {
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  headline: {
-    color: COLORS.text,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  settingsBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: RADIUS.md,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  searchEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    marginBottom: SPACING.lg,
-  },
-  searchPlaceholder: {
-    color: COLORS.textMuted,
-    fontWeight: '600',
-    flex: 1,
-  },
   nowPlaying: {
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginBottom: SPACING.md,
+    backgroundColor: '#1A222D',
+    borderBottomWidth: 1,
+    borderBottomColor: ENTERPRISE.divider,
   },
-  nowPlayingInner: {
+  nowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SPACING.sm,
-    gap: SPACING.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
   nowThumb: {
-    width: 52,
-    height: 52,
-    borderRadius: RADIUS.sm,
+    width: 48,
+    height: 48,
+    borderRadius: 8,
   },
-  nowThumbFallback: {
+  nowFallback: {
+    backgroundColor: '#37475A',
     alignItems: 'center',
     justifyContent: 'center',
   },
   nowMeta: {flex: 1, minWidth: 0},
-  nowLabel: {
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 2,
+  nowEyebrow: {
+    color: ENTERPRISE.brand,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
   nowTitle: {
-    color: COLORS.text,
+    color: '#fff',
     fontWeight: '700',
+    marginTop: 2,
+    fontSize: 15,
   },
-  nowPlayBtn: {
+  nowBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: ENTERPRISE.brand,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hScroll: {
-    gap: SPACING.sm,
-    paddingBottom: SPACING.xs,
+  sectionLabel: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+    marginBottom: 12,
   },
-  exploreGrid: {
+  promoTitle: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  promoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 10,
+  },
+  promoTile: {
+    width: '48%',
+    flexGrow: 1,
+    backgroundColor: ENTERPRISE.pageBg,
+    borderRadius: ENTERPRISE.radius.md,
+    borderWidth: 1,
+    borderColor: ENTERPRISE.cardBorder,
+    padding: 12,
+    gap: 4,
+  },
+  promoLabel: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  promoDetail: {
+    color: '#879596',
+    fontWeight: '600',
+    fontSize: 12,
   },
 });

@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {
   Alert,
   FlatList,
@@ -18,12 +18,42 @@ import {usePlayback} from '../../context/PlaybackContext';
 import {api, MediaItem} from '../../api/client';
 import {buildLibraryQueue} from '../../utils/playbackQueue';
 import {openPlayerScreen} from '../../navigation/navigationRef';
-import {COLORS, GRADIENTS, RADIUS, SPACING} from '../../config';
+import {COLORS, RADIUS, SPACING} from '../../config';
+import {ENTERPRISE, enterpriseStyles} from '../../theme/enterprise';
 import {connectionErrorHint} from '../../utils/serverConnection';
+import {
+  deleteLocalMedia,
+  listLocalMedia,
+  localRecordToMediaItem,
+} from '../../utils/localMediaStore';
 import {useLayoutMetrics} from '../../utils/layout';
 
 interface Props {
   type: 'AUDIO' | 'VIDEO';
+}
+
+function mergeLibraryItems(serverItems: MediaItem[], localItems: MediaItem[]): MediaItem[] {
+  const map = new Map<string, MediaItem>();
+  for (const item of serverItems) {
+    map.set(item.id, item);
+  }
+  for (const item of localItems) {
+    const existing = [...map.values()].find(
+      s => s.sourceUrl === item.sourceUrl && s.type === item.type,
+    );
+    if (existing) {
+      map.set(existing.id, {
+        ...existing,
+        streamUrl: item.streamUrl,
+        quality: item.quality,
+      });
+    } else {
+      map.set(item.id, item);
+    }
+  }
+  return [...map.values()].sort((a, b) =>
+    (b.downloadedAt || '').localeCompare(a.downloadedAt || ''),
+  );
 }
 
 export function LibraryScreen({type}: Props) {
@@ -33,19 +63,28 @@ export function LibraryScreen({type}: Props) {
   const [loading, setLoading] = useState(false);
   const isAudio = type === 'AUDIO';
   const accent = isAudio ? COLORS.audio : COLORS.video;
+  const onDeviceCount = useMemo(
+    () => items.filter(item => item.streamUrl.startsWith('file://')).length,
+    [items],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response =
-        type === 'AUDIO'
-          ? await api.getAudioLibrary()
-          : await api.getVideoLibrary();
-      if (response.success) {
-        setItems(response.data || []);
-      }
+      const [serverResponse, localRecords] = await Promise.all([
+        type === 'AUDIO' ? api.getAudioLibrary() : api.getVideoLibrary(),
+        listLocalMedia(type),
+      ]);
+      const serverItems = serverResponse.success ? serverResponse.data || [] : [];
+      const localItems = localRecords.map(localRecordToMediaItem);
+      setItems(mergeLibraryItems(serverItems, localItems));
     } catch {
-      Alert.alert('Error', connectionErrorHint());
+      const localRecords = await listLocalMedia(type);
+      if (localRecords.length > 0) {
+        setItems(localRecords.map(localRecordToMediaItem));
+      } else {
+        Alert.alert('Error', connectionErrorHint());
+      }
     } finally {
       setLoading(false);
     }
@@ -65,12 +104,16 @@ export function LibraryScreen({type}: Props) {
         style: 'destructive',
         onPress: async () => {
           try {
-            const response = await api.deleteMedia(item.id);
-            if (response.success) {
-              load();
+            if (item.streamUrl.startsWith('file://')) {
+              await deleteLocalMedia(item.id);
             } else {
-              Alert.alert('Delete failed', response.message || 'Try again');
+              const response = await api.deleteMedia(item.id);
+              if (!response.success) {
+                Alert.alert('Delete failed', response.message || 'Try again');
+                return;
+              }
             }
+            load();
           } catch {
             Alert.alert('Delete failed', 'Could not remove item');
           }
@@ -79,8 +122,15 @@ export function LibraryScreen({type}: Props) {
     ]);
   };
 
+  const handlePlay = async (index: number) => {
+    const queue = await buildLibraryQueue(items);
+    playQueue(queue, index);
+    const track = queue[index];
+    openPlayerScreen(track.media, track.streamUrl);
+  };
+
   return (
-    <LinearGradient colors={GRADIENTS.media} style={styles.container}>
+    <View style={enterpriseStyles.page}>
       <FlatList
         data={items}
         keyExtractor={item => item.id}
@@ -96,7 +146,7 @@ export function LibraryScreen({type}: Props) {
             <MediaListSkeleton count={5} />
           ) : (
             <LinearGradient
-              colors={isAudio ? ['rgba(124,92,255,0.18)', 'transparent'] : ['rgba(255,107,157,0.18)', 'transparent']}
+              colors={isAudio ? ['rgba(255,153,0,0.12)', 'transparent'] : ['rgba(255,107,157,0.12)', 'transparent']}
               style={[styles.sectionHeader, {paddingHorizontal: layout.hPad}]}>
               <View style={styles.sectionTop}>
                 <View style={styles.sectionTitles}>
@@ -107,7 +157,7 @@ export function LibraryScreen({type}: Props) {
                     </Text>
                   </View>
                   <Text style={styles.sectionSub}>
-                    {items.length} saved · plays through automatically
+                    {items.length} saved · {onDeviceCount} on device · plays offline
                   </Text>
                 </View>
                 {items.length > 1 ? (
@@ -131,7 +181,7 @@ export function LibraryScreen({type}: Props) {
               title={isAudio ? 'No songs yet' : 'No videos yet'}
               subtitle={
                 isAudio
-                  ? 'Search and save MP3s — they appear here for offline playback'
+                  ? 'Search and save MP3s — stored on your phone for offline playback'
                   : 'Search and save HD videos — watch anytime without internet'
               }
               accentColor={accent}
@@ -141,17 +191,16 @@ export function LibraryScreen({type}: Props) {
         renderItem={({item, index}) => (
           <MediaCard
             title={item.title}
-            subtitle={item.quality}
+            subtitle={
+              item.streamUrl.startsWith('file://')
+                ? `${item.quality || 'On device'} · Offline`
+                : item.quality
+            }
             thumbnailUrl={item.thumbnailUrl}
             mode="library"
             type={item.type}
             active={queueLength > 0 && media?.libraryId === item.id}
-            onPlay={() => {
-              const queue = buildLibraryQueue(items);
-              playQueue(queue, index);
-              const track = queue[index];
-              openPlayerScreen(track.media, track.streamUrl);
-            }}
+            onPlay={() => handlePlay(index)}
             onDelete={() => handleDelete(item)}
           />
         )}
@@ -161,7 +210,7 @@ export function LibraryScreen({type}: Props) {
             : [styles.list, {paddingBottom: layout.contentBottomPadWithPlayer}]
         }
       />
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -174,7 +223,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
     marginBottom: SPACING.xs,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: ENTERPRISE.divider,
   },
   titleRow: {
     flexDirection: 'row',

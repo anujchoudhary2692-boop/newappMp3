@@ -383,10 +383,10 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
             playWhenInactive
             ignoreSilentSwitch="ignore"
             bufferConfig={{
-              minBufferMs: 1500,
-              maxBufferMs: 8000,
-              bufferForPlaybackMs: 400,
-              bufferForPlaybackAfterRebufferMs: 800,
+              minBufferMs: 800,
+              maxBufferMs: 12000,
+              bufferForPlaybackMs: 250,
+              bufferForPlaybackAfterRebufferMs: 500,
             }}
             onLoad={onLoad}
             onProgress={onProgress}

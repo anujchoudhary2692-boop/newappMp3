@@ -18,3 +18,6 @@ app:
   security:
     api-key: ${API_KEY:}
     require-api-key: ${REQUIRE_API_KEY:false}
+  media:
+    prepare-timeout-seconds: ${PREPARE_TIMEOUT_SECONDS:240}
+    yt-dlp-timeout-seconds: ${YT_DLP_TIMEOUT_SECONDS:480}

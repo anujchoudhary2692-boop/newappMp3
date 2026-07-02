@@ -1,16 +1,16 @@
 import React from 'react';
-import {StyleSheet} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {RouteProp, useRoute} from '@react-navigation/native';
-import LinearGradient from 'react-native-linear-gradient';
-import {AppHeader} from '../components/AppHeader';
+import {EnterpriseHeader} from '../components/enterprise/EnterpriseHeader';
 import {SearchScreen} from '../screens/media/SearchScreen';
 import {LibraryScreen} from '../screens/media/LibraryScreen';
 import {PlayerScreen} from '../screens/media/PlayerScreen';
-import {COLORS, GRADIENTS, RADIUS} from '../config';
 import {MediaStackParamList} from './types';
+import {openGuide} from './navigationRef';
 import {useLayoutMetrics} from '../utils/layout';
+import {ENTERPRISE, enterpriseStyles} from '../theme/enterprise';
 
 const Stack = createNativeStackNavigator<MediaStackParamList>();
 const TopTabs = createMaterialTopTabNavigator();
@@ -28,15 +28,15 @@ function MediaTabs() {
           styles.tabBar,
           {
             marginHorizontal: layout.hPad,
-            height: layout.isCompact ? 42 : 46,
+            height: layout.isCompact ? 44 : 48,
           },
         ],
         tabBarIndicatorStyle: styles.tabIndicator,
-        tabBarActiveTintColor: COLORS.text,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarActiveTintColor: '#fff',
+        tabBarInactiveTintColor: '#879596',
         tabBarLabelStyle: [styles.tabLabel, {fontSize: layout.font.sm}],
         tabBarItemStyle: styles.tabItem,
-        tabBarPressColor: 'rgba(79, 140, 255, 0.12)',
+        tabBarPressColor: 'rgba(255,153,0,0.12)',
       }}>
       <TopTabs.Screen name="SearchTab" component={SearchScreen} options={{title: 'Search'}} />
       <TopTabs.Screen name="AudioTab" options={{title: 'Music'}}>
@@ -51,10 +51,15 @@ function MediaTabs() {
 
 function MediaHome() {
   return (
-    <LinearGradient colors={GRADIENTS.media} style={styles.root}>
-      <AppHeader title="Discover" accentColor={COLORS.primary} variant="minimal" showSettings />
+    <View style={enterpriseStyles.page}>
+      <EnterpriseHeader
+        title="Browse"
+        subtitle="Search · Stream · Download"
+        showGuide
+        onGuide={openGuide}
+      />
       <MediaTabs />
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -63,7 +68,7 @@ export function MediaNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: {backgroundColor: COLORS.background},
+        contentStyle: {backgroundColor: ENTERPRISE.pageBg},
       }}>
       <Stack.Screen name="Search" component={MediaHome} />
       <Stack.Screen name="Player" component={PlayerScreen} options={{headerShown: false}} />
@@ -72,22 +77,21 @@ export function MediaNavigator() {
 }
 
 const styles = StyleSheet.create({
-  root: {flex: 1},
   tabBar: {
-    backgroundColor: 'rgba(18, 18, 28, 0.92)',
+    backgroundColor: ENTERPRISE.searchBg,
     elevation: 0,
     shadowOpacity: 0,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    borderRadius: RADIUS.lg,
+    borderColor: ENTERPRISE.searchBorder,
+    borderRadius: ENTERPRISE.radius.md,
     marginBottom: 4,
     overflow: 'hidden',
   },
   tabIndicator: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: ENTERPRISE.brand,
     height: 3,
     borderRadius: 2,
   },
   tabLabel: {fontWeight: '700', textTransform: 'none'},
-  tabItem: {minHeight: 40},
+  tabItem: {minHeight: 42},
 });

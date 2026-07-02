@@ -9,7 +9,11 @@ export const MEDIA_STREAM_HEADERS: Record<string, string> = {
 
 export function resolveStreamUrl(streamPath: string): string {
   const trimmed = streamPath.trim();
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('file://')
+  ) {
     return trimmed;
   }
   const base = getApiBaseUrl().replace(/\/$/, '');
@@ -25,7 +29,13 @@ export function mediaStreamHeaders(streamUrl: string): Record<string, string> {
   return headers;
 }
 
-export function buildMediaSource(streamUrl: string, type: 'AUDIO' | 'VIDEO') {
+export function buildMediaSource(streamUrl: string, _type: 'AUDIO' | 'VIDEO') {
+  if (streamUrl.startsWith('file://')) {
+    return {
+      uri: streamUrl,
+      type: 'mp4' as const,
+    };
+  }
   // M4A audio uses MP4 container — AVPlayer on iOS prefers type mp4 for both.
   return {
     uri: streamUrl,

@@ -4,6 +4,7 @@ import com.mediaapp.dto.*;
 import com.mediaapp.model.MediaItem;
 import com.mediaapp.model.MediaType;
 import com.mediaapp.service.MediaCacheService;
+import com.mediaapp.service.MediaDiagnosticsService;
 import com.mediaapp.service.MediaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -24,6 +26,7 @@ public class MediaController {
 
     private final MediaService mediaService;
     private final MediaCacheService mediaCacheService;
+    private final MediaDiagnosticsService mediaDiagnosticsService;
 
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<MediaSearchResultDto>>> search(
@@ -66,6 +69,11 @@ public class MediaController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> mediaStatus() {
+        return ResponseEntity.ok(ApiResponse.ok(mediaDiagnosticsService.snapshot()));
     }
 
     @GetMapping("/stream/{videoId}")

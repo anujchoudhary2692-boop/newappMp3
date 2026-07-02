@@ -11,6 +11,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import {usePlayback} from '../context/PlaybackContext';
 import {COLORS, RADIUS, SHADOW, SPACING} from '../config';
+import {ENTERPRISE} from '../theme/enterprise';
 import {isPlayerScreenOpen, openPlayerScreen, shouldHideMiniPlayer} from '../navigation/navigationRef';
 import {useLayoutMetrics} from '../utils/layout';
 import {SeekableProgressBar} from './SeekableProgressBar';
@@ -66,10 +67,8 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
 
   return (
     <View style={[styles.wrap, {bottom: layout.miniPlayerBottom, left: layout.hPad, right: layout.hPad}]}>
-      <LinearGradient
-        colors={['#22222E', '#1A1A24']}
-        style={[styles.bar, SHADOW.md]}>
-        <View style={[styles.accentEdge, {backgroundColor: accent}]} />
+      <View style={[styles.bar, SHADOW.md]}>
+        <View style={[styles.accentEdge, {backgroundColor: ENTERPRISE.brand}]} />
         {queueActive ? (
           <TouchableOpacity
             style={[styles.iconBtn, {width: iconBtn, height: iconBtn}]}
@@ -90,7 +89,7 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
             <Image source={{uri: media.thumbnailUrl}} style={[styles.thumb, {width: thumb, height: thumb}]} />
           ) : (
             <LinearGradient colors={[accent, `${accent}88`]} style={[styles.thumb, {width: thumb, height: thumb}]}>
-              <Icon name={media.type === 'VIDEO' ? 'videocam' : 'musical-notes'} size={layout.font.sm} color={COLORS.text} />
+              <Icon name={media.type === 'VIDEO' ? 'videocam' : 'musical-notes'} size={layout.font.sm} color="#111" />
             </LinearGradient>
           )}
           <View style={styles.meta}>
@@ -111,11 +110,11 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
             </View>
           </View>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.playBtn, {backgroundColor: accent, width: playBtn, height: playBtn, borderRadius: playBtn / 2}]} onPress={togglePause}>
+        <TouchableOpacity style={[styles.playBtn, {backgroundColor: ENTERPRISE.brand, width: playBtn, height: playBtn, borderRadius: playBtn / 2}]} onPress={togglePause}>
           {buffering ? (
-            <ActivityIndicator size="small" color={COLORS.text} />
+            <ActivityIndicator size="small" color="#111" />
           ) : (
-            <Icon name={paused ? 'play' : 'pause'} size={18} color={COLORS.text} />
+            <Icon name={paused ? 'play' : 'pause'} size={18} color="#111" />
           )}
         </TouchableOpacity>
         {queueActive ? (
@@ -126,7 +125,7 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
         <TouchableOpacity style={[styles.iconBtn, {width: iconBtn, height: iconBtn}]} onPress={stop}>
           <Icon name="close" size={17} color={COLORS.textMuted} />
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
     </View>
   );
 }
@@ -140,9 +139,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    borderRadius: RADIUS.lg,
+    borderRadius: ENTERPRISE.radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: ENTERPRISE.headerBorder,
+    backgroundColor: ENTERPRISE.headerBg,
     paddingRight: 6,
     paddingVertical: 6,
     overflow: 'hidden',
@@ -150,8 +150,8 @@ const styles = StyleSheet.create({
   accentEdge: {
     width: 3,
     alignSelf: 'stretch',
-    borderTopLeftRadius: RADIUS.lg,
-    borderBottomLeftRadius: RADIUS.lg,
+    borderTopLeftRadius: ENTERPRISE.radius.md,
+    borderBottomLeftRadius: ENTERPRISE.radius.md,
   },
   tapArea: {
     flex: 1,
