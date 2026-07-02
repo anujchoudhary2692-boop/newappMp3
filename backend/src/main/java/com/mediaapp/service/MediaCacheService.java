@@ -35,6 +35,10 @@ public class MediaCacheService {
     public PrepareStatusDto prepare(String videoId, MediaType type) {
         String key = jobKey(videoId, type);
 
+        if (renderHost && !ytDlpService.hasCookies()) {
+            return failedDto(videoId, type, cloudCookiesRequiredMessage());
+        }
+
         try {
             Path cached = mediaService.cachePathFor(videoId, type);
             if (Files.exists(cached) && Files.size(cached) > 0
@@ -156,10 +160,17 @@ public class MediaCacheService {
         String base = type == MediaType.AUDIO
                 ? "Preparing audio for playback."
                 : "Preparing video for playback.";
+        if (renderHost && !ytDlpService.hasCookies()) {
+            return cloudCookiesRequiredMessage();
+        }
         if (!ytDlpService.hasCookies()) {
             return base + " Cloud may need YouTube cookies — or use Mac backend on Wi‑Fi.";
         }
         return base + " Usually 30–90 seconds.";
+    }
+
+    private String cloudCookiesRequiredMessage() {
+        return "YouTube blocked cloud playback. Set YOUTUBE_COOKIES_BASE64 on Render, or use Mac backend on same Wi‑Fi.";
     }
 
     private PrepareStatusDto failedDto(String videoId, MediaType type, String message) {

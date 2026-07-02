@@ -3,7 +3,7 @@ import ReactNativeBlobUtil from 'react-native-blob-util';
 import {warmMediaServer} from './mediaPrefetch';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaItem, MediaSearchResult} from '../features/media/domain/types';
-import {getApiKey} from '../config';
+import {getApiBaseUrl, getApiKey} from '../config';
 import {mediaStreamHeaders, resolveStreamUrl} from './mediaPlayback';
 
 export interface LocalMediaRecord {
@@ -28,6 +28,10 @@ function mediaRootDir(): string {
 
 function typeDir(type: 'AUDIO' | 'VIDEO'): string {
   return type === 'AUDIO' ? `${mediaRootDir()}/audio` : `${mediaRootDir()}/video`;
+}
+
+function isLanBackend(base = getApiBaseUrl()): boolean {
+  return base.startsWith('http://') && !base.includes('onrender.com');
 }
 
 function recordKey(videoId: string, type: 'AUDIO' | 'VIDEO'): string {
@@ -196,6 +200,17 @@ export async function downloadMediaToDevice(
   }
 
   await warmMediaServer();
+  if (!isLanBackend()) {
+    const status = await mediaApi.status();
+    if (status.success && status.data?.playDownload === 'LIMITED') {
+      throw new Error(
+        'Cloud needs YouTube cookies on Render.\n\n' +
+          'On Mac run: ./scripts/export-youtube-cookies.sh\n' +
+          'Paste into Render → YOUTUBE_COOKIES_BASE64\n\n' +
+          'Or start Mac backend on same Wi‑Fi (auto-discovered).',
+      );
+    }
+  }
 
   let response;
   try {

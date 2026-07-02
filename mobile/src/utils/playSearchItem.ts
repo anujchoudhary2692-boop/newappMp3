@@ -162,13 +162,21 @@ async function waitForMediaReadyOnce(
 
   const searchStreamPath =
     type === 'AUDIO' ? searchItem?.audioStreamUrl : searchItem?.videoStreamUrl;
-  if (searchStreamPath && isPlayablePath(searchStreamPath)) {
+  if (searchStreamPath && isPlayablePath(searchStreamPath) && isLanBackend()) {
     void mediaApi.prepare(videoId, type).catch(() => undefined);
     putSessionStream(videoId, type, searchStreamPath, 'Streaming');
     return {streamPath: searchStreamPath, quality: 'Streaming'};
   }
 
-  await assertPlaybackCapable();
+  if (!isLanBackend()) {
+    await assertPlaybackCapable();
+    if (searchStreamPath && isPlayablePath(searchStreamPath)) {
+      void mediaApi.prepare(videoId, type).catch(() => undefined);
+      putSessionStream(videoId, type, searchStreamPath, 'Streaming');
+      return {streamPath: searchStreamPath, quality: 'Streaming'};
+    }
+  }
+
   onStatus?.('Starting stream…');
 
   void mediaApi.prepare(videoId, type).catch(() => undefined);
@@ -245,7 +253,16 @@ export async function prepareAndStartPlayback(
   };
 
   prefetchMediaPrepare(item.videoId, type);
-  void warmMediaServer().catch(() => undefined);
+
+  try {
+    await warmMediaServer();
+    if (!isLanBackend()) {
+      await assertPlaybackCapable();
+    }
+  } catch (error) {
+    showPlaybackError(error);
+    throw error;
+  }
 
   openPlayerScreen(mediaBase, '');
   playback.beginPlayback(mediaBase);

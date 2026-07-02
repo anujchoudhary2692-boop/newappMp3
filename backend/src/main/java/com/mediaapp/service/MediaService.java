@@ -67,6 +67,9 @@ public class MediaService {
     @Value("${app.media.direct-url-timeout-seconds:45}")
     private int directUrlTimeoutSeconds;
 
+    @Value("${RENDER:false}")
+    private boolean renderHost;
+
     public String friendlyMediaError(String raw) {
         return ytDlpService.friendlyError(raw);
     }
@@ -156,6 +159,7 @@ public class MediaService {
 
     public void writeStreamPipe(String videoId, MediaType type, java.io.OutputStream outputStream)
             throws IOException, InterruptedException {
+        requireCloudPlaybackAllowed();
         pipeFromYtDlp(buildSourceUrl(videoId), type, outputStream);
         warmCacheAsync(videoId, type);
     }
@@ -419,6 +423,7 @@ public class MediaService {
     }
 
     public MediaItem download(String videoId, String title, String sourceUrl, MediaType type) {
+        requireCloudPlaybackAllowed();
         String lockKey = "dl:" + videoId + ":" + type;
         Object lock = downloadLocks.computeIfAbsent(lockKey, k -> new Object());
         synchronized (lock) {
@@ -594,6 +599,13 @@ public class MediaService {
         String sourceUrl = command.get(1);
         List<String> trailing = command.subList(2, command.size());
         ytDlpService.runWithFallbacks(sourceUrl, new ArrayList<>(trailing), ytDlpTimeoutSeconds);
+    }
+
+    private void requireCloudPlaybackAllowed() {
+        if (renderHost && !ytDlpService.hasCookies()) {
+            throw new IllegalStateException(
+                    "YouTube blocked cloud playback. Set YOUTUBE_COOKIES_BASE64 on Render, or use Mac backend on same Wi‑Fi.");
+        }
     }
 
     private String buildSourceUrl(String videoId) {
