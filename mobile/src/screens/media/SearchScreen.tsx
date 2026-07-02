@@ -22,6 +22,7 @@ import {useFeatureFlag} from '../../core/features/FeatureFlagsProvider';
 import type {MediaSearchResult} from '../../features/media/domain/types';
 import {useMediaSearch} from '../../features/media/hooks/useMediaSearch';
 import {prepareAndStartPlayback, saveSearchItemToDevice, showDownloadError} from '../../features/media/services/PlaybackOrchestrator';
+import {prefetchMediaPrepare, warmMediaServer} from '../../utils/mediaPrefetch';
 import {consumePendingSearchQuery} from '../../utils/searchIntent';
 import {useLayoutMetrics} from '../../utils/layout';
 import {enterpriseStyles} from '../../theme/enterprise';
@@ -53,48 +54,53 @@ export function SearchScreen() {
     }, [setQuery]),
   );
 
-  const handlePlay = async (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO') => {
+  const handlePlay = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO') => {
     if (!mediaSearchEnabled) {
       Alert.alert('Unavailable', 'Media search is disabled on this server.');
       return;
     }
+    prefetchMediaPrepare(item.videoId, type);
     setPlaying(prev => ({...prev, [item.videoId]: type}));
-    try {
-      await prepareAndStartPlayback(item, type, playback);
-    } catch {
-      // error alert shown in prepareAndStartPlayback
-    } finally {
-      setPlaying(prev => {
-        const next = {...prev};
-        delete next[item.videoId];
-        return next;
+    void prepareAndStartPlayback(item, type, playback)
+      .catch(() => {
+        // error alert shown in prepareAndStartPlayback
+      })
+      .finally(() => {
+        setPlaying(prev => {
+          const next = {...prev};
+          delete next[item.videoId];
+          return next;
+        });
       });
-    }
   };
 
-  const handleDownload = async (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO') => {
+  const handleDownload = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO') => {
     if (!mediaDownloadEnabled) {
       Alert.alert('Unavailable', 'Downloads are disabled on this server.');
       return;
     }
+    void warmMediaServer();
+    prefetchMediaPrepare(item.videoId, type);
     setDownloading(prev => ({...prev, [item.videoId]: type}));
-    try {
-      await saveSearchItemToDevice(item, type);
-      Alert.alert(
-        'Saved on device',
-        type === 'AUDIO'
-          ? 'Audio saved to your phone storage and cloud library.'
-          : 'Video saved to your phone storage and cloud library.',
-      );
-    } catch (e) {
-      showDownloadError(e);
-    } finally {
-      setDownloading(prev => {
-        const next = {...prev};
-        delete next[item.videoId];
-        return next;
+    void saveSearchItemToDevice(item, type)
+      .then(() => {
+        Alert.alert(
+          'Saved on device',
+          type === 'AUDIO'
+            ? 'Audio saved to your phone storage and cloud library.'
+            : 'Video saved to your phone storage and cloud library.',
+        );
+      })
+      .catch(e => {
+        showDownloadError(e);
+      })
+      .finally(() => {
+        setDownloading(prev => {
+          const next = {...prev};
+          delete next[item.videoId];
+          return next;
+        });
       });
-    }
   };
 
   return (

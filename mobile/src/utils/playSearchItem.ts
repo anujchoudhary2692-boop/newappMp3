@@ -1,5 +1,4 @@
 import {Alert} from 'react-native';
-import {ensureMediaServer} from '../core/api/httpClient';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaSearchResult, PlayableMedia} from '../features/media/domain/types';
 import {getApiBaseUrl} from '../config';
@@ -11,6 +10,7 @@ import {
   getLocalPlaybackUri,
 } from './localMediaStore';
 import {resolveStreamUrl} from './mediaPlayback';
+import {prefetchMediaPrepare, warmMediaServer} from './mediaPrefetch';
 
 function isLanBackend(base = getApiBaseUrl()): boolean {
   return base.startsWith('http://') && !base.includes('onrender.com');
@@ -158,16 +158,20 @@ async function waitForMediaReadyOnce(
     return {streamPath: localUri, quality: 'On device · Offline'};
   }
 
-  await ensureMediaServer();
-  await assertPlaybackCapable();
-  onStatus?.('Starting stream…');
+  await warmMediaServer();
 
   const searchStreamPath =
     type === 'AUDIO' ? searchItem?.audioStreamUrl : searchItem?.videoStreamUrl;
-  if (isLanBackend() && searchStreamPath && isPlayablePath(searchStreamPath)) {
+  if (searchStreamPath && isPlayablePath(searchStreamPath)) {
+    void mediaApi.prepare(videoId, type).catch(() => undefined);
     putSessionStream(videoId, type, searchStreamPath, 'Streaming');
     return {streamPath: searchStreamPath, quality: 'Streaming'};
   }
+
+  await assertPlaybackCapable();
+  onStatus?.('Starting stream…');
+
+  void mediaApi.prepare(videoId, type).catch(() => undefined);
 
   const pollControl = {cancelled: false};
   const pollPromise = pollPrepareUntilReady(videoId, type, onStatus, pollControl);
@@ -239,6 +243,9 @@ export async function prepareAndStartPlayback(
     sourceUrl: item.sourceUrl,
     videoId: item.videoId,
   };
+
+  prefetchMediaPrepare(item.videoId, type);
+  void warmMediaServer().catch(() => undefined);
 
   openPlayerScreen(mediaBase, '');
   playback.beginPlayback(mediaBase);

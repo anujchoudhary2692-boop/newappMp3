@@ -3,6 +3,7 @@ import {Alert} from 'react-native';
 import {ensureApiServer, wakeCloudServer} from '../../../core/api/httpClient';
 import {isProductionMode} from '../../../config';
 import {connectionErrorHint, isRecoverableRequestError} from '../../../utils/serverConnection';
+import {prefetchSearchResults} from '../../../utils/mediaPrefetch';
 import {getCachedSearch, setCachedSearch} from '../../../utils/searchCache';
 import {mediaApi} from '../api/mediaApi';
 import type {MediaSearchResult} from '../domain/types';
@@ -23,6 +24,7 @@ export function useMediaSearch() {
     const cached = getCachedSearch<MediaSearchResult[]>(q);
     if (cached) {
       setResults(cached);
+      prefetchSearchResults(cached);
       return;
     }
 
@@ -42,6 +44,7 @@ export function useMediaSearch() {
         const data = response.data || [];
         setResults(data);
         setCachedSearch(q, data);
+        prefetchSearchResults(data);
         return;
       }
       Alert.alert('Search failed', response.message || 'Try again');
@@ -62,6 +65,7 @@ export function useMediaSearch() {
               const data = retry.data || [];
               setResults(data);
               setCachedSearch(q, data);
+              prefetchSearchResults(data);
               return;
             }
           } catch {
@@ -83,7 +87,7 @@ export function useMediaSearch() {
       setResults([]);
       return;
     }
-    const timer = setTimeout(() => search(query), 350);
+    const timer = setTimeout(() => search(query), 200);
     return () => clearTimeout(timer);
   }, [query, search]);
 

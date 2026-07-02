@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactNativeBlobUtil from 'react-native-blob-util';
-import {ensureMediaServer} from '../core/api/httpClient';
+import {warmMediaServer} from './mediaPrefetch';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaItem, MediaSearchResult} from '../features/media/domain/types';
 import {getApiKey} from '../config';
@@ -195,7 +195,7 @@ export async function downloadMediaToDevice(
     return existing;
   }
 
-  await ensureMediaServer();
+  await warmMediaServer();
 
   let response;
   try {
