@@ -18,9 +18,12 @@ import {
   SPACING,
 } from '../config';
 
+import {useLayoutMetrics} from '../utils/layout';
+
 type GateStatus = 'checking' | 'ok' | 'fail';
 
 export function BackendGate({children}: {children: React.ReactNode}) {
+  const layout = useLayoutMetrics(false);
   const [status, setStatus] = useState<GateStatus>('checking');
   const [error, setError] = useState('');
   const [triedUrls, setTriedUrls] = useState<string[]>([]);
@@ -61,46 +64,46 @@ export function BackendGate({children}: {children: React.ReactNode}) {
 
   if (status === 'checking') {
     return (
-      <View style={styles.screen}>
-        <View style={styles.logoCircle}>
-          <Icon name="cloud" size={42} color={COLORS.primary} />
+      <View style={[styles.screen, {padding: layout.hPad}]}>
+        <View style={[styles.logoCircle, {width: layout.emptyIcon, height: layout.emptyIcon, borderRadius: layout.emptyIcon / 2}]}>
+          <Icon name="cloud" size={layout.emptyIcon * 0.48} color={COLORS.primary} />
         </View>
-        <Text style={styles.appName}>MediaFace</Text>
-        <Text style={styles.tagline}>
+        <Text style={[styles.appName, {fontSize: layout.font.hero * 0.4}]}>MediaFace</Text>
+        <Text style={[styles.tagline, {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW}]}>
           {production
             ? 'Connecting to cloud…\nYour Mac can be off — first load may take up to 3 min'
             : 'Trying cloud first, then your Mac on Wi‑Fi…'}
         </Text>
         <ActivityIndicator color={COLORS.primary} style={styles.spinner} />
-        <Text style={styles.host}>{triedUrls.join('\n')}</Text>
+        <Text style={[styles.host, {fontSize: layout.font.xs}]}>{triedUrls.join('\n')}</Text>
       </View>
     );
   }
 
   if (status === 'fail') {
     return (
-      <View style={styles.screen}>
-        <View style={[styles.logoCircle, styles.logoWarn]}>
-          <Icon name="cloud-offline-outline" size={42} color={COLORS.warning} />
+      <View style={[styles.screen, {padding: layout.hPad}]}>
+        <View style={[styles.logoCircle, styles.logoWarn, {width: layout.emptyIcon, height: layout.emptyIcon, borderRadius: layout.emptyIcon / 2}]}>
+          <Icon name="cloud-offline-outline" size={layout.emptyIcon * 0.48} color={COLORS.warning} />
         </View>
-        <Text style={styles.appName}>Cannot connect</Text>
-        <Text style={styles.tagline}>
+        <Text style={[styles.appName, {fontSize: layout.font.hero * 0.4}]}>Cannot connect</Text>
+        <Text style={[styles.tagline, {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW}]}>
           {production
             ? '1. Mac does NOT need to be on\n2. Free Render sleeps — tap Try again, wait ~2 min\n3. Need internet (Wi‑Fi or mobile data)'
             : '1. Cloud works without Mac\n2. For local Mac: same Wi‑Fi + backend running\n3. Settings → Local Network ON'}
         </Text>
-        <View style={styles.errorBox}>
+        <View style={[styles.errorBox, {maxWidth: layout.contentW}]}>
           <Text style={styles.errorHost}>Tried:</Text>
           {triedUrls.map(url => (
-            <Text key={url} style={styles.errorText}>
+            <Text key={url} style={[styles.errorText, {fontSize: layout.font.xs}]}>
               {url}
             </Text>
           ))}
-          {error ? <Text style={styles.errorDetail}>{error}</Text> : null}
+          {error ? <Text style={[styles.errorDetail, {fontSize: layout.font.sm}]}>{error}</Text> : null}
         </View>
         <TouchableOpacity style={styles.retryBtn} onPress={check}>
           <Icon name="refresh" size={18} color={COLORS.background} />
-          <Text style={styles.retryText}>Try again</Text>
+          <Text style={[styles.retryText, {fontSize: layout.font.md}]}>Try again</Text>
         </TouchableOpacity>
       </View>
     );

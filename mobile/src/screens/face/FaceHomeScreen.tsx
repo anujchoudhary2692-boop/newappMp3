@@ -163,23 +163,23 @@ export function FaceHomeScreen() {
             </Text>
           </View>
         </View>
-        <View style={styles.heroActions}>
+        <View style={[styles.heroActions, layout.isSmallPhone && styles.heroActionsStack]}>
           <TouchableOpacity
-            style={styles.primaryBtn}
+            style={[styles.primaryBtn, {paddingVertical: layout.isCompact ? SPACING.sm : SPACING.md}]}
             onPress={() => navigation.navigate('RegisterFace')}>
-            <Icon name="person-add" size={18} color={COLORS.background} />
-            <Text style={styles.primaryBtnText}>Add Person</Text>
+            <Icon name="person-add" size={layout.font.md} color={COLORS.background} />
+            <Text style={[styles.primaryBtnText, {fontSize: layout.font.sm}]}>Add Person</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.secondaryBtn}
+            style={[styles.secondaryBtn, {paddingVertical: layout.isCompact ? SPACING.sm : SPACING.md}]}
             onPress={() => navigation.navigate('IdentifyFace')}>
-            <Icon name="scan" size={18} color={COLORS.face} />
-            <Text style={styles.secondaryBtnText}>Who is this?</Text>
+            <Icon name="scan" size={layout.font.md} color={COLORS.face} />
+            <Text style={[styles.secondaryBtnText, {fontSize: layout.font.sm}]}>Who is this?</Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      <Text style={[styles.sectionTitle, {paddingHorizontal: layout.hPad}]}>Your People</Text>
+      <Text style={[styles.sectionTitle, {paddingHorizontal: layout.hPad, fontSize: layout.font.lg}]}>Your People</Text>
 
       <FlatList
         data={persons}
@@ -214,16 +214,16 @@ export function FaceHomeScreen() {
               <View style={styles.avatarRing}>
                 <Image
                   source={{uri: api.getImageUrl(item.imageUrl)}}
-                  style={styles.avatar}
+                  style={[styles.avatar, {width: layout.thumbSize * 0.82, height: layout.thumbSize * 0.82, borderRadius: layout.thumbSize * 0.41}]}
                 />
               </View>
             ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Icon name="person" size={28} color={COLORS.textMuted} />
+              <View style={[styles.avatar, styles.avatarPlaceholder, {width: layout.thumbSize * 0.82, height: layout.thumbSize * 0.82, borderRadius: layout.thumbSize * 0.41}]}>
+                <Icon name="person" size={layout.thumbSize * 0.4} color={COLORS.textMuted} />
               </View>
             )}
             <View style={styles.personInfo}>
-              <Text style={styles.personName}>{item.name}</Text>
+              <Text style={[styles.personName, {fontSize: layout.font.lg}]}>{item.name}</Text>
               {(item.photoCount ?? 0) > 0 ? (
                 <Text style={styles.photoCount}>
                   {item.photoCount} photo{item.photoCount === 1 ? '' : 's'}
@@ -258,7 +258,7 @@ export function FaceHomeScreen() {
         <KeyboardAvoidingView
           style={styles.modalBackdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, {maxWidth: layout.modalMaxWidth, alignSelf: 'center', width: '100%'}]}>
             <Text style={styles.modalTitle}>Edit person</Text>
             <Text style={styles.modalLabel}>Name</Text>
             <TextInput
@@ -339,6 +339,9 @@ const styles = StyleSheet.create({
   heroActions: {
     flexDirection: 'row',
     gap: SPACING.sm,
+  },
+  heroActionsStack: {
+    flexDirection: 'column',
   },
   primaryBtn: {
     flex: 1,

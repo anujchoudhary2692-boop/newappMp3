@@ -70,8 +70,13 @@ export function AppHeader({
           <Text style={[styles.title, {fontSize: layout.font.xl}]} numberOfLines={1}>
             {title}
           </Text>
-          {subtitle && !layout.isSmallPhone ? (
-            <Text style={[styles.subtitle, {fontSize: layout.font.sm}]} numberOfLines={1}>
+          {subtitle ? (
+            <Text
+              style={[
+                styles.subtitle,
+                {fontSize: layout.isSmallPhone ? layout.font.xs : layout.font.sm},
+              ]}
+              numberOfLines={1}>
               {subtitle}
             </Text>
           ) : null}

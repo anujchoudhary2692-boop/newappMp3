@@ -59,8 +59,9 @@ export function MediaCard({
 }: MediaCardProps) {
   const layout = useLayoutMetrics(true);
   const accent = type === 'VIDEO' ? COLORS.video : COLORS.audio;
-  const circle = layout.isCompact ? 40 : 46;
-  const iconSize = layout.isCompact ? 16 : 18;
+  const circle = layout.actionCircle;
+  const iconSize = layout.isCompact ? 15 : 18;
+  const showActionLabels = !layout.isSmallPhone;
   return (
     <View style={[styles.card, SHADOW.sm, {marginHorizontal: layout.hPad}, active && styles.cardActive, active && {borderColor: accent}]}>
       {active ? <View style={[styles.activeStrip, {backgroundColor: accent}]} /> : null}
@@ -81,7 +82,7 @@ export function MediaCard({
             {title}
           </Text>
           {subtitle ? (
-            <Text style={styles.subtitle} numberOfLines={1}>
+            <Text style={[styles.subtitle, {fontSize: layout.font.sm}]} numberOfLines={1}>
               {subtitle}
             </Text>
           ) : null}
@@ -119,7 +120,7 @@ export function MediaCard({
                 <View style={[styles.iconCircle, styles.audioCircle, {width: circle, height: circle, borderRadius: circle / 2}]}>
                   <Icon name="play" size={iconSize} color={COLORS.text} />
                 </View>
-                <Text style={[styles.iconLabel, {fontSize: layout.font.xs}]}>Audio</Text>
+                <Text style={[styles.iconLabel, {fontSize: layout.font.xs}, !showActionLabels && styles.iconLabelHidden]}>Audio</Text>
               </>
             )}
           </TouchableOpacity>
@@ -131,7 +132,7 @@ export function MediaCard({
                 <View style={[styles.iconCircle, styles.videoCircle, {width: circle, height: circle, borderRadius: circle / 2}]}>
                   <Icon name="play-circle" size={iconSize} color={COLORS.text} />
                 </View>
-                <Text style={[styles.iconLabel, {fontSize: layout.font.xs}]}>Video</Text>
+                <Text style={[styles.iconLabel, {fontSize: layout.font.xs}, !showActionLabels && styles.iconLabelHidden]}>Video</Text>
               </>
             )}
           </TouchableOpacity>
@@ -143,7 +144,7 @@ export function MediaCard({
                 <View style={[styles.iconCircle, styles.audioOutlineCircle, {width: circle, height: circle, borderRadius: circle / 2}]}>
                   <Icon name="download-outline" size={iconSize} color={COLORS.audio} />
                 </View>
-                <Text style={[styles.iconLabel, {fontSize: layout.font.xs, color: COLORS.audio}]}>Save</Text>
+                <Text style={[styles.iconLabel, {fontSize: layout.font.xs, color: COLORS.audio}, !showActionLabels && styles.iconLabelHidden]}>Save</Text>
               </>
             )}
           </TouchableOpacity>
@@ -155,7 +156,7 @@ export function MediaCard({
                 <View style={[styles.iconCircle, styles.videoOutlineCircle, {width: circle, height: circle, borderRadius: circle / 2}]}>
                   <Icon name="download-outline" size={iconSize} color={COLORS.video} />
                 </View>
-                <Text style={[styles.iconLabel, {fontSize: layout.font.xs, color: COLORS.video}]}>HD</Text>
+                <Text style={[styles.iconLabel, {fontSize: layout.font.xs, color: COLORS.video}, !showActionLabels && styles.iconLabelHidden]}>HD</Text>
               </>
             )}
           </TouchableOpacity>
@@ -169,7 +170,7 @@ export function MediaCard({
             onPress={onPlay}
             activeOpacity={0.85}>
             <Icon name={active ? 'radio' : 'play'} size={16} color={COLORS.text} />
-            <Text style={styles.playLibraryText}>{active ? 'Now Playing' : 'Play'}</Text>
+            <Text style={[styles.playLibraryText, {fontSize: layout.font.sm}]}>{active ? 'Now Playing' : 'Play'}</Text>
           </TouchableOpacity>
           {onDelete && (
             <TouchableOpacity style={styles.deleteLibraryBtn} onPress={onDelete}>
@@ -312,7 +313,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.video,
   },
-  iconLabel: {color: COLORS.textSecondary, fontSize: 11, fontWeight: '700'},
+  iconLabel: {color: COLORS.textSecondary, fontWeight: '700'},
+  iconLabelHidden: {height: 0, opacity: 0, marginBottom: 0},
   actions: {
     flexDirection: 'row',
     gap: SPACING.sm,

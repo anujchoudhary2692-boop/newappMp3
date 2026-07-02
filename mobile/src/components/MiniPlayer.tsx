@@ -52,6 +52,9 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
   const progress = duration > 0 ? currentTime / duration : 0;
   const accent = media.type === 'VIDEO' ? COLORS.video : COLORS.audio;
   const queueActive = queueLength > 1;
+  const thumb = layout.miniThumb;
+  const playBtn = layout.miniPlayBtn;
+  const iconBtn = layout.miniIconBtn;
 
   const handlePrevious = () => {
     if (currentTime > 3) {
@@ -69,7 +72,7 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
         <View style={[styles.accentEdge, {backgroundColor: accent}]} />
         {queueActive ? (
           <TouchableOpacity
-            style={styles.iconBtn}
+            style={[styles.iconBtn, {width: iconBtn, height: iconBtn}]}
             disabled={!hasPrevious && currentTime <= 3}
             onPress={handlePrevious}>
             <Icon
@@ -84,17 +87,17 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
           onPress={() => openPlayerScreen(media, streamUrl)}
           activeOpacity={0.92}>
           {media.thumbnailUrl ? (
-            <Image source={{uri: media.thumbnailUrl}} style={styles.thumb} />
+            <Image source={{uri: media.thumbnailUrl}} style={[styles.thumb, {width: thumb, height: thumb}]} />
           ) : (
-            <LinearGradient colors={[accent, `${accent}88`]} style={styles.thumb}>
-              <Icon name={media.type === 'VIDEO' ? 'videocam' : 'musical-notes'} size={14} color={COLORS.text} />
+            <LinearGradient colors={[accent, `${accent}88`]} style={[styles.thumb, {width: thumb, height: thumb}]}>
+              <Icon name={media.type === 'VIDEO' ? 'videocam' : 'musical-notes'} size={layout.font.sm} color={COLORS.text} />
             </LinearGradient>
           )}
           <View style={styles.meta}>
-            <Text style={styles.title} numberOfLines={1}>{media.title}</Text>
+            <Text style={[styles.title, {fontSize: layout.font.sm}]} numberOfLines={1}>{media.title}</Text>
             <View style={styles.progressRow}>
               {queueActive ? (
-                <Text style={[styles.queueHint, {color: accent}]}>{queueIndex + 1}/{queueLength}</Text>
+                <Text style={[styles.queueHint, {color: accent, fontSize: layout.font.xs}]}>{queueIndex + 1}/{queueLength}</Text>
               ) : null}
               <View style={styles.progressFlex}>
                 <SeekableProgressBar
@@ -108,7 +111,7 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
             </View>
           </View>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.playBtn, {backgroundColor: accent}]} onPress={togglePause}>
+        <TouchableOpacity style={[styles.playBtn, {backgroundColor: accent, width: playBtn, height: playBtn, borderRadius: playBtn / 2}]} onPress={togglePause}>
           {buffering ? (
             <ActivityIndicator size="small" color={COLORS.text} />
           ) : (
@@ -116,11 +119,11 @@ export function MiniPlayer({routeVersion}: MiniPlayerProps) {
           )}
         </TouchableOpacity>
         {queueActive ? (
-          <TouchableOpacity style={styles.iconBtn} disabled={!hasNext} onPress={playNext}>
+          <TouchableOpacity style={[styles.iconBtn, {width: iconBtn, height: iconBtn}]} disabled={!hasNext} onPress={playNext}>
             <Icon name="play-skip-forward" size={18} color={hasNext ? COLORS.text : COLORS.textMuted} />
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity style={styles.iconBtn} onPress={stop}>
+        <TouchableOpacity style={[styles.iconBtn, {width: iconBtn, height: iconBtn}]} onPress={stop}>
           <Icon name="close" size={17} color={COLORS.textMuted} />
         </TouchableOpacity>
       </LinearGradient>
@@ -158,28 +161,21 @@ const styles = StyleSheet.create({
     paddingLeft: SPACING.sm,
   },
   thumb: {
-    width: 38,
-    height: 38,
     borderRadius: RADIUS.sm,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.surfaceLight,
   },
   meta: {flex: 1, gap: 4},
-  title: {color: COLORS.text, fontSize: 12, fontWeight: '700'},
+  title: {color: COLORS.text, fontWeight: '700'},
   progressRow: {flexDirection: 'row', alignItems: 'center', gap: 6},
   progressFlex: {flex: 1},
-  queueHint: {fontSize: 10, fontWeight: '800', minWidth: 28},
+  queueHint: {fontWeight: '800', minWidth: 28},
   playBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconBtn: {
-    width: 32,
-    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },

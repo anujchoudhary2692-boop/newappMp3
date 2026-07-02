@@ -88,22 +88,23 @@ export function GuideScreen() {
         showsVerticalScrollIndicator={false}>
         {SECTIONS.map(section => {
           const accent = colors[section.colorKey];
+          const sectionIcon = layout.actionCircle;
           return (
-            <View key={section.title} style={styles.section}>
+            <View key={section.title} style={[styles.section, {padding: layout.isCompact ? SPACING.md : SPACING.lg}]}>
               <View style={styles.sectionHead}>
-                <View style={[styles.sectionIcon, {backgroundColor: `${accent}25`}]}>
-                  <Icon name={section.icon} size={22} color={accent} />
+                <View style={[styles.sectionIcon, {backgroundColor: `${accent}25`, width: sectionIcon, height: sectionIcon, borderRadius: sectionIcon / 2}]}>
+                  <Icon name={section.icon} size={layout.isCompact ? 18 : 22} color={accent} />
                 </View>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <Text style={[styles.sectionTitle, {fontSize: layout.font.lg}]}>{section.title}</Text>
               </View>
               {section.items.map(item => (
                 <View key={item} style={styles.bulletRow}>
-                  <Icon name="checkmark-circle" size={16} color={accent} />
-                  <Text style={styles.bulletText}>{item}</Text>
+                  <Icon name="checkmark-circle" size={layout.font.md} color={accent} />
+                  <Text style={[styles.bulletText, {fontSize: layout.font.md, lineHeight: layout.font.lineMd}]}>{item}</Text>
                 </View>
               ))}
               {section.action && section.actionLabel ? (
-                <Text style={[styles.link, {color: accent}]} onPress={section.action}>
+                <Text style={[styles.link, {color: accent, fontSize: layout.font.sm}]} onPress={section.action}>
                   {section.actionLabel} →
                 </Text>
               ) : null}
@@ -132,15 +133,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   sectionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sectionTitle: {
     color: COLORS.text,
-    fontSize: 18,
     fontWeight: '800',
   },
   bulletRow: {
@@ -152,13 +149,10 @@ const styles = StyleSheet.create({
   bulletText: {
     flex: 1,
     color: COLORS.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
     fontWeight: '600',
   },
   link: {
     marginTop: SPACING.sm,
     fontWeight: '800',
-    fontSize: 14,
   },
 });

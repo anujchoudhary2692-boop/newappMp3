@@ -102,7 +102,7 @@ export function HomeScreen() {
           <View style={styles.heroTop}>
             <View>
               <Text style={[styles.greeting, {fontSize: layout.font.sm}]}>Welcome back</Text>
-              <Text style={[styles.heroTitle, {fontSize: layout.font.xl}]}>
+              <Text style={[styles.heroTitle, {fontSize: layout.font.xl, lineHeight: layout.font.lineLg, maxWidth: layout.contentW * 0.72}]}>
                 Search · Play · Capture · Recognize
               </Text>
             </View>
@@ -144,7 +144,7 @@ export function HomeScreen() {
             subtitle="Stream or download any song or video"
             colors={[`${colors.primary}55`, `${colors.primary}18`]}
             accent={colors.primary}
-            width={layout.halfGridWidth}
+            width={layout.featureCardWidth}
             onPress={() => goToMediaTab('SearchTab')}
           />
           <FeatureCard
@@ -154,7 +154,7 @@ export function HomeScreen() {
             colors={[`${colors.audio}45`, `${colors.video}15`]}
             accent={colors.audio}
             badge={stats.songs + stats.videos > 0 ? String(stats.songs + stats.videos) : undefined}
-            width={layout.halfGridWidth}
+            width={layout.featureCardWidth}
             onPress={() => goToMediaTab('AudioTab')}
           />
           <FeatureCard
@@ -163,7 +163,7 @@ export function HomeScreen() {
             subtitle="Photo & video with GPS geotag"
             colors={[`${colors.camera}50`, `${colors.camera}15`]}
             accent={colors.camera}
-            width={layout.halfGridWidth}
+            width={layout.featureCardWidth}
             onPress={goToCameraTab}
           />
           <FeatureCard
@@ -173,7 +173,7 @@ export function HomeScreen() {
             colors={[`${colors.face}45`, `${colors.face}12`]}
             accent={colors.face}
             badge={stats.people > 0 ? String(stats.people) : undefined}
-            width={layout.halfGridWidth}
+            width={layout.featureCardWidth}
             onPress={goToFacesTab}
           />
         </View>
@@ -192,10 +192,10 @@ export function HomeScreen() {
           {QUICK_SEARCHES.map(q => (
             <TouchableOpacity
               key={q}
-              style={[styles.chip, {borderColor: `${colors.primary}40`}]}
+              style={[styles.chip, {borderColor: `${colors.primary}40`, paddingVertical: layout.isCompact ? 8 : 10}]}
               onPress={() => goToMediaTab('SearchTab', q)}>
-              <Icon name="flash" size={14} color={colors.primary} />
-              <Text style={[styles.chipText, {color: colors.text}]}>{q}</Text>
+              <Icon name="flash" size={layout.font.sm} color={colors.primary} />
+              <Text style={[styles.chipText, {color: colors.text, fontSize: layout.font.sm}]}>{q}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -208,6 +208,7 @@ export function HomeScreen() {
             color={colors.primary}
             title="Stream anything"
             detail="Play audio or video instantly without downloading"
+            layout={layout}
             onPress={() => goToMediaTab('SearchTab')}
           />
           <PowerRow
@@ -215,6 +216,7 @@ export function HomeScreen() {
             color={colors.audio}
             title="Offline library"
             detail="Save MP3 and HD video to watch anytime"
+            layout={layout}
             onPress={() => goToMediaTab('AudioTab')}
           />
           <PowerRow
@@ -222,6 +224,7 @@ export function HomeScreen() {
             color={colors.camera}
             title="Geo camera"
             detail="Capture with GPS, EXIF tags, and cloud backup"
+            layout={layout}
             onPress={goToCameraTab}
           />
           <PowerRow
@@ -229,6 +232,7 @@ export function HomeScreen() {
             color={colors.face}
             title="Library face scan"
             detail="Find people in group photos and video frames"
+            layout={layout}
             onPress={goToFacesTab}
           />
           <PowerRow
@@ -236,6 +240,7 @@ export function HomeScreen() {
             color={colors.accent}
             title="Themes & settings"
             detail="5 color themes, server status, full guide"
+            layout={layout}
             onPress={openSettings}
           />
         </View>
@@ -249,24 +254,27 @@ function PowerRow({
   color,
   title,
   detail,
+  layout,
   onPress,
 }: {
   icon: string;
   color: string;
   title: string;
   detail: string;
+  layout: ReturnType<typeof useLayoutMetrics>;
   onPress: () => void;
 }) {
+  const iconSize = layout.actionCircle;
   return (
-    <TouchableOpacity style={styles.powerRow} onPress={onPress} activeOpacity={0.85}>
-      <View style={[styles.powerIcon, {backgroundColor: `${color}22`}]}>
-        <Icon name={icon} size={20} color={color} />
+    <TouchableOpacity style={[styles.powerRow, {padding: layout.isCompact ? SPACING.sm : SPACING.md}]} onPress={onPress} activeOpacity={0.85}>
+      <View style={[styles.powerIcon, {width: iconSize, height: iconSize, borderRadius: iconSize / 2, backgroundColor: `${color}22`}]}>
+        <Icon name={icon} size={layout.isCompact ? 18 : 20} color={color} />
       </View>
       <View style={styles.powerText}>
-        <Text style={styles.powerTitle}>{title}</Text>
-        <Text style={styles.powerDetail}>{detail}</Text>
+        <Text style={[styles.powerTitle, {fontSize: layout.font.lg}]}>{title}</Text>
+        <Text style={[styles.powerDetail, {fontSize: layout.font.sm, lineHeight: layout.font.lineSm}]}>{detail}</Text>
       </View>
-      <Icon name="chevron-forward" size={18} color={COLORS.textMuted} />
+      <Icon name="chevron-forward" size={layout.isCompact ? 16 : 18} color={COLORS.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -298,8 +306,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontWeight: '800',
     letterSpacing: -0.4,
-    maxWidth: 260,
-    lineHeight: 28,
   },
   serverPill: {
     flexDirection: 'row',
@@ -333,7 +339,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(26,26,36,0.85)',
     borderWidth: 1,
   },
-  chipText: {fontWeight: '700', fontSize: 13},
+  chipText: {fontWeight: '700'},
   list: {
     borderRadius: RADIUS.lg,
     overflow: 'hidden',
@@ -350,13 +356,10 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   powerIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
   },
   powerText: {flex: 1, minWidth: 0},
-  powerTitle: {color: COLORS.text, fontWeight: '800', fontSize: 15},
-  powerDetail: {color: COLORS.textMuted, fontSize: 12, fontWeight: '600', marginTop: 2, lineHeight: 17},
+  powerTitle: {color: COLORS.text, fontWeight: '800'},
+  powerDetail: {color: COLORS.textMuted, fontWeight: '600', marginTop: 2},
 });

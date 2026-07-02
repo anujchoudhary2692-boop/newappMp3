@@ -120,7 +120,7 @@ export function SettingsScreen() {
           Applies across Home, Media, Camera, and Faces.
         </Text>
 
-        <View style={styles.themeGrid}>
+        <View style={[styles.themeGrid, layout.isTablet && styles.themeGridTablet]}>
           {THEME_LIST.map(theme => {
             const active = theme.id === themeId;
             return (
@@ -128,15 +128,16 @@ export function SettingsScreen() {
                 key={theme.id}
                 style={[
                   styles.themeCard,
+                  layout.isTablet && styles.themeCardTablet,
                   {borderColor: active ? theme.swatch : colors.border},
                   active && {backgroundColor: `${theme.swatch}18`},
                 ]}
                 activeOpacity={0.88}
                 onPress={() => setThemeId(theme.id as ThemeId)}>
-                <View style={[styles.swatch, {backgroundColor: theme.swatch}]}>
+                <View style={[styles.swatch, {backgroundColor: theme.swatch, width: layout.actionCircle, height: layout.actionCircle, borderRadius: layout.actionCircle / 2}]}>
                   {active ? <Icon name="checkmark" size={18} color="#fff" /> : null}
                 </View>
-                <Text style={[styles.themeName, {color: colors.text}]}>{theme.name}</Text>
+                <Text style={[styles.themeName, {color: colors.text, fontSize: layout.font.md}]}>{theme.name}</Text>
                 <View style={styles.dots}>
                   {[theme.colors.primary, theme.colors.face, theme.colors.camera].map(c => (
                     <View key={c} style={[styles.dot, {backgroundColor: c}]} />
@@ -213,6 +214,7 @@ const styles = StyleSheet.create({
   },
   linkLabel: {color: '#fff', fontWeight: '700', fontSize: 13},
   themeGrid: {gap: SPACING.sm},
+  themeGridTablet: {flexDirection: 'row', flexWrap: 'wrap'},
   themeCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,14 +225,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(26,26,36,0.85)',
     ...SHADOW.sm,
   },
+  themeCardTablet: {
+    width: '48%',
+    flexGrow: 1,
+  },
   swatch: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  themeName: {flex: 1, fontWeight: '700', fontSize: 15},
+  themeName: {flex: 1, fontWeight: '700'},
   dots: {flexDirection: 'row', gap: 6},
   dot: {width: 10, height: 10, borderRadius: 5},
 });

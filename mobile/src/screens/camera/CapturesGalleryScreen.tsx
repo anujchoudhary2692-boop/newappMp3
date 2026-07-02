@@ -140,7 +140,7 @@ export function CapturesGalleryScreen() {
 
   const renderListItem = ({item}: {item: CaptureItem}) => {
     const thumb = item.thumbnailUrl ? api.getImageUrl(item.thumbnailUrl) : undefined;
-    const thumbSize = layout.isCompact ? 60 : 68;
+    const thumbSize = layout.thumbSize;
     return (
       <TouchableOpacity
         style={[styles.listCard, {padding: layout.gap}]}

@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {StyleSheet, useWindowDimensions, View} from 'react-native';
 import {NavigationContainer, DefaultTheme, getFocusedRouteNameFromRoute} from '@react-navigation/native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -41,8 +41,9 @@ function tabIcon(routeName: string, focused: boolean, color: string, size: numbe
 
 export function AppNavigator() {
   const insets = useSafeAreaInsets();
+  const {width} = useWindowDimensions();
   const [routeVersion, setRouteVersion] = useState(0);
-  const barHeight = tabBarHeight(insets.bottom);
+  const barHeight = tabBarHeight(insets.bottom, width);
 
   const defaultTabBarStyle = {
     ...SHADOW.md,

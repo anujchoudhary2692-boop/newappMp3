@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {COLORS, SPACING} from '../config';
-import {useLayoutMetrics} from '../utils/layout';
+import {useLayoutMetrics, rs} from '../utils/layout';
 
 interface SearchBarProps {
   value: string;
@@ -27,6 +27,7 @@ export function SearchBar({
   loading,
 }: SearchBarProps) {
   const layout = useLayoutMetrics(true);
+  const btnSize = layout.headerBtn;
 
   return (
     <View style={[styles.container, {paddingHorizontal: layout.hPad, gap: layout.gap}]}>
@@ -55,7 +56,15 @@ export function SearchBar({
       </View>
       {layout.isSmallPhone ? (
         <TouchableOpacity
-          style={[styles.iconBtn, loading && styles.buttonDisabled]}
+          style={[
+            styles.iconBtn,
+            {
+              width: btnSize,
+              height: btnSize,
+              borderRadius: rs(14, layout.width),
+            },
+            loading && styles.buttonDisabled,
+          ]}
           onPress={onSearch}
           disabled={loading}>
           {loading ? (
@@ -111,9 +120,6 @@ const styles = StyleSheet.create({
     minWidth: 72,
   },
   iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',

@@ -19,8 +19,8 @@ import {RootStackParamList, RootTabParamList} from './types';
 import {
   TAB_BAR_FLOAT_MARGIN,
   TAB_BAR_SIDE_MARGIN,
-  TAB_BAR_VISUAL_HEIGHT,
   rs,
+  tabBarVisualHeight,
 } from '../utils/layout';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -53,13 +53,14 @@ function MainTabs(_props: {routeVersion: number}) {
   const {colors} = useTheme();
   const bottom = Math.max(insets.bottom, TAB_BAR_FLOAT_MARGIN);
   const side = rs(TAB_BAR_SIDE_MARGIN, width);
+  const tabHeight = tabBarVisualHeight(width);
 
   const defaultTabBarStyle = {
     position: 'absolute' as const,
     left: side,
     right: side,
     bottom,
-    height: TAB_BAR_VISUAL_HEIGHT,
+    height: tabHeight,
     paddingBottom: Platform.OS === 'ios' ? 6 : 4,
     paddingTop: 6,
     borderRadius: rs(26, width),
@@ -80,7 +81,7 @@ function MainTabs(_props: {routeVersion: number}) {
           tabIcon(route.name, focused, color, size),
         tabBarLabelStyle: {
           fontWeight: '700',
-          fontSize: width < 360 ? 9 : 10,
+          fontSize: width < 360 ? 9 : width >= 768 ? 11 : 10,
           letterSpacing: 0.2,
           marginTop: -2,
         },

@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Dimensions,
   FlatList,
   Image,
   Modal,
@@ -29,6 +28,7 @@ import {COLORS, GRADIENTS, RADIUS, SHADOW, SPACING} from '../../config';
 import {MediaStackParamList} from '../../navigation/types';
 import {api, PlayableMedia} from '../../api/client';
 import {usePlayback} from '../../context/PlaybackContext';
+import {useLayoutMetrics} from '../../utils/layout';
 
 type Props = NativeStackScreenProps<MediaStackParamList, 'Player'>;
 
@@ -178,6 +178,7 @@ function PlayerControls({
 
 export function PlayerScreen({route, navigation}: Props) {
   const insets = useSafeAreaInsets();
+  const layout = useLayoutMetrics(true);
   const playback = usePlayback();
   const {item, media, streamUrl} = route.params;
   const playable = useMemo(
@@ -228,7 +229,6 @@ export function PlayerScreen({route, navigation}: Props) {
   const [showQueueModal, setShowQueueModal] = useState(false);
   const [showSleepModal, setShowSleepModal] = useState(false);
   const [sleepRemainingSec, setSleepRemainingSec] = useState<number | null>(null);
-  const [screen, setScreen] = useState(Dimensions.get('window'));
   const sleepTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sleepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -248,11 +248,6 @@ export function PlayerScreen({route, navigation}: Props) {
       bufferForPlaybackAfterRebufferMs: 800,
     },
   };
-
-  useEffect(() => {
-    const sub = Dimensions.addEventListener('change', ({window}) => setScreen(window));
-    return () => sub.remove();
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -479,7 +474,7 @@ export function PlayerScreen({route, navigation}: Props) {
 
   const isVideo = playable.type === 'VIDEO';
   const isSearch = !!media;
-  const isLandscape = screen.width > screen.height;
+  const isLandscape = layout.isLandscape;
   const accent = isVideo ? COLORS.video : COLORS.audio;
   const queueActive = playback.queueLength > 1;
   const queueLabel =
@@ -494,8 +489,11 @@ export function PlayerScreen({route, navigation}: Props) {
     type: (isVideo ? 'mp4' : 'm4a') as 'mp4' | 'm4a',
   };
 
-  const videoWidth = screen.width - SPACING.md * 2;
-  const videoHeight = Math.min(videoWidth * (9 / 16), 180);
+  const videoWidth = layout.contentW;
+  const videoHeight = layout.videoStageHeight;
+  const artwork = layout.artworkSize;
+  const artworkGlow = layout.artworkGlow;
+  const playBtnSize = layout.playBtnSize;
   const sleepLabel = sleepRemainingSec !== null
     ? `${Math.floor(sleepRemainingSec / 60)}:${(sleepRemainingSec % 60).toString().padStart(2, '0')}`
     : 'Sleep';
@@ -550,7 +548,7 @@ export function PlayerScreen({route, navigation}: Props) {
         accentColor={accent}
       />
 
-      <View style={styles.body}>
+      <View style={[styles.body, {paddingHorizontal: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer}]}>
         {isVideo ? (
           <>
             <Pressable
@@ -623,7 +621,7 @@ export function PlayerScreen({route, navigation}: Props) {
                 </View>
               )}
             </Pressable>
-            <Text style={styles.videoTitle} numberOfLines={2}>{playable.title}</Text>
+            <Text style={[styles.videoTitle, {fontSize: layout.font.md}]} numberOfLines={2}>{playable.title}</Text>
             {featureBar}
             <PlayerControls
               currentTime={currentTime}
@@ -643,18 +641,18 @@ export function PlayerScreen({route, navigation}: Props) {
         ) : (
           <View style={styles.audioStage}>
             <View style={styles.artworkGlowWrap}>
-              <View style={[styles.artworkGlow, {backgroundColor: `${accent}33`}]} />
-              <Animated.View style={[styles.artworkRing, {borderColor: accent, transform: [{scale: pulseAnim}]}]}>
+              <View style={[styles.artworkGlow, {backgroundColor: `${accent}33`, width: artworkGlow, height: artworkGlow, borderRadius: artworkGlow / 2}]} />
+              <Animated.View style={[styles.artworkRing, {borderColor: accent, width: artwork, height: artwork, borderRadius: artwork / 2, transform: [{scale: pulseAnim}]}]}>
                 {playable.thumbnailUrl ? (
                   <Image source={{uri: playable.thumbnailUrl}} style={styles.artworkHero} />
                 ) : (
                   <LinearGradient colors={[COLORS.audio, COLORS.primaryDark]} style={styles.artworkHero}>
-                    <Icon name="musical-notes" size={40} color={COLORS.text} />
+                    <Icon name="musical-notes" size={artwork * 0.35} color={COLORS.text} />
                   </LinearGradient>
                 )}
               </Animated.View>
             </View>
-            <Text style={styles.heroTrackTitle} numberOfLines={2}>{playable.title}</Text>
+            <Text style={[styles.heroTrackTitle, {fontSize: layout.font.lg, lineHeight: layout.font.lineLg, paddingHorizontal: layout.hPad}]} numberOfLines={2}>{playable.title}</Text>
             <View style={styles.chipRowCenter}>
               {playable.quality ? (
                 <View style={styles.chipOutline}>

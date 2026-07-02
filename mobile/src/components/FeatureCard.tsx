@@ -27,7 +27,8 @@ export function FeatureCard({
   width,
 }: FeatureCardProps) {
   const layout = useLayoutMetrics(true);
-  const cardW = width ?? layout.halfGridWidth;
+  const cardW = width ?? layout.featureCardWidth;
+  const iconBox = layout.actionCircle;
 
   return (
     <TouchableOpacity activeOpacity={0.88} onPress={onPress} style={{width: cardW, ...SHADOW.sm}}>
@@ -44,9 +45,9 @@ export function FeatureCard({
           style={[
             styles.iconCircle,
             {
-              width: layout.isCompact ? 40 : 44,
-              height: layout.isCompact ? 40 : 44,
-              borderRadius: layout.isCompact ? 20 : 22,
+              width: iconBox,
+              height: iconBox,
+              borderRadius: iconBox / 2,
               backgroundColor: `${accent}30`,
             },
           ]}>

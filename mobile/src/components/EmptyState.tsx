@@ -3,6 +3,7 @@ import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import {COLORS, RADIUS, SPACING} from '../config';
+import {useLayoutMetrics} from '../utils/layout';
 
 interface EmptyStateProps {
   icon: string;
@@ -21,21 +22,37 @@ export function EmptyState({
   actionLabel,
   onAction,
 }: EmptyStateProps) {
+  const layout = useLayoutMetrics(true);
+  const iconSize = layout.emptyIcon;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {padding: layout.hPad}]}>
       <LinearGradient
         colors={[`${accentColor}40`, `${accentColor}12`]}
-        style={styles.iconWrap}>
-        <Icon name={icon} size={36} color={accentColor} />
+        style={[
+          styles.iconWrap,
+          {
+            width: iconSize,
+            height: iconSize,
+            borderRadius: iconSize / 2,
+          },
+        ]}>
+        <Icon name={icon} size={iconSize * 0.42} color={accentColor} />
       </LinearGradient>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      <Text style={[styles.title, {fontSize: layout.font.lg}]}>{title}</Text>
+      <Text
+        style={[
+          styles.subtitle,
+          {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW * 0.85},
+        ]}>
+        {subtitle}
+      </Text>
       {actionLabel && onAction ? (
         <TouchableOpacity
-          style={[styles.action, {backgroundColor: accentColor}]}
+          style={[styles.action, {backgroundColor: accentColor, paddingHorizontal: layout.hPad}]}
           onPress={onAction}
           activeOpacity={0.88}>
-          <Text style={styles.actionText}>{actionLabel}</Text>
+          <Text style={[styles.actionText, {fontSize: layout.font.sm}]}>{actionLabel}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -50,9 +67,6 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
   },
   iconWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
@@ -61,7 +75,6 @@ const styles = StyleSheet.create({
   },
   title: {
     color: COLORS.text,
-    fontSize: 19,
     fontWeight: '800',
     marginBottom: SPACING.sm,
     textAlign: 'center',
@@ -69,20 +82,15 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: COLORS.textSecondary,
-    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 22,
-    maxWidth: 280,
   },
   action: {
     marginTop: SPACING.lg,
-    paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm + 4,
     borderRadius: RADIUS.lg,
   },
   actionText: {
     color: '#fff',
     fontWeight: '800',
-    fontSize: 14,
   },
 });
