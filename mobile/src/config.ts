@@ -63,12 +63,21 @@ export function getCandidateHosts(): string[] {
   return [...new Set(hosts.filter(Boolean))];
 }
 
-/** Production: fixed HTTPS URL. Development: http://host:8080 candidates */
+/** Cloud URL is always tried first — works when your Mac is off. */
 export function getServerCandidates(): string[] {
-  if (isProductionMode()) {
-    return [getApiBaseUrl()];
+  const candidates: string[] = [];
+  const cloud = PRODUCTION_API_URL.replace(/\/$/, '').trim();
+
+  if (cloud && !cloud.includes('yourdomain.com')) {
+    candidates.push(cloud);
   }
-  return getCandidateHosts().map(h => `http://${h}:8080`);
+
+  if (isProductionMode()) {
+    return [...new Set(candidates)];
+  }
+
+  const local = getCandidateHosts().map(h => `http://${h}:8080`);
+  return [...new Set([...candidates, ...local])];
 }
 
 /** Mutable theme tokens — updated by ThemeProvider via applyTheme() */

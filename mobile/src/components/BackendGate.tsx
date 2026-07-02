@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
+  AppState,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -40,8 +41,8 @@ export function BackendGate({children}: {children: React.ReactNode}) {
     setStatus('fail');
     setError(
       production
-        ? 'Cannot reach production server. Check URL and API key in production.config.ts'
-        : `Tried ${candidates.length} addresses. Start backend: cd backend && mvn spring-boot:run`,
+        ? 'Cloud server did not respond in time. Free Render tier sleeps — tap Try again and wait up to 2 minutes.'
+        : 'Could not reach cloud or your Mac. Mac can be off if cloud works.',
     );
   }, [production]);
 
@@ -49,15 +50,26 @@ export function BackendGate({children}: {children: React.ReactNode}) {
     check();
   }, [check]);
 
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', next => {
+      if (next === 'active' && status === 'fail') {
+        check();
+      }
+    });
+    return () => sub.remove();
+  }, [status, check]);
+
   if (status === 'checking') {
     return (
       <View style={styles.screen}>
         <View style={styles.logoCircle}>
-          <Icon name="play-circle" size={42} color={COLORS.primary} />
+          <Icon name="cloud" size={42} color={COLORS.primary} />
         </View>
         <Text style={styles.appName}>MediaFace</Text>
         <Text style={styles.tagline}>
-          {production ? 'Connecting to Render (may take ~1 min on first load)…' : 'Finding your Mac on Wi‑Fi…'}
+          {production
+            ? 'Connecting to cloud…\nYour Mac can be off — first load may take up to 2 min'
+            : 'Trying cloud first, then your Mac on Wi‑Fi…'}
         </Text>
         <ActivityIndicator color={COLORS.primary} style={styles.spinner} />
         <Text style={styles.host}>{triedUrls.join('\n')}</Text>
@@ -71,14 +83,14 @@ export function BackendGate({children}: {children: React.ReactNode}) {
         <View style={[styles.logoCircle, styles.logoWarn]}>
           <Icon name="cloud-offline-outline" size={42} color={COLORS.warning} />
         </View>
-        <Text style={styles.appName}>Server unreachable</Text>
+        <Text style={styles.appName}>Cannot connect</Text>
         <Text style={styles.tagline}>
           {production
-            ? '1. Verify PRODUCTION_API_URL\n2. Match PRODUCTION_API_KEY with server\n3. Server must use HTTPS'
-            : '1. Run backend on Mac\n2. Same Wi‑Fi as phone\n3. Settings → Local Network ON'}
+            ? '1. Mac does NOT need to be on\n2. Free Render sleeps — tap Try again, wait ~2 min\n3. Need internet (Wi‑Fi or mobile data)'
+            : '1. Cloud works without Mac\n2. For local Mac: same Wi‑Fi + backend running\n3. Settings → Local Network ON'}
         </Text>
         <View style={styles.errorBox}>
-          <Text style={styles.errorHost}>Checked:</Text>
+          <Text style={styles.errorHost}>Tried:</Text>
           {triedUrls.map(url => (
             <Text key={url} style={styles.errorText}>
               {url}

@@ -1,5 +1,10 @@
 import {getApiBaseUrl, getApiKey, getServerCandidates, isProductionMode, setApiBaseUrl} from '../config';
 import {normalizeFaceImage} from '../utils/imageUpload';
+import {
+  isReachableHealthStatus,
+  loadCachedApiUrl,
+  saveCachedApiUrl,
+} from '../utils/serverConnection';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -133,13 +138,18 @@ export interface CaptureItem {
   durationMs?: number;
 }
 
-/** Try each server URL until backend responds */
+/** Try cloud + local URLs until backend responds (Mac can be off if cloud works). */
 export async function discoverServer(
   candidates = getServerCandidates(),
 ): Promise<string | null> {
   const apiKey = getApiKey();
-  const timeoutMs = isProductionMode() ? 90000 : 8000;
-  for (const base of candidates) {
+  const timeoutMs = isProductionMode() ? 120000 : 15000;
+  const cached = await loadCachedApiUrl();
+  const ordered = cached
+    ? [cached, ...candidates.filter(c => c !== cached)]
+    : candidates;
+
+  for (const base of ordered) {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -153,8 +163,13 @@ export async function discoverServer(
       });
       clearTimeout(timer);
       const json = await response.json();
-      if (response.ok && json.success && json.data?.status === 'UP') {
+      if (
+        response.ok &&
+        json.success &&
+        isReachableHealthStatus(json.data?.status)
+      ) {
         setApiBaseUrl(base);
+        await saveCachedApiUrl(base);
         return base;
       }
     } catch {
