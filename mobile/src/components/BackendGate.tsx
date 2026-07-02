@@ -9,11 +9,10 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {AppLogo} from './AppLogo';
-import {discoverServer} from '../api/client';
+import {ensureApiServer} from '../core/api/httpClient';
 import {
   COLORS,
   getApiBaseUrl,
-  getServerCandidates,
   isProductionMode,
   RADIUS,
   SPACING,
@@ -33,13 +32,17 @@ export function BackendGate({children}: {children: React.ReactNode}) {
   const check = useCallback(async () => {
     setStatus('checking');
     setError('');
-    const candidates = getServerCandidates();
-    setTriedUrls(candidates.length > 0 ? candidates : [getApiBaseUrl()]);
+    setTriedUrls([getApiBaseUrl()]);
 
-    const found = await discoverServer(candidates);
-    if (found) {
-      setStatus('ok');
-      return;
+    try {
+      const found = await ensureApiServer();
+      if (found) {
+        setTriedUrls([found]);
+        setStatus('ok');
+        return;
+      }
+    } catch {
+      // fall through
     }
 
     setStatus('fail');

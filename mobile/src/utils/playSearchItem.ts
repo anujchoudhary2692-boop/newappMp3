@@ -12,6 +12,16 @@ import {
 } from './localMediaStore';
 import {resolveStreamUrl} from './mediaPlayback';
 
+function isLanBackend(base = getApiBaseUrl()): boolean {
+  return base.startsWith('http://') && !base.includes('onrender.com');
+}
+
+function isYoutubeBlockedMessage(message: string): boolean {
+  return /not a bot|sign in to confirm|blocked this server|youtube blocked|blocked cloud/i.test(
+    message,
+  );
+}
+
 const SESSION_STREAM_TTL_MS = 30 * 60 * 1000;
 const sessionStreamCache = new Map<
   string,
@@ -64,35 +74,27 @@ function putSessionStream(
   });
 }
 
-function isBrokenPipeUrl(url: string): boolean {
-  return url.includes('/api/media/stream/');
-}
-
 function isPlayablePath(path: string): boolean {
   if (!path) {
     return false;
   }
-  if (isBrokenPipeUrl(path)) {
+  if (path.includes('/api/media/prepare/')) {
     return false;
   }
   return (
     path.startsWith('http://') ||
     path.startsWith('https://') ||
     path.startsWith('/files/') ||
+    path.startsWith('/api/media/stream/') ||
     path.startsWith('file://')
   );
 }
 
-function isYoutubeBlockedMessage(message: string): boolean {
-  return /not a bot|sign in to confirm|blocked this server|youtube blocked/i.test(message);
-}
-
 function mediaServerHint(): string {
-  const base = getApiBaseUrl();
-  if (base.startsWith('http://')) {
-    return 'Using your Mac backend on Wi‑Fi.';
+  if (isLanBackend()) {
+    return 'Using nearby MediaFace backend on Wi‑Fi.';
   }
-  return 'Cloud cannot download from YouTube without cookies. Start Mac backend on same Wi‑Fi, or set YOUTUBE_COOKIES_BASE64 on Render.';
+  return 'For playback anywhere, set YOUTUBE_COOKIES_BASE64 on Render. On Wi‑Fi, start Mac backend (auto-discovered).';
 }
 
 async function tryFastPlayUrl(
@@ -110,11 +112,21 @@ async function tryFastPlayUrl(
   return null;
 }
 
-/** Fast playback: session cache → device file → server cache → prepare poll. */
+/** Fast playback: session cache → device file → Mac backend stream → prepare poll. */
 export async function waitForMediaReady(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
   onStatus?: (message?: string) => void,
+  searchItem?: Pick<MediaSearchResult, 'audioStreamUrl' | 'videoStreamUrl'>,
+): Promise<{streamPath: string; quality?: string}> {
+  return waitForMediaReadyOnce(videoId, type, onStatus, searchItem);
+}
+
+async function waitForMediaReadyOnce(
+  videoId: string,
+  type: 'AUDIO' | 'VIDEO',
+  onStatus?: (message?: string) => void,
+  searchItem?: Pick<MediaSearchResult, 'audioStreamUrl' | 'videoStreamUrl'>,
 ): Promise<{streamPath: string; quality?: string}> {
   const cachedSession = getSessionStream(videoId, type);
   if (cachedSession) {
@@ -132,10 +144,19 @@ export async function waitForMediaReady(
   await ensureMediaServer();
   onStatus?.('Starting stream…');
 
-  // Start prepare job immediately; check server cache in parallel.
-  const pollPromise = pollPrepareUntilReady(videoId, type, onStatus);
+  const searchStreamPath =
+    type === 'AUDIO' ? searchItem?.audioStreamUrl : searchItem?.videoStreamUrl;
+  if (isLanBackend() && searchStreamPath && isPlayablePath(searchStreamPath)) {
+    putSessionStream(videoId, type, searchStreamPath, 'Streaming');
+    return {streamPath: searchStreamPath, quality: 'Streaming'};
+  }
+
+  const pollControl = {cancelled: false};
+  const pollPromise = pollPrepareUntilReady(videoId, type, onStatus, pollControl);
   const fastPlay = await tryFastPlayUrl(videoId, type);
   if (fastPlay) {
+    pollControl.cancelled = true;
+    void pollPromise.catch(() => {});
     putSessionStream(videoId, type, fastPlay.streamPath, fastPlay.quality);
     return fastPlay;
   }
@@ -147,8 +168,13 @@ async function pollPrepareUntilReady(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
   onStatus?: (message?: string) => void,
+  control?: {cancelled: boolean},
 ): Promise<{streamPath: string; quality?: string}> {
   for (let attempt = 0; attempt < 90; attempt += 1) {
+    if (control?.cancelled) {
+      throw new Error('Playback cancelled');
+    }
+
     const status = await mediaApi.prepare(videoId, type);
     if (!status.success || !status.data) {
       throw new Error(status.message || 'Could not prepare media');
@@ -201,7 +227,12 @@ export async function prepareAndStartPlayback(
   onStatus?.('Opening player…');
 
   try {
-    const {streamPath, quality} = await waitForMediaReady(item.videoId, type, onStatus);
+    const {streamPath, quality} = await waitForMediaReady(
+      item.videoId,
+      type,
+      onStatus,
+      item,
+    );
     const streamUrl = resolveStreamUrl(streamPath);
     const media: PlayableMedia = {
       ...mediaBase,

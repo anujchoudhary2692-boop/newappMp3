@@ -1,8 +1,7 @@
-import {getApiBaseUrl, getApiKey, getMediaServerCandidates, getServerCandidates, isProductionMode, setApiBaseUrl} from '../../config';
+import {getApiBaseUrl, getApiKey, getServerCandidates, isProductionMode, setApiBaseUrl} from '../../config';
 import {
   clearCachedApiUrl,
   connectionErrorHint,
-  isReachableHealthStatus,
   isRecoverableRequestError,
   loadCachedApiUrl,
   networkErrorMessage,
@@ -10,7 +9,16 @@ import {
   probeTimeoutFor,
   requestTimeoutMessage,
   saveCachedApiUrl,
+  isReachableHealthStatus,
+  type ServerOrderMode,
 } from '../../utils/serverConnection';
+import {
+  mediaServerUnavailableMessage,
+  pickBestApiServer,
+  pickBestMediaServer,
+  probeServerCapabilities,
+  scanBonjourServers,
+} from './serverDiscovery';
 import type {ApiResponse} from './types/common';
 
 export type {ApiResponse};
@@ -21,6 +29,11 @@ function defaultRequestTimeoutMs(): number {
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function probeServerHealth(base: string, timeoutMs = probeTimeoutFor(base)): Promise<boolean> {
+  const probe = await probeServerCapabilities(base, timeoutMs);
+  return probe != null;
 }
 
 async function executeHttpRequest<T>(
@@ -105,97 +118,79 @@ export async function httpRequest<T>(
 
 export async function discoverServer(
   candidates = getServerCandidates(),
+  mode: ServerOrderMode = 'cloud-first',
 ): Promise<string | null> {
-  const apiKey = getApiKey();
   const cached = await loadCachedApiUrl();
-  const ordered = orderServerCandidates(candidates, cached);
+  const ordered = orderServerCandidates(candidates, cached, mode);
 
   for (const base of ordered) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), probeTimeoutFor(base));
-      const headers: Record<string, string> = {Accept: 'application/json'};
-      if (apiKey) {
-        headers['X-API-Key'] = apiKey;
-      }
-      const response = await fetch(`${base}/api/health`, {
-        signal: controller.signal,
-        headers,
-      });
-      clearTimeout(timer);
-
-      if (response.status === 502 || response.status === 503 || response.status === 504) {
-        continue;
-      }
-
-      const text = await response.text();
-      let json: {success?: boolean; data?: {status?: string}};
-      try {
-        json = text ? JSON.parse(text) : {};
-      } catch {
-        continue;
-      }
-
-      if (
-        response.ok &&
-        json.success &&
-        isReachableHealthStatus(json.data?.status)
-      ) {
-        setApiBaseUrl(base);
-        await saveCachedApiUrl(base);
-        return base;
-      }
-    } catch {
-      // try next
+    if (await probeServerHealth(base)) {
+      setApiBaseUrl(base);
+      await saveCachedApiUrl(base);
+      return base;
     }
   }
   return null;
 }
 
-/** Ensure a reachable API server for search and general calls (cloud first in production). */
-export async function ensureApiServer(): Promise<string> {
-  const candidates = getServerCandidates();
-  if (candidates.length > 0) {
-    const found = await discoverServer(candidates);
-    if (found) {
-      return found;
+/** Auto-discover LAN backend via Bonjour (no IP configuration). */
+export async function discoverLanMediaServer(): Promise<string | null> {
+  const bonjour = await scanBonjourServers();
+  for (const base of bonjour) {
+    if (await probeServerHealth(base, 5000)) {
+      setApiBaseUrl(base);
+      await saveCachedApiUrl(base);
+      return base;
     }
   }
-  return getApiBaseUrl();
+  return null;
 }
 
-export async function ensureMediaServer(): Promise<string> {
-  const candidates = getMediaServerCandidates();
-  if (candidates.length > 0) {
-    const found = await discoverServer(candidates);
-    if (found) {
-      return found;
-    }
+/** Ensure a reachable API server — cloud or LAN, works on Wi‑Fi and mobile data. */
+export async function ensureApiServer(): Promise<string> {
+  const picked = await pickBestApiServer();
+  if (picked) {
+    setApiBaseUrl(picked.base);
+    await saveCachedApiUrl(picked.base);
+    return picked.base;
   }
-  return getApiBaseUrl();
+
+  const fallback = await discoverServer(getServerCandidates());
+  return fallback || getApiBaseUrl();
+}
+
+/** Ensure the best server for play/download — prefers full playback capability. */
+export async function ensureMediaServer(): Promise<string> {
+  const picked = await pickBestMediaServer();
+  if (picked) {
+    setApiBaseUrl(picked.base);
+    await saveCachedApiUrl(picked.base);
+    return picked.base;
+  }
+  throw new Error(mediaServerUnavailableMessage());
 }
 
 export async function discoverMediaServer(): Promise<string | null> {
-  const candidates = getMediaServerCandidates();
-  if (candidates.length === 0) {
-    return getApiBaseUrl();
+  try {
+    return await ensureMediaServer();
+  } catch {
+    return null;
   }
-  return discoverServer(candidates);
 }
 
 /** Wake Render free tier by polling health until UP or timeout. */
 export async function wakeCloudServer(timeoutMs = 120000): Promise<boolean> {
-  if (!isProductionMode()) {
-    return (await discoverServer(getServerCandidates())) != null;
-  }
-
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const found = await discoverServer(getServerCandidates());
-    if (found) {
+    const picked = await pickBestApiServer();
+    if (picked) {
+      setApiBaseUrl(picked.base);
+      await saveCachedApiUrl(picked.base);
       return true;
     }
     await sleep(2500);
   }
   return false;
 }
+
+export {pickBestApiServer, pickBestMediaServer, scanBonjourServers, probeServerCapabilities};

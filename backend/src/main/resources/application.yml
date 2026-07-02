@@ -46,3 +46,5 @@ app:
     camera-capture: ${FEATURE_CAMERA_CAPTURE:true}
     camera-geotag: ${FEATURE_CAMERA_GEOTAG:true}
     device-storage: ${FEATURE_DEVICE_STORAGE:true}
+  discovery:
+    bonjour-enabled: ${BONJOUR_ENABLED:true}

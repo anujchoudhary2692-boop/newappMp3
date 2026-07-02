@@ -18,6 +18,9 @@ public class MediaDiagnosticsService {
     @Value("${app.storage.downloads-dir:./storage/downloads}")
     private String downloadsDir;
 
+    @Value("${RENDER:false}")
+    private boolean renderHost;
+
     public Map<String, Object> snapshot() {
         Map<String, Object> media = new LinkedHashMap<>();
         media.put("ytDlp", ytDlpService.isAvailable() ? "UP" : "DOWN");
@@ -54,7 +57,9 @@ public class MediaDiagnosticsService {
         if (!ytDlpService.isAvailable()) {
             return "DOWN";
         }
-        if (!ytDlpService.hasCookies()) {
+        // Mac/local backends can play via yt-dlp iOS client profiles without cookies.
+        // Cloud (Render) needs cookies because YouTube blocks datacenter IPs.
+        if (renderHost && !ytDlpService.hasCookies()) {
             return "LIMITED";
         }
         return "UP";

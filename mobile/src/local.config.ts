@@ -1,16 +1,12 @@
 /**
  * Network settings for iOS & Android.
  *
- * Simulator / emulator (default):
- *   USE_PHYSICAL_DEVICE = false
- *   - iOS Simulator  → localhost
- *   - Android Emulator → 10.0.2.2
+ * Production apps auto-discover the Mac backend via Bonjour (_mediaface._tcp)
+ * and always use the cloud URL from production.config.ts — no IP required.
  *
- * Physical device (same Wi‑Fi as your Mac):
- *   USE_PHYSICAL_DEVICE = true
- *   LAN_BACKEND_HOST = your Mac IP (run: ipconfig getifaddr en0)
+ * LAN_BACKEND_HOST is an optional manual override only (leave empty normally).
  */
 export const USE_PHYSICAL_DEVICE = true;
 
-/** Your Mac's LAN IP — update if your network changes */
-export const LAN_BACKEND_HOST = '192.168.0.105';
+/** Optional manual override — leave empty for automatic Bonjour discovery */
+export const LAN_BACKEND_HOST: string = '';

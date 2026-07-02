@@ -15,7 +15,7 @@ export function getApiKey(): string {
 }
 
 function devDefaultHost(): string {
-  if (USE_PHYSICAL_DEVICE) {
+  if (USE_PHYSICAL_DEVICE && LAN_BACKEND_HOST) {
     return LAN_BACKEND_HOST;
   }
   return Platform.select({
@@ -52,7 +52,7 @@ export function getCandidateHosts(): string[] {
     return [];
   }
 
-  const hosts = USE_PHYSICAL_DEVICE
+  const hosts = USE_PHYSICAL_DEVICE && LAN_BACKEND_HOST
     ? [LAN_BACKEND_HOST]
     : Platform.select({
         android: ['10.0.2.2'],
@@ -63,7 +63,7 @@ export function getCandidateHosts(): string[] {
   return [...new Set(hosts.filter(Boolean))];
 }
 
-/** Cloud URL is always tried — works when your Mac is off. LAN is included for media when Mac is on. */
+/** Cloud + optional manual LAN override — Bonjour discovery adds LAN at runtime. */
 export function getServerCandidates(): string[] {
   const candidates: string[] = [];
   const cloud = PRODUCTION_API_URL.replace(/\/$/, '').trim();
@@ -83,25 +83,9 @@ export function getServerCandidates(): string[] {
   return [...new Set([...candidates, ...local])];
 }
 
-/** Prefer Mac backend for play/download — avoids YouTube bot blocks on cloud. */
+/** Legacy list — prefer pickBestMediaServer() for play/download. */
 export function getMediaServerCandidates(): string[] {
-  const cloud = PRODUCTION_API_URL.replace(/\/$/, '').trim();
-  const candidates: string[] = [];
-
-  if (USE_PHYSICAL_DEVICE && LAN_BACKEND_HOST) {
-    candidates.push(`http://${LAN_BACKEND_HOST}:8080`);
-  }
-  if (cloud && !cloud.includes('yourdomain.com')) {
-    candidates.push(cloud);
-  }
-  if (!isProductionMode()) {
-    return getServerCandidates();
-  }
-  const current = getApiBaseUrl();
-  if (current && !candidates.includes(current)) {
-    candidates.push(current);
-  }
-  return [...new Set(candidates)];
+  return getServerCandidates();
 }
 
 /** Mutable theme tokens — updated by ThemeProvider via applyTheme() */

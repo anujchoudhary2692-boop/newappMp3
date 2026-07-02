@@ -44,6 +44,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_metro._tcp</string>
+		<string>_mediaface._tcp</string>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Full photo and video library access is needed to find people in group photos and videos.</string>

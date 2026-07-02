@@ -30,7 +30,7 @@ export const mediaApi = {
     httpRequest<PlayUrlResponse>(
       `/api/media/play/${videoId}?type=${type}`,
       {},
-      12000,
+      isProductionMode() ? 45000 : 12000,
     ),
 
   prepare: (videoId: string, type: 'AUDIO' | 'VIDEO') =>

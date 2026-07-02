@@ -32,23 +32,39 @@ export async function clearCachedApiUrl(): Promise<void> {
   }
 }
 
-/** Cloud first in production; ignore stale LAN cache when Mac is off. */
+/** Cloud first for search/API; LAN first for play/download when Mac is available. */
+export type ServerOrderMode = 'cloud-first' | 'lan-first';
+
+function isLanBase(base: string): boolean {
+  return (
+    base.startsWith('http://192.168.') ||
+    base.startsWith('http://10.') ||
+    base.startsWith('http://172.')
+  );
+}
+
 export function orderServerCandidates(
   candidates: string[],
   cached: string | null,
+  mode: ServerOrderMode = 'cloud-first',
 ): string[] {
   const cloud = PRODUCTION_API_URL.replace(/\/$/, '').trim();
   const unique = (urls: string[]) =>
     [...new Set(urls.filter(u => u && u.length > 0))];
 
   if (isProductionMode()) {
-    const usableCached =
-      cached && cached.startsWith('https://') ? cached : null;
-    return unique([
-      cloud,
-      ...(usableCached && usableCached !== cloud ? [usableCached] : []),
-      ...candidates,
-    ]);
+    const cloudList =
+      cloud && !cloud.includes('yourdomain.com') ? [cloud] : [];
+    const lanList = candidates.filter(isLanBase);
+    const httpsCached =
+      cached && cached.startsWith('https://') && cached !== cloud ? [cached] : [];
+    const lanCached = cached && isLanBase(cached) ? [cached] : [];
+
+    if (mode === 'lan-first') {
+      return unique([...lanCached, ...lanList, ...httpsCached, ...cloudList, ...candidates]);
+    }
+
+    return unique([...cloudList, ...httpsCached, ...lanList, ...candidates]);
   }
 
   if (cached) {
@@ -82,10 +98,10 @@ export function connectionErrorHint(): string {
       'On Render free tier, wait up to 3 minutes and try again — your Mac does not need to be on.'
     );
   }
-  if (base.startsWith('http://192.168.') || base.startsWith('http://10.')) {
+  if (base.startsWith('http://192.168.') || base.startsWith('http://10.') || base.startsWith('http://172.')) {
     return (
-      'Cannot reach your Mac backend on the same Wi‑Fi. Start it with: cd backend && mvn spring-boot:run, ' +
-      'update LAN_BACKEND_HOST in local.config.ts, and enable Local Network for this app in iPhone Settings.'
+      'Cannot reach a nearby MediaFace backend. Start it on your Mac with: cd backend && mvn spring-boot:run ' +
+      '(same Wi‑Fi, Local Network enabled). No IP address needs to be configured.'
     );
   }
   return (

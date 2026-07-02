@@ -29,6 +29,9 @@ public class MediaCacheService {
     @Value("${app.media.prepare-timeout-seconds:180}")
     private long prepareTimeoutSeconds;
 
+    @Value("${RENDER:false}")
+    private boolean renderHost;
+
     public PrepareStatusDto prepare(String videoId, MediaType type) {
         String key = jobKey(videoId, type);
 
@@ -54,6 +57,12 @@ public class MediaCacheService {
                 }
                 jobs.remove(key);
                 jobStartedAt.remove(key);
+                return failedDto(
+                        videoId,
+                        type,
+                        renderHost && !ytDlpService.hasCookies()
+                                ? "YouTube blocked cloud playback. Start Mac backend on same Wi‑Fi, or set YOUTUBE_COOKIES_BASE64 on Render."
+                                : "Prepare timed out after " + prepareTimeoutSeconds + "s. Try again or use Mac backend on Wi‑Fi.");
             }
             if (existing.getStatus() == PrepareStatusDto.Status.FAILED) {
                 jobs.remove(key);
@@ -98,6 +107,14 @@ public class MediaCacheService {
                 return;
             } catch (Exception directEx) {
                 log.info("Direct URL unavailable for {} {}, caching file: {}", videoId, type, directEx.getMessage());
+            }
+
+            if (renderHost && !ytDlpService.hasCookies()) {
+                jobs.put(key, failedDto(
+                        videoId,
+                        type,
+                        "YouTube blocked cloud playback. Start Mac backend on same Wi‑Fi, or set YOUTUBE_COOKIES_BASE64 on Render."));
+                return;
             }
 
             Path cached = mediaService.ensureCachedPlaybackPublic(videoId, type);

@@ -1749,6 +1749,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-zeroconf (0.14.0):
+    - React-Core
   - React-NativeModulesApple (0.86.0):
     - hermes-engine
     - React-callinvoker
@@ -2297,6 +2299,7 @@ DEPENDENCIES:
   - react-native-pager-view (from `../node_modules/react-native-pager-view`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-video (from `../node_modules/react-native-video`)
+  - react-native-zeroconf (from `../node_modules/react-native-zeroconf`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
@@ -2447,6 +2450,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-video:
     :path: "../node_modules/react-native-video"
+  react-native-zeroconf:
+    :path: "../node_modules/react-native-zeroconf"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-networking:
@@ -2579,6 +2584,7 @@ SPEC CHECKSUMS:
   react-native-pager-view: da68cd8d95b22605bfeda00d3cfb71ca500a61e3
   react-native-safe-area-context: c1eb308f4b36372a4de4b3bdaa8ed695ec3dd461
   react-native-video: 84f5283aaed3484b5b4914095ab16a9dd3477cca
+  react-native-zeroconf: 14d6e0ee473f6abeb61573d9d0f5f6940a1fec4a
   React-NativeModulesApple: a4713821c9caae40ae33eef933a6e692a6f4a81d
   React-networking: b344a1a41a4729ef859123b7a234f3092761cb25
   React-oscompat: 0b72a7e926954a0415ccd83e0748b6561fe45367
