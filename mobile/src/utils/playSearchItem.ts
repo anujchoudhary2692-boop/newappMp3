@@ -1,5 +1,6 @@
 import {Alert} from 'react-native';
-import {api, MediaSearchResult, PlayableMedia} from '../api/client';
+import {api, discoverMediaServer, MediaSearchResult, PlayableMedia} from '../api/client';
+import {getApiBaseUrl} from '../config';
 import {openPlayerScreen} from '../navigation/navigationRef';
 import {resolveStreamUrl} from './mediaPlayback';
 
@@ -25,11 +26,27 @@ function isPlayablePath(path: string): boolean {
   );
 }
 
+function isYoutubeBlockedMessage(message: string): boolean {
+  return /not a bot|sign in to confirm|blocked this server|youtube blocked/i.test(message);
+}
+
+function mediaServerHint(): string {
+  const base = getApiBaseUrl();
+  if (base.startsWith('http://')) {
+    return 'Using your Mac backend on Wi‑Fi.';
+  }
+  return 'Cloud cannot download from YouTube without cookies. Start Mac backend on same Wi‑Fi, or set YOUTUBE_COOKIES_BASE64 on Render.';
+}
+
 /** Wait for server-side cache/CDN URL — required on Render (pipe stream times out). */
 export async function waitForMediaReady(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
+  onStatus?: (message?: string) => void,
 ): Promise<{streamPath: string; quality?: string}> {
+  await discoverMediaServer();
+  onStatus?.('Preparing stream…');
+
   for (let attempt = 0; attempt < 60; attempt += 1) {
     const status = await api.prepareMedia(videoId, type);
     if (!status.success || !status.data) {
@@ -38,7 +55,12 @@ export async function waitForMediaReady(
 
     const {data} = status;
     if (data.status === 'FAILED') {
-      throw new Error(data.message || 'Media prepare failed on server');
+      const msg = data.message || 'Media prepare failed on server';
+      throw new Error(isYoutubeBlockedMessage(msg) ? `${msg}\n\n${mediaServerHint()}` : msg);
+    }
+
+    if (data.status === 'PREPARING') {
+      onStatus?.(data.message || 'Downloading for playback…');
     }
 
     if (data.status === 'READY' && data.streamUrl && isPlayablePath(data.streamUrl)) {
@@ -48,15 +70,16 @@ export async function waitForMediaReady(
     await sleep(3000);
   }
 
-  throw new Error('Prepare timed out. Try Download, or wait and retry.');
+  throw new Error(`Prepare timed out.\n\n${mediaServerHint()}`);
 }
 
 export async function prepareAndStartPlayback(
   item: MediaSearchResult,
   type: 'AUDIO' | 'VIDEO',
   startPlayback: (media: PlayableMedia, streamUrl: string) => void,
+  onStatus?: (message?: string) => void,
 ): Promise<void> {
-  const {streamPath, quality} = await waitForMediaReady(item.videoId, type);
+  const {streamPath, quality} = await waitForMediaReady(item.videoId, type, onStatus);
   const streamUrl = resolveStreamUrl(streamPath);
 
   const media: PlayableMedia = {
@@ -74,10 +97,18 @@ export async function prepareAndStartPlayback(
 }
 
 export function showPlaybackError(error: unknown): void {
-  Alert.alert(
-    'Playback failed',
+  const raw =
     error instanceof Error
       ? error.message
-      : 'Stream could not start. Check connection and try again.',
-  );
+      : 'Stream could not start. Check connection and try again.';
+  Alert.alert('Playback failed', raw);
+}
+
+export function showDownloadError(error: unknown): void {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : 'Download failed. Check backend and network.';
+  const message = isYoutubeBlockedMessage(raw) ? `${raw}\n\n${mediaServerHint()}` : raw;
+  Alert.alert('Download failed', message);
 }

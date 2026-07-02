@@ -71,8 +71,8 @@ export function BackendGate({children}: {children: React.ReactNode}) {
         <Text style={[styles.appName, {fontSize: layout.font.hero * 0.4}]}>MediaFace</Text>
         <Text style={[styles.tagline, {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW}]}>
           {production
-            ? 'Connecting to cloud…\nYour Mac can be off — first load may take up to 3 min'
-            : 'Trying cloud first, then your Mac on Wi‑Fi…'}
+            ? 'Getting things ready…'
+            : 'Connecting to your library…'}
         </Text>
         <ActivityIndicator color={COLORS.primary} style={styles.spinner} />
         <Text style={[styles.host, {fontSize: layout.font.xs}]}>{triedUrls.join('\n')}</Text>
@@ -89,8 +89,8 @@ export function BackendGate({children}: {children: React.ReactNode}) {
         <Text style={[styles.appName, {fontSize: layout.font.hero * 0.4}]}>Cannot connect</Text>
         <Text style={[styles.tagline, {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW}]}>
           {production
-            ? '1. Mac does NOT need to be on\n2. Free Render sleeps — tap Try again, wait ~2 min\n3. Need internet (Wi‑Fi or mobile data)'
-            : '1. Cloud works without Mac\n2. For local Mac: same Wi‑Fi + backend running\n3. Settings → Local Network ON'}
+            ? 'Check your internet and try again.\nFirst open can take a minute.'
+            : 'Start the app backend on your Mac, or use cloud mode.'}
         </Text>
         <View style={[styles.errorBox, {maxWidth: layout.contentW}]}>
           <Text style={styles.errorHost}>Tried:</Text>

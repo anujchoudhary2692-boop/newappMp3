@@ -11,6 +11,7 @@ import {StyleSheet, View} from 'react-native';
 import {PlayableMedia} from '../api/client';
 import {isPlayerScreenOpen, openPlayerScreen} from '../navigation/navigationRef';
 import {buildMediaSource} from '../utils/mediaPlayback';
+import {pushRecentMedia} from '../utils/recentMedia';
 
 export interface QueueTrack {
   id: string;
@@ -103,6 +104,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     setDuration(0);
     setBuffering(true);
     setStreamKey(key => key + 1);
+    void pushRecentMedia(nextMedia, nextStreamUrl);
   }, []);
 
   const goToQueueIndex = useCallback((index: number) => {
@@ -395,6 +397,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
               setPaused(true);
               console.warn('Playback engine error', e);
             }}
+            onAudioBecomingNoisy={() => setPaused(true)}
           />
         </View>
       ) : null}

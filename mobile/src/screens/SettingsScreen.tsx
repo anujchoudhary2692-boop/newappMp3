@@ -12,7 +12,7 @@ import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {AppHeader} from '../components/AppHeader';
 import {useTheme} from '../context/ThemeContext';
 import {api, discoverServer} from '../api/client';
-import {getApiBaseUrl, isProductionMode, RADIUS, SHADOW, SPACING} from '../config';
+import {RADIUS, SHADOW, SPACING} from '../config';
 import {clearCachedApiUrl} from '../utils/serverConnection';
 import {THEME_LIST, ThemeId} from '../theme/themes';
 import {openGuide, goToCameraTab, goToFacesTab, goToMediaTab} from '../navigation/navigationRef';
@@ -62,35 +62,37 @@ export function SettingsScreen() {
     <LinearGradient colors={gradients.media} style={styles.root}>
       <AppHeader
         title="Settings"
-        subtitle="Theme · Server · Guide"
         showBack
         onBack={() => navigation.goBack()}
         accentColor={colors.primary}
+        variant="minimal"
       />
 
       <ScrollView
         contentContainerStyle={[styles.content, {padding: layout.hPad, paddingBottom: layout.contentBottomPad}]}
         showsVerticalScrollIndicator={false}>
-        {/* Server status */}
+        {/* Connection */}
+        <Text style={[styles.sectionTitle, {color: colors.text}]}>Connection</Text>
         <View style={[styles.statusCard, {borderColor: colors.border}]}>
           <View style={styles.statusRow}>
             <Icon
-              name={serverOk ? 'cloud-done' : 'cloud-offline'}
+              name={serverOk ? 'checkmark-circle' : 'alert-circle'}
               size={22}
               color={serverOk ? colors.success : colors.warning}
             />
             <View style={styles.statusText}>
               <Text style={[styles.statusTitle, {color: colors.text}]}>
                 {serverOk === null
-                  ? 'Checking server…'
+                  ? 'Checking…'
                   : serverOk
-                    ? 'Cloud server connected'
-                    : 'Server unreachable'}
-                {isProductionMode() ? ' · Live' : ' · Dev'}
+                    ? 'Connected'
+                    : 'Offline'}
               </Text>
-              <Text style={[styles.statusUrl, {color: colors.textMuted}]} numberOfLines={1}>
-                {getApiBaseUrl()}
-              </Text>
+              {!serverOk ? (
+                <Text style={[styles.statusUrl, {color: colors.textMuted}]}>
+                  Pull down on Home to refresh, or tap retry below.
+                </Text>
+              ) : null}
             </View>
           </View>
           <TouchableOpacity
@@ -104,8 +106,8 @@ export function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Quick links */}
-        <Text style={[styles.sectionTitle, {color: colors.text}]}>Jump to feature</Text>
+        {/* Shortcuts */}
+        <Text style={[styles.sectionTitle, {color: colors.text, marginTop: SPACING.lg}]}>Shortcuts</Text>
         <View style={styles.linkGrid}>
           <LinkChip icon="search" label="Search" color={colors.primary} onPress={() => goToMediaTab('SearchTab')} />
           <LinkChip icon="musical-notes" label="Music" color={colors.audio} onPress={() => goToMediaTab('AudioTab')} />
@@ -115,9 +117,9 @@ export function SettingsScreen() {
           <LinkChip icon="book" label="Guide" color={colors.accent} onPress={openGuide} />
         </View>
 
-        <Text style={[styles.sectionTitle, {color: colors.text, marginTop: SPACING.lg}]}>Color theme</Text>
+        <Text style={[styles.sectionTitle, {color: colors.text, marginTop: SPACING.lg}]}>Appearance</Text>
         <Text style={[styles.sectionHint, {color: colors.textMuted}]}>
-          Applies across Home, Media, Camera, and Faces.
+          Pick a vibe for the whole app.
         </Text>
 
         <View style={[styles.themeGrid, layout.isTablet && styles.themeGridTablet]}>
@@ -184,7 +186,7 @@ const styles = StyleSheet.create({
   },
   statusRow: {flexDirection: 'row', alignItems: 'center', gap: SPACING.md},
   statusText: {flex: 1, minWidth: 0},
-  statusTitle: {fontWeight: '800', fontSize: 15},
+  statusTitle: {fontWeight: '700', fontSize: 15},
   statusUrl: {fontSize: 12, fontWeight: '600', marginTop: 2},
   retryBtn: {
     flexDirection: 'row',
@@ -197,7 +199,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   retryLabel: {fontWeight: '700', fontSize: 14},
-  sectionTitle: {fontSize: 18, fontWeight: '800', marginBottom: 4},
+  sectionTitle: {fontSize: 17, fontWeight: '700', marginBottom: 4},
   sectionHint: {fontSize: 13, fontWeight: '600', marginBottom: SPACING.md},
   linkGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.sm},
   linkChip: {

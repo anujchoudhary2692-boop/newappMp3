@@ -29,7 +29,7 @@ export function StatTile({icon, label, value, accent}: StatTileProps) {
         <Icon name={icon} size={layout.isCompact ? 12 : 14} color={accent} />
       </View>
       <Text style={[styles.value, {color: accent, fontSize: layout.font.lg}]}>{value}</Text>
-      <Text style={[styles.label, {fontSize: 9}]} numberOfLines={1}>
+      <Text style={[styles.label, {fontSize: layout.font.xs}]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
         {label}
       </Text>
     </View>

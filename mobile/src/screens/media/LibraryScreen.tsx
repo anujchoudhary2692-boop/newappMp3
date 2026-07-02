@@ -18,7 +18,7 @@ import {usePlayback} from '../../context/PlaybackContext';
 import {api, MediaItem} from '../../api/client';
 import {buildLibraryQueue} from '../../utils/playbackQueue';
 import {openPlayerScreen} from '../../navigation/navigationRef';
-import {COLORS, RADIUS, SPACING} from '../../config';
+import {COLORS, GRADIENTS, RADIUS, SPACING} from '../../config';
 import {connectionErrorHint} from '../../utils/serverConnection';
 import {useLayoutMetrics} from '../../utils/layout';
 
@@ -80,7 +80,7 @@ export function LibraryScreen({type}: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={GRADIENTS.media} style={styles.container}>
       <FlatList
         data={items}
         keyExtractor={item => item.id}
@@ -161,14 +161,13 @@ export function LibraryScreen({type}: Props) {
             : [styles.list, {paddingBottom: layout.contentBottomPadWithPlayer}]
         }
       />
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   sectionHeader: {
     paddingTop: SPACING.sm,

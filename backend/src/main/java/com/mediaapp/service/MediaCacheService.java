@@ -12,15 +12,19 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MediaCacheService {
 
+    private static final long PREPARE_TIMEOUT_MS = TimeUnit.MINUTES.toMillis(4);
+
     private final MediaService mediaService;
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final Map<String, PrepareStatusDto> jobs = new ConcurrentHashMap<>();
+    private final Map<String, Long> jobStartedAt = new ConcurrentHashMap<>();
 
     public PrepareStatusDto prepare(String videoId, MediaType type) {
         String key = jobKey(videoId, type);
@@ -41,7 +45,16 @@ public class MediaCacheService {
                 return existing;
             }
             if (existing.getStatus() == PrepareStatusDto.Status.PREPARING) {
-                return existing;
+                Long started = jobStartedAt.get(key);
+                if (started != null && System.currentTimeMillis() - started < PREPARE_TIMEOUT_MS) {
+                    return existing;
+                }
+                jobs.remove(key);
+                jobStartedAt.remove(key);
+            }
+            if (existing.getStatus() == PrepareStatusDto.Status.FAILED) {
+                jobs.remove(key);
+                jobStartedAt.remove(key);
             }
         }
 
@@ -54,6 +67,7 @@ public class MediaCacheService {
                 .message("Downloading for playback. This may take 1–2 minutes on cloud.")
                 .build();
         jobs.put(key, preparing);
+        jobStartedAt.put(key, System.currentTimeMillis());
 
         executor.submit(() -> runPrepare(key, videoId, type));
         return preparing;
@@ -82,12 +96,13 @@ public class MediaCacheService {
             jobs.put(key, readyDto(videoId, type, cached, "Cached on server"));
         } catch (Exception e) {
             log.error("Prepare failed for {} {}", videoId, type, e);
+            jobStartedAt.remove(key);
             jobs.put(key, PrepareStatusDto.builder()
                     .videoId(videoId)
                     .type(type)
                     .status(PrepareStatusDto.Status.FAILED)
                     .contentType(mediaService.getStreamContentType(type))
-                    .message(e.getMessage() != null ? e.getMessage() : "Prepare failed")
+                    .message(mediaService.friendlyMediaError(e.getMessage()))
                     .build());
         }
     }

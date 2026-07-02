@@ -1,4 +1,4 @@
-import {getApiBaseUrl, getApiKey, getServerCandidates, isProductionMode, setApiBaseUrl} from '../config';
+import {getApiBaseUrl, getApiKey, getMediaServerCandidates, getServerCandidates, isProductionMode, setApiBaseUrl} from '../config';
 import {normalizeFaceImage} from '../utils/imageUpload';
 import {resolveStreamUrl} from '../utils/mediaPlayback';
 import {
@@ -190,6 +190,15 @@ export async function discoverServer(
     }
   }
   return null;
+}
+
+/** For play/download — try Mac LAN first (yt-dlp works), then cloud. */
+export async function discoverMediaServer(): Promise<string | null> {
+  const candidates = getMediaServerCandidates();
+  if (candidates.length === 0) {
+    return getApiBaseUrl();
+  }
+  return discoverServer(candidates);
 }
 
 function defaultRequestTimeoutMs(): number {

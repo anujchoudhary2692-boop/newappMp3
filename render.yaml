@@ -19,3 +19,5 @@ services:
         value: "false"
       - key: JAVA_OPTS
         value: "-Xmx512m -XX:+UseG1GC"
+      - key: YOUTUBE_COOKIES_BASE64
+        sync: false

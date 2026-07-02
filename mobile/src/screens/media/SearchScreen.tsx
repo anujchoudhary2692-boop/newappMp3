@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {
   Alert,
   FlatList,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,16 +11,21 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import LinearGradient from 'react-native-linear-gradient';
 import {useFocusEffect} from '@react-navigation/native';
 import {SearchBar} from '../../components/SearchBar';
 import {MediaCard, formatDuration} from '../../components/MediaCard';
 import {EmptyState} from '../../components/EmptyState';
 import {MediaListSkeleton} from '../../components/Skeleton';
 import {usePlayback} from '../../context/PlaybackContext';
-import {api, MediaSearchResult} from '../../api/client';
-import {COLORS, RADIUS, SPACING} from '../../config';
+import {api, discoverMediaServer, MediaSearchResult} from '../../api/client';
+import {COLORS, GRADIENTS, RADIUS, SPACING} from '../../config';
 import {connectionErrorHint} from '../../utils/serverConnection';
-import {prepareAndStartPlayback, showPlaybackError} from '../../utils/playSearchItem';
+import {
+  prepareAndStartPlayback,
+  showDownloadError,
+  showPlaybackError,
+} from '../../utils/playSearchItem';
 import {consumePendingSearchQuery} from '../../utils/searchIntent';
 import {useLayoutMetrics} from '../../utils/layout';
 
@@ -40,6 +46,7 @@ export function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState<Record<string, 'AUDIO' | 'VIDEO'>>({});
   const [playing, setPlaying] = useState<Record<string, 'AUDIO' | 'VIDEO'>>({});
+  const [preparing, setPreparing] = useState<{title: string; message: string} | null>(null);
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) {
@@ -81,11 +88,22 @@ export function SearchScreen() {
 
   const handlePlay = async (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO') => {
     setPlaying(prev => ({...prev, [item.videoId]: type}));
+    setPreparing({
+      title: item.title,
+      message: type === 'AUDIO' ? 'Preparing audio…' : 'Preparing video…',
+    });
     try {
-      await prepareAndStartPlayback(item, type, startPlayback);
+      await prepareAndStartPlayback(item, type, startPlayback, message => {
+        if (message) {
+          setPreparing(prev =>
+            prev ? {...prev, message} : {title: item.title, message},
+          );
+        }
+      });
     } catch (e) {
       showPlaybackError(e);
     } finally {
+      setPreparing(null);
       setPlaying(prev => {
         const next = {...prev};
         delete next[item.videoId];
@@ -97,6 +115,7 @@ export function SearchScreen() {
   const handleDownload = async (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO') => {
     setDownloading(prev => ({...prev, [item.videoId]: type}));
     try {
+      await discoverMediaServer();
       const response = await api.downloadMedia({
         videoId: item.videoId,
         title: item.title,
@@ -114,7 +133,7 @@ export function SearchScreen() {
         Alert.alert('Download failed', response.message || 'Try again');
       }
     } catch (e) {
-      Alert.alert('Download failed', e instanceof Error ? e.message : 'Check backend and yt-dlp');
+      showDownloadError(e);
     } finally {
       setDownloading(prev => {
         const next = {...prev};
@@ -125,7 +144,7 @@ export function SearchScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={GRADIENTS.media} style={styles.container}>
       <SearchBar
         value={query}
         onChangeText={setQuery}
@@ -182,6 +201,7 @@ export function SearchScreen() {
             mode="search"
             downloading={downloading[item.videoId] || null}
             playing={playing[item.videoId] || null}
+            onPress={() => handlePlay(item, 'AUDIO')}
             onPlayAudio={() => handlePlay(item, 'AUDIO')}
             onPlayVideo={() => handlePlay(item, 'VIDEO')}
             onDownloadAudio={() => handleDownload(item, 'AUDIO')}
@@ -194,12 +214,26 @@ export function SearchScreen() {
             : [styles.list, {paddingBottom: layout.contentBottomPadWithPlayer}]
         }
       />
-    </View>
+
+      <Modal visible={!!preparing} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, {maxWidth: layout.modalMaxWidth}]}>
+            <Icon name="hourglass-outline" size={36} color={COLORS.primary} />
+            <Text style={[styles.modalTitle, {fontSize: layout.font.lg}]} numberOfLines={2}>
+              {preparing?.title}
+            </Text>
+            <Text style={[styles.modalSub, {fontSize: layout.font.sm, lineHeight: layout.font.lineMd}]}>
+              {preparing?.message}
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: COLORS.background},
+  container: {flex: 1},
   chipsWrap: {maxHeight: 48, marginBottom: SPACING.xs},
   chips: {paddingHorizontal: SPACING.md, gap: SPACING.sm},
   chip: {

@@ -17,7 +17,7 @@ export function SectionHeader({title, subtitle, actionLabel, onAction}: SectionH
   return (
     <View style={[styles.row, {paddingHorizontal: layout.hPad}]}>
       <View style={styles.texts}>
-        <Text style={[styles.title, {fontSize: layout.font.xl}]}>{title}</Text>
+        <Text style={[styles.title, {fontSize: layout.font.lg}]}>{title}</Text>
         {subtitle ? (
           <Text style={[styles.subtitle, {fontSize: layout.font.sm}]}>{subtitle}</Text>
         ) : null}
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   texts: {flex: 1},
   title: {
     color: COLORS.text,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.3,
   },
   subtitle: {

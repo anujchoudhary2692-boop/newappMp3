@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +26,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,12 +55,76 @@ public class MediaService {
 
     private record DirectUrlEntry(String url, Instant expiresAt) {}
 
-    private static final String YT_EXTRACTOR_ARGS = "youtube:player_client=android,web";
+    private static final String YT_EXTRACTOR_ARGS =
+            "youtube:player_client=ios,tv_embedded,mweb,web";
     private static final String YT_USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+                    + "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
     @Value("${app.media.yt-dlp-path:yt-dlp}")
     private String ytDlpPath;
+
+    @Value("${app.media.youtube-cookies-file:}")
+    private String youtubeCookiesFile;
+
+    @Value("${app.media.youtube-cookies-base64:}")
+    private String youtubeCookiesBase64;
+
+    private Path effectiveCookiesPath;
+
+    @PostConstruct
+    void initYoutubeCookies() {
+        try {
+            if (youtubeCookiesBase64 != null && !youtubeCookiesBase64.isBlank()) {
+                Path cookiesPath = downloadsPath.resolve(".youtube_cookies.txt");
+                byte[] decoded = Base64.getDecoder().decode(youtubeCookiesBase64.trim());
+                Files.write(cookiesPath, decoded);
+                effectiveCookiesPath = cookiesPath.toAbsolutePath().normalize();
+                log.info("YouTube cookies loaded from env ({} bytes)", decoded.length);
+            } else if (youtubeCookiesFile != null && !youtubeCookiesFile.isBlank()) {
+                Path configured = Path.of(youtubeCookiesFile.trim());
+                if (Files.isRegularFile(configured)) {
+                    effectiveCookiesPath = configured.toAbsolutePath().normalize();
+                    log.info("YouTube cookies file configured: {}", effectiveCookiesPath);
+                } else {
+                    log.warn("YouTube cookies file not found: {}", configured);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not initialize YouTube cookies: {}", e.getMessage());
+        }
+    }
+
+    public String friendlyMediaError(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "Media request failed. Try again.";
+        }
+        String lower = raw.toLowerCase();
+        if (lower.contains("not a bot") || lower.contains("sign in to confirm")) {
+            return "YouTube blocked this server. Add YOUTUBE_COOKIES_BASE64 on Render, "
+                    + "or use your Mac backend on the same Wi‑Fi.";
+        }
+        if (lower.contains("timed out")) {
+            return "Media timed out. Cloud may be slow — retry or use Mac backend on Wi‑Fi.";
+        }
+        if (raw.length() > 220) {
+            return raw.substring(raw.length() - 220);
+        }
+        return raw;
+    }
+
+    private void appendYtDlpBaseArgs(List<String> cmd) {
+        cmd.add("--no-playlist");
+        cmd.add("--no-warnings");
+        cmd.add("--extractor-args");
+        cmd.add(YT_EXTRACTOR_ARGS);
+        cmd.add("--remote-components");
+        cmd.add("ejs:github");
+        if (effectiveCookiesPath != null) {
+            cmd.add("--cookies");
+            cmd.add(effectiveCookiesPath.toString());
+        }
+    }
 
     public List<MediaSearchResultDto> search(String query, int limit) {
         if (query == null || query.isBlank()) {
@@ -72,6 +139,7 @@ public class MediaService {
                     "--skip-download",
                     "--flat-playlist"
             );
+            appendYtDlpBaseArgs(pb.command());
             pb.redirectErrorStream(true);
             Process process = pb.start();
 
@@ -220,10 +288,7 @@ public class MediaService {
             List<String> cmd = new ArrayList<>();
             cmd.add(ytDlpPath);
             cmd.add(buildSourceUrl(videoId));
-            cmd.add("--no-playlist");
-            cmd.add("--no-warnings");
-            cmd.add("--extractor-args");
-            cmd.add(YT_EXTRACTOR_ARGS);
+            appendYtDlpBaseArgs(cmd);
             cmd.add("-g");
             if (type == MediaType.AUDIO) {
                 cmd.add("-f");
@@ -354,10 +419,7 @@ public class MediaService {
         List<String> cmd = new ArrayList<>();
         cmd.add(ytDlpPath);
         cmd.add(sourceUrl);
-        cmd.add("--no-playlist");
-        cmd.add("--no-warnings");
-        cmd.add("--extractor-args");
-        cmd.add(YT_EXTRACTOR_ARGS);
+        appendYtDlpBaseArgs(cmd);
         cmd.add("-o");
         cmd.add("-");
         if (type == MediaType.AUDIO) {
@@ -435,7 +497,12 @@ public class MediaService {
     }
 
     public StreamInfoDto getStreamInfo(String sourceUrl) throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder(ytDlpPath, "-J", "--no-playlist", sourceUrl);
+        List<String> cmd = new ArrayList<>();
+        cmd.add(ytDlpPath);
+        cmd.add("-J");
+        cmd.add(sourceUrl);
+        appendYtDlpBaseArgs(cmd);
+        ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
         Process process = pb.start();
 
@@ -519,22 +586,30 @@ public class MediaService {
             if (isFfmpegAvailable()) {
                 try {
                     String template = targetDir.resolve(safeTitle + "_" + videoId + ".%(ext)s").toString();
-                    runYtDlp(List.of(
-                            ytDlpPath, sourceUrl, "--no-playlist", "--no-warnings",
+                    List<String> mp3Cmd = new ArrayList<>();
+                    mp3Cmd.add(ytDlpPath);
+                    mp3Cmd.add(sourceUrl);
+                    appendYtDlpBaseArgs(mp3Cmd);
+                    mp3Cmd.addAll(List.of(
                             "-f", "bestaudio/best", "-x", "--audio-format", "mp3",
                             "--audio-quality", "0", "-o", template
                     ));
+                    runYtDlp(mp3Cmd);
                     return findFileWithExtension(targetDir, videoId, ".mp3");
                 } catch (Exception e) {
                     log.warn("MP3 download failed, using M4A: {}", e.getMessage());
                 }
             }
             Path m4a = targetDir.resolve(safeTitle + "_" + videoId + ".m4a");
-            runYtDlp(List.of(
-                    ytDlpPath, sourceUrl, "--no-playlist", "--no-warnings",
+            List<String> m4aCmd = new ArrayList<>();
+            m4aCmd.add(ytDlpPath);
+            m4aCmd.add(sourceUrl);
+            appendYtDlpBaseArgs(m4aCmd);
+            m4aCmd.addAll(List.of(
                     "-f", "bestaudio[ext=m4a]/bestaudio/best",
                     "-o", m4a.toString()
             ));
+            runYtDlp(m4aCmd);
             return m4a;
         }
 
@@ -552,8 +627,7 @@ public class MediaService {
         List<String> command = new ArrayList<>();
         command.add(ytDlpPath);
         command.add(sourceUrl);
-        command.add("--no-playlist");
-        command.add("--no-warnings");
+        appendYtDlpBaseArgs(command);
         if (isFfmpegAvailable()) {
             command.add("-f");
             command.add("bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[ext=mp4]/best");
@@ -619,12 +693,15 @@ public class MediaService {
         Files.createDirectories(outputPath.getParent());
 
         if (type == MediaType.AUDIO) {
-            runYtDlp(List.of(
-                    ytDlpPath, sourceUrl, "--no-playlist", "--no-warnings",
-                    "--extractor-args", YT_EXTRACTOR_ARGS,
+            List<String> audioCmd = new ArrayList<>();
+            audioCmd.add(ytDlpPath);
+            audioCmd.add(sourceUrl);
+            appendYtDlpBaseArgs(audioCmd);
+            audioCmd.addAll(List.of(
                     "-f", "140/bestaudio[ext=m4a]/bestaudio/best",
                     "-o", outputPath.toString()
             ));
+            runYtDlp(audioCmd);
         } else {
             runYtDlp(buildVideoDownloadCommand(sourceUrl, outputPath.toString()));
             validatePlayableVideo(outputPath);
@@ -669,7 +746,7 @@ public class MediaService {
             throw new IllegalStateException(
                     tail.isBlank()
                             ? "yt-dlp failed. Install ffmpeg: brew install ffmpeg"
-                            : "yt-dlp failed: " + tail
+                            : friendlyMediaError("yt-dlp failed: " + tail)
             );
         }
     }

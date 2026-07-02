@@ -23,6 +23,7 @@ interface MediaCardProps {
   onDownloadAudio?: () => void;
   onDownloadVideo?: () => void;
   onDelete?: () => void;
+  onPress?: () => void;
   downloading?: 'AUDIO' | 'VIDEO' | null;
   playing?: 'AUDIO' | 'VIDEO' | null;
   mode?: 'search' | 'library';
@@ -51,6 +52,7 @@ export function MediaCard({
   onDownloadAudio,
   onDownloadVideo,
   onDelete,
+  onPress,
   downloading,
   playing,
   mode = 'search',
@@ -65,7 +67,11 @@ export function MediaCard({
   return (
     <View style={[styles.card, SHADOW.sm, {marginHorizontal: layout.hPad}, active && styles.cardActive, active && {borderColor: accent}]}>
       {active ? <View style={[styles.activeStrip, {backgroundColor: accent}]} /> : null}
-      <View style={[styles.main, {padding: layout.isCompact ? SPACING.sm : SPACING.md}]}>
+      <TouchableOpacity
+        style={[styles.main, {padding: layout.isCompact ? SPACING.sm : SPACING.md}]}
+        onPress={onPress}
+        activeOpacity={onPress ? 0.88 : 1}
+        disabled={!onPress}>
         <View style={[styles.thumbWrap, type === 'VIDEO' ? styles.thumbVideo : styles.thumbAudio]}>
           <Image
             source={{uri: thumbnailUrl}}
@@ -108,7 +114,7 @@ export function MediaCard({
             </View>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
 
       {mode === 'search' && (
         <View style={[styles.iconActions, {paddingTop: layout.isCompact ? SPACING.sm : SPACING.md}]}>

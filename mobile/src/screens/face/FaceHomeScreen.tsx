@@ -20,7 +20,7 @@ import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {AppHeader} from '../../components/AppHeader';
 import {EmptyState} from '../../components/EmptyState';
 import {PersonListSkeleton} from '../../components/Skeleton';
-import {api, FaceStatus, Person} from '../../api/client';
+import {api, Person} from '../../api/client';
 import {COLORS, GRADIENTS, RADIUS, SHADOW, SPACING} from '../../config';
 import {FaceStackParamList} from '../../navigation/types';
 import {useLayoutMetrics} from '../../utils/layout';
@@ -31,7 +31,6 @@ export function FaceHomeScreen() {
   const layout = useLayoutMetrics(true);
   const navigation = useNavigation<Nav>();
   const [persons, setPersons] = useState<Person[]>([]);
-  const [status, setStatus] = useState<FaceStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [editName, setEditName] = useState('');
@@ -41,19 +40,12 @@ export function FaceHomeScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [personsRes, statusRes] = await Promise.allSettled([
-        api.getPersons(),
-        api.getFaceStatus(),
-      ]);
+      const personsRes = await api.getPersons();
 
-      if (personsRes.status === 'fulfilled' && personsRes.value.success) {
-        setPersons(personsRes.value.data || []);
-      } else if (personsRes.status === 'rejected') {
-        Alert.alert('Error', personsRes.reason?.message || 'Could not load people');
-      }
-
-      if (statusRes.status === 'fulfilled' && statusRes.value.success) {
-        setStatus(statusRes.value.data);
+      if (personsRes.success) {
+        setPersons(personsRes.data || []);
+      } else {
+        Alert.alert('Error', personsRes.message || 'Could not load people');
       }
     } catch {
       Alert.alert('Error', 'Could not load face recognition data');
@@ -142,27 +134,13 @@ export function FaceHomeScreen() {
     <View style={styles.container}>
       <AppHeader
         title="People"
-        subtitle="Find people in group photos & videos"
         accentColor={COLORS.face}
+        variant="minimal"
         showSettings
       />
       <LinearGradient
         colors={GRADIENTS.face}
         style={[styles.hero, {paddingHorizontal: layout.hPad}]}>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusBadge, status?.engineReady ? styles.statusOk : styles.statusBad]}>
-            <Icon
-              name={status?.engineReady ? 'checkmark-circle' : 'warning'}
-              size={14}
-              color={status?.engineReady ? COLORS.success : COLORS.warning}
-            />
-            <Text style={styles.statusText}>
-              {status?.engineReady
-                ? `AI ready · ${status.registeredCount} people`
-                : status?.message || 'Starting AI...'}
-            </Text>
-          </View>
-        </View>
         <View style={[styles.heroActions, layout.isSmallPhone && styles.heroActionsStack]}>
           <TouchableOpacity
             style={[styles.primaryBtn, {paddingVertical: layout.isCompact ? SPACING.sm : SPACING.md}]}
@@ -179,7 +157,9 @@ export function FaceHomeScreen() {
         </View>
       </LinearGradient>
 
-      <Text style={[styles.sectionTitle, {paddingHorizontal: layout.hPad, fontSize: layout.font.lg}]}>Your People</Text>
+      <Text style={[styles.sectionTitle, {paddingHorizontal: layout.hPad, fontSize: layout.font.lg}]}>
+        {persons.length > 0 ? `People · ${persons.length}` : 'People'}
+      </Text>
 
       <FlatList
         data={persons}

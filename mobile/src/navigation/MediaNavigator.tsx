@@ -10,7 +10,6 @@ import {LibraryScreen} from '../screens/media/LibraryScreen';
 import {PlayerScreen} from '../screens/media/PlayerScreen';
 import {COLORS, GRADIENTS, RADIUS} from '../config';
 import {MediaStackParamList} from './types';
-import {openGuide} from './navigationRef';
 import {useLayoutMetrics} from '../utils/layout';
 
 const Stack = createNativeStackNavigator<MediaStackParamList>();
@@ -53,14 +52,7 @@ function MediaTabs() {
 function MediaHome() {
   return (
     <LinearGradient colors={GRADIENTS.media} style={styles.root}>
-      <AppHeader
-        title="Media"
-        subtitle="Search · Stream · Download · Play"
-        accentColor={COLORS.primary}
-        rightIcon="book-outline"
-        onRightPress={openGuide}
-        showSettings
-      />
+      <AppHeader title="Discover" accentColor={COLORS.primary} variant="minimal" showSettings />
       <MediaTabs />
     </LinearGradient>
   );

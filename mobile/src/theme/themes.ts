@@ -40,7 +40,7 @@ export interface AppTheme {
 export const THEMES: Record<ThemeId, AppTheme> = {
   violet: {
     id: 'violet',
-    name: 'Midnight Pro',
+    name: 'Midnight',
     swatch: '#4F8CFF',
     colors: {
       background: '#08080E',
@@ -71,7 +71,7 @@ export const THEMES: Record<ThemeId, AppTheme> = {
   },
   ocean: {
     id: 'ocean',
-    name: 'Deep Ocean',
+    name: 'Ocean',
     swatch: '#38BDF8',
     colors: {
       background: '#060A12',
@@ -102,7 +102,7 @@ export const THEMES: Record<ThemeId, AppTheme> = {
   },
   sunset: {
     id: 'sunset',
-    name: 'Sunset Gold',
+    name: 'Sunset',
     swatch: '#FB923C',
     colors: {
       background: '#0E0A08',
@@ -133,7 +133,7 @@ export const THEMES: Record<ThemeId, AppTheme> = {
   },
   rose: {
     id: 'rose',
-    name: 'Rose Luxe',
+    name: 'Rose',
     swatch: '#F472B6',
     colors: {
       background: '#0C080C',
@@ -164,7 +164,7 @@ export const THEMES: Record<ThemeId, AppTheme> = {
   },
   mint: {
     id: 'mint',
-    name: 'Emerald Night',
+    name: 'Emerald',
     swatch: '#10B981',
     colors: {
       background: '#060E0A',

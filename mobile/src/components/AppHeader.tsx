@@ -18,6 +18,8 @@ interface AppHeaderProps {
   secondaryRightIcon?: string;
   onSecondaryRightPress?: () => void;
   showSettings?: boolean;
+  /** default = branded bar; minimal = lighter media-style header */
+  variant?: 'default' | 'minimal';
 }
 
 export function AppHeader({
@@ -31,10 +33,12 @@ export function AppHeader({
   secondaryRightIcon,
   onSecondaryRightPress,
   showSettings = false,
+  variant = 'default',
 }: AppHeaderProps) {
   const layout = useLayoutMetrics(true);
   const navigation = useNavigation();
   const btn = layout.headerBtn;
+  const minimal = variant === 'minimal';
 
   const handleBack = () => {
     if (onBack) {
@@ -46,9 +50,14 @@ export function AppHeader({
 
   return (
     <LinearGradient
-      colors={[`${accentColor}28`, `${accentColor}08`, COLORS.background]}
+      colors={
+        minimal
+          ? [COLORS.background, COLORS.background]
+          : [`${accentColor}28`, `${accentColor}08`, COLORS.background]
+      }
       style={[
         styles.wrap,
+        minimal && styles.wrapMinimal,
         {paddingTop: layout.insets.top + SPACING.xs, paddingHorizontal: layout.hPad},
       ]}>
       <View style={styles.row}>
@@ -59,6 +68,8 @@ export function AppHeader({
             hitSlop={8}>
             <Icon name="chevron-back" size={22} color={COLORS.text} />
           </TouchableOpacity>
+        ) : minimal ? (
+          <View style={styles.minimalSpacer} />
         ) : (
           <LinearGradient
             colors={[accentColor, `${accentColor}99`]}
@@ -68,13 +79,23 @@ export function AppHeader({
         )}
         <View style={styles.titles}>
           <Text
-            style={[styles.title, {fontSize: layout.isCompact ? layout.font.lg : layout.font.xl}]}
+            style={[
+              styles.title,
+              minimal && styles.titleMinimal,
+              {
+                fontSize: minimal
+                  ? layout.font.xl
+                  : layout.isCompact
+                    ? layout.font.lg
+                    : layout.font.xl,
+              },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.85}>
             {title}
           </Text>
-          {subtitle && !layout.isSmallPhone ? (
+          {subtitle && !layout.isSmallPhone && !minimal ? (
             <Text
               style={[
                 styles.subtitle,
@@ -109,7 +130,7 @@ export function AppHeader({
           ) : null}
         </View>
       </View>
-      <View style={[styles.accentLine, {backgroundColor: accentColor}]} />
+      {!minimal ? <View style={[styles.accentLine, {backgroundColor: accentColor}]} /> : null}
     </LinearGradient>
   );
 }
@@ -119,6 +140,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     paddingBottom: SPACING.sm,
+  },
+  wrapMinimal: {
+    borderBottomWidth: 0,
+    paddingBottom: SPACING.xs,
   },
   row: {
     flexDirection: 'row',
@@ -135,6 +160,8 @@ const styles = StyleSheet.create({
   },
   titles: {flex: 1, minWidth: 0},
   title: {color: COLORS.text, fontWeight: '800', letterSpacing: -0.3},
+  titleMinimal: {fontWeight: '700', letterSpacing: -0.5},
+  minimalSpacer: {width: 4},
   subtitle: {color: COLORS.textMuted, marginTop: 2, fontWeight: '600'},
   actions: {flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0},
   accentLine: {

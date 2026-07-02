@@ -63,7 +63,7 @@ export function getCandidateHosts(): string[] {
   return [...new Set(hosts.filter(Boolean))];
 }
 
-/** Cloud URL is always tried first — works when your Mac is off. */
+/** Cloud URL is always tried — works when your Mac is off. LAN is included for media when Mac is on. */
 export function getServerCandidates(): string[] {
   const candidates: string[] = [];
   const cloud = PRODUCTION_API_URL.replace(/\/$/, '').trim();
@@ -73,11 +73,35 @@ export function getServerCandidates(): string[] {
   }
 
   if (isProductionMode()) {
+    if (USE_PHYSICAL_DEVICE && LAN_BACKEND_HOST) {
+      candidates.push(`http://${LAN_BACKEND_HOST}:8080`);
+    }
     return [...new Set(candidates)];
   }
 
   const local = getCandidateHosts().map(h => `http://${h}:8080`);
   return [...new Set([...candidates, ...local])];
+}
+
+/** Prefer Mac backend for play/download — avoids YouTube bot blocks on cloud. */
+export function getMediaServerCandidates(): string[] {
+  const cloud = PRODUCTION_API_URL.replace(/\/$/, '').trim();
+  const candidates: string[] = [];
+
+  if (USE_PHYSICAL_DEVICE && LAN_BACKEND_HOST) {
+    candidates.push(`http://${LAN_BACKEND_HOST}:8080`);
+  }
+  if (cloud && !cloud.includes('yourdomain.com')) {
+    candidates.push(cloud);
+  }
+  if (!isProductionMode()) {
+    return getServerCandidates();
+  }
+  const current = getApiBaseUrl();
+  if (current && !candidates.includes(current)) {
+    candidates.push(current);
+  }
+  return [...new Set(candidates)];
 }
 
 /** Mutable theme tokens — updated by ThemeProvider via applyTheme() */

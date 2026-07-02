@@ -26,10 +26,11 @@ import {SeekableProgressBar} from '../../components/SeekableProgressBar';
 import {useAutoHideControls} from '../../hooks/useAutoHideControls';
 import {COLORS, GRADIENTS, RADIUS, SHADOW, SPACING} from '../../config';
 import {MediaStackParamList} from '../../navigation/types';
-import {api, PlayableMedia} from '../../api/client';
+import {api, discoverMediaServer, PlayableMedia} from '../../api/client';
 import {usePlayback} from '../../context/PlaybackContext';
 import {useLayoutMetrics} from '../../utils/layout';
 import {buildMediaSource} from '../../utils/mediaPlayback';
+import {showDownloadError} from '../../utils/playSearchItem';
 
 type Props = NativeStackScreenProps<MediaStackParamList, 'Player'>;
 
@@ -730,6 +731,7 @@ export function PlayerScreen({route, navigation}: Props) {
                 if (!media.sourceUrl) return;
                 setDownloading('AUDIO');
                 try {
+                  await discoverMediaServer();
                   const response = await api.downloadMedia({
                     videoId: media.videoId!, title: media.title,
                     sourceUrl: media.sourceUrl, type: 'AUDIO',
@@ -737,7 +739,7 @@ export function PlayerScreen({route, navigation}: Props) {
                   Alert.alert(response.success ? 'Saved' : 'Failed',
                     response.success ? 'Audio added to library' : response.message || 'Download failed');
                 } catch (e) {
-                  Alert.alert('Failed', e instanceof Error ? e.message : 'Download failed');
+                  showDownloadError(e);
                 } finally { setDownloading(null); }
               }}>
               {downloading === 'AUDIO' ? <ActivityIndicator color={COLORS.audio} /> : (
@@ -754,6 +756,7 @@ export function PlayerScreen({route, navigation}: Props) {
                 if (!media.sourceUrl) return;
                 setDownloading('VIDEO');
                 try {
+                  await discoverMediaServer();
                   const response = await api.downloadMedia({
                     videoId: media.videoId!, title: media.title,
                     sourceUrl: media.sourceUrl, type: 'VIDEO',
@@ -761,7 +764,7 @@ export function PlayerScreen({route, navigation}: Props) {
                   Alert.alert(response.success ? 'Saved' : 'Failed',
                     response.success ? 'Video added to library' : response.message || 'Download failed');
                 } catch (e) {
-                  Alert.alert('Failed', e instanceof Error ? e.message : 'Download failed');
+                  showDownloadError(e);
                 } finally { setDownloading(null); }
               }}>
               {downloading === 'VIDEO' ? <ActivityIndicator color={COLORS.video} /> : (

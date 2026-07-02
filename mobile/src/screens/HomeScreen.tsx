@@ -1,5 +1,6 @@
 import React, {useCallback, useState} from 'react';
 import {
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,61 +11,67 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import {useFocusEffect} from '@react-navigation/native';
-import {AppHeader} from '../components/AppHeader';
-import {QuickActionCard} from '../components/QuickActionCard';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {BrowseTile} from '../components/BrowseTile';
+import {FeatureCard} from '../components/FeatureCard';
+import {HomeMediaRow} from '../components/HomeMediaRow';
 import {SectionHeader} from '../components/SectionHeader';
-import {StatTile} from '../components/StatTile';
-import {api, discoverServer} from '../api/client';
+import {api, discoverServer, MediaItem} from '../api/client';
 import {COLORS, GRADIENTS, RADIUS, SPACING} from '../config';
+import {usePlayback} from '../context/PlaybackContext';
 import {useTheme} from '../context/ThemeContext';
 import {
   goToCameraTab,
   goToFacesTab,
   goToMediaTab,
-  openGuide,
+  openPlayerScreen,
   openSettings,
 } from '../navigation/navigationRef';
+import {resolveStreamUrl} from '../utils/mediaPlayback';
+import {loadRecentMedia, RecentMediaEntry} from '../utils/recentMedia';
 import {useLayoutMetrics} from '../utils/layout';
 
-interface DashboardStats {
-  songs: number;
-  videos: number;
-  people: number;
-  captures: number;
-  serverOk: boolean;
-}
+const BROWSE = [
+  {title: 'Bollywood', subtitle: 'Top hits', icon: 'sparkles', query: 'Bollywood hits', colors: ['#5B4FCF', '#2A2060'] as [string, string]},
+  {title: 'Lo-fi', subtitle: 'Chill beats', icon: 'cafe', query: 'Lo-fi beats', colors: ['#1E6B5C', '#0E2820'] as [string, string]},
+  {title: 'Pop', subtitle: 'Fresh tracks', icon: 'radio', query: 'Pop music 2024', colors: ['#C0267A', '#4A1030'] as [string, string]},
+  {title: 'Music videos', subtitle: 'HD playback', icon: 'play-circle', query: 'Music video HD', colors: ['#2563EB', '#0F172A'] as [string, string]},
+];
 
-const QUICK_SEARCHES = ['Bollywood hits', 'Lo-fi beats', 'Pop music', 'Music video HD'];
+function timeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) {
+    return 'Good morning';
+  }
+  if (hour < 17) {
+    return 'Good afternoon';
+  }
+  return 'Good evening';
+}
 
 export function HomeScreen() {
   const {colors} = useTheme();
   const layout = useLayoutMetrics(true);
-  const [stats, setStats] = useState<DashboardStats>({
-    songs: 0,
-    videos: 0,
-    people: 0,
-    captures: 0,
-    serverOk: false,
-  });
+  const insets = useSafeAreaInsets();
+  const {media, streamUrl, paused, togglePause, play} = usePlayback();
+  const [savedItems, setSavedItems] = useState<MediaItem[]>([]);
+  const [recentItems, setRecentItems] = useState<RecentMediaEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [connecting, setConnecting] = useState(false);
 
   const load = useCallback(async () => {
-    const [health, audio, video, people, captures] = await Promise.allSettled([
-      api.health(),
+    const [audio, video, recent] = await Promise.allSettled([
       api.getAudioLibrary(),
       api.getVideoLibrary(),
-      api.getPersons(),
-      api.getCaptures(),
+      loadRecentMedia(),
     ]);
 
-    setStats({
-      serverOk: health.status === 'fulfilled' && health.value.success,
-      songs: audio.status === 'fulfilled' ? audio.value.data?.length ?? 0 : 0,
-      videos: video.status === 'fulfilled' ? video.value.data?.length ?? 0 : 0,
-      people: people.status === 'fulfilled' ? people.value.data?.length ?? 0 : 0,
-      captures: captures.status === 'fulfilled' ? captures.value.data?.length ?? 0 : 0,
-    });
+    const audioList = audio.status === 'fulfilled' ? audio.value.data || [] : [];
+    const videoList = video.status === 'fulfilled' ? video.value.data || [] : [];
+    const merged = [...audioList, ...videoList]
+      .sort((a, b) => (b.downloadedAt || '').localeCompare(a.downloadedAt || ''))
+      .slice(0, 10);
+    setSavedItems(merged);
+    setRecentItems(recent.status === 'fulfilled' ? recent.value : []);
   }, []);
 
   useFocusEffect(
@@ -80,186 +87,235 @@ export function HomeScreen() {
     setRefreshing(false);
   };
 
-  const retryConnection = async () => {
-    setConnecting(true);
-    await discoverServer();
-    await load();
-    setConnecting(false);
+  const resumePlayback = () => {
+    if (media && streamUrl) {
+      openPlayerScreen(media, streamUrl);
+    }
   };
+
+  const playRecent = (item: RecentMediaEntry) => {
+    if (!item.streamUrl) {
+      goToMediaTab('SearchTab');
+      return;
+    }
+    const url = resolveStreamUrl(item.streamUrl);
+    const playable = {
+      title: item.title,
+      type: item.type,
+      streamUrl: url,
+      thumbnailUrl: item.thumbnailUrl,
+      videoId: item.videoId,
+      sourceUrl: item.sourceUrl,
+      libraryId: item.libraryId,
+    };
+    play(playable, url);
+    openPlayerScreen(playable, url);
+  };
+
+  const playSaved = (item: MediaItem) => {
+    const url = resolveStreamUrl(item.streamUrl);
+    const playable = {
+      title: item.title,
+      type: item.type,
+      streamUrl: url,
+      thumbnailUrl: item.thumbnailUrl,
+      libraryId: item.id,
+      sourceUrl: item.sourceUrl,
+    };
+    play(playable, url);
+    openPlayerScreen(playable, url);
+  };
+
+  const gridW = layout.halfGridWidth;
 
   return (
     <LinearGradient colors={GRADIENTS.media} style={styles.root}>
-      <AppHeader
-        title="MediaFace"
-        subtitle="Your all-in-one media & AI hub"
-        accentColor={colors.primary}
-        rightIcon="book-outline"
-        onRightPress={openGuide}
-        showSettings
-      />
-
       <ScrollView
-        contentContainerStyle={[styles.content, {paddingBottom: layout.contentBottomPad + SPACING.lg}]}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + SPACING.sm,
+            paddingBottom: layout.contentBottomPad + SPACING.lg,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }>
-        {/* Hero */}
-        <LinearGradient
-          colors={[`${colors.primary}40`, `${colors.accent}18`, 'transparent']}
-          style={[styles.hero, {marginHorizontal: layout.hPad, padding: layout.isCompact ? SPACING.md : SPACING.lg}]}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroCopy}>
-              <Text style={[styles.greeting, {fontSize: layout.font.sm}]}>Welcome back</Text>
-              <Text
-                style={[
-                  styles.heroTitle,
-                  {fontSize: layout.font.md, lineHeight: layout.font.lineMd},
-                ]}>
-                Search · Play · Capture · Recognize
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.serverPill,
-                styles.serverPillRow,
-                {backgroundColor: stats.serverOk ? `${colors.success}22` : `${colors.warning}22`},
-              ]}
-              onPress={stats.serverOk ? undefined : retryConnection}
-              disabled={connecting || stats.serverOk}
-              activeOpacity={0.85}>
-              <View
-                style={[
-                  styles.serverDot,
-                  {backgroundColor: stats.serverOk ? colors.success : colors.warning},
-                ]}
-              />
-              <Text
-                style={[
-                  styles.serverText,
-                  {color: stats.serverOk ? colors.success : colors.warning, fontSize: layout.font.xs},
-                ]}>
-                {connecting ? 'Connecting…' : stats.serverOk ? 'Online' : 'Tap to connect'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          {!stats.serverOk && !connecting ? (
-            <Text style={[styles.offlineHint, {fontSize: layout.font.xs, color: colors.textMuted}]}>
-              Cloud may sleep ~2 min on first open — pull down to refresh
+        {/* Top bar */}
+        <View style={[styles.topBar, {paddingHorizontal: layout.hPad}]}>
+          <View style={styles.topCopy}>
+            <Text style={[styles.greeting, {fontSize: layout.font.sm, color: colors.textMuted}]}>
+              {timeGreeting()}
             </Text>
-          ) : null}
-
-          <View style={styles.statsRow}>
-            <StatTile icon="musical-notes" label="Music" value={stats.songs} accent={colors.audio} />
-            <StatTile icon="videocam" label="Video" value={stats.videos} accent={colors.video} />
-            <StatTile icon="people" label="Faces" value={stats.people} accent={colors.face} />
-            <StatTile icon="camera" label="Photos" value={stats.captures} accent={colors.camera} />
+            <Text style={[styles.headline, {fontSize: layout.font.xl, lineHeight: layout.font.lineLg}]}>
+              What do you want to play?
+            </Text>
           </View>
-        </LinearGradient>
-
-        <SectionHeader title="Quick start" subtitle="One tap to any feature" />
-
-        <View style={[styles.quickList, {paddingHorizontal: layout.hPad}]}>
-          <QuickActionCard
-            icon="search"
-            title="Search"
-            subtitle="Stream or download any song or video"
-            colors={[`${colors.primary}55`, `${colors.primary}18`]}
-            accent={colors.primary}
-            onPress={() => goToMediaTab('SearchTab')}
-          />
-          <QuickActionCard
-            icon="library"
-            title="Library"
-            subtitle="Your saved music and HD videos"
-            colors={[`${colors.audio}45`, `${colors.video}15`]}
-            accent={colors.audio}
-            badge={stats.songs + stats.videos > 0 ? String(stats.songs + stats.videos) : undefined}
-            onPress={() => goToMediaTab('AudioTab')}
-          />
-          <QuickActionCard
-            icon="camera"
-            title="Camera"
-            subtitle="Photo and video with GPS geotag"
-            colors={[`${colors.camera}50`, `${colors.camera}15`]}
-            accent={colors.camera}
-            onPress={goToCameraTab}
-          />
-          <QuickActionCard
-            icon="scan-circle"
-            title="Face AI"
-            subtitle="Identify people in photos and videos"
-            colors={[`${colors.face}45`, `${colors.face}12`]}
-            accent={colors.face}
-            badge={stats.people > 0 ? String(stats.people) : undefined}
-            onPress={goToFacesTab}
-          />
+          <TouchableOpacity
+            style={[styles.settingsBtn, {width: layout.headerBtn, height: layout.headerBtn}]}
+            onPress={openSettings}
+            hitSlop={8}>
+            <Icon name="settings-outline" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
 
-        <SectionHeader
-          title="Popular searches"
-          subtitle="Tap to search instantly"
-          actionLabel="All media"
-          onAction={() => goToMediaTab('SearchTab')}
-        />
+        {/* Search entry */}
+        <TouchableOpacity
+          style={[styles.searchEntry, {marginHorizontal: layout.hPad}]}
+          onPress={() => goToMediaTab('SearchTab')}
+          activeOpacity={0.9}>
+          <Icon name="search" size={20} color={colors.textMuted} />
+          <Text style={[styles.searchPlaceholder, {fontSize: layout.font.md}]}>
+            Songs, artists, music videos…
+          </Text>
+        </TouchableOpacity>
 
+        {/* Now playing */}
+        {media && streamUrl ? (
+          <TouchableOpacity
+            style={[styles.nowPlaying, {marginHorizontal: layout.hPad, borderColor: `${colors.primary}44`}]}
+            onPress={resumePlayback}
+            activeOpacity={0.9}>
+            <LinearGradient
+              colors={[`${colors.primary}33`, `${colors.accent}12`]}
+              style={styles.nowPlayingInner}>
+              {media.thumbnailUrl ? (
+                <Image source={{uri: media.thumbnailUrl}} style={styles.nowThumb} />
+              ) : (
+                <View style={[styles.nowThumb, styles.nowThumbFallback, {backgroundColor: `${colors.primary}44`}]}>
+                  <Icon
+                    name={media.type === 'VIDEO' ? 'videocam' : 'musical-notes'}
+                    size={20}
+                    color={colors.text}
+                  />
+                </View>
+              )}
+              <View style={styles.nowMeta}>
+                <Text style={[styles.nowLabel, {color: colors.primary, fontSize: layout.font.xs}]}>
+                  {paused ? 'Paused' : 'Now playing'}
+                </Text>
+                <Text style={[styles.nowTitle, {fontSize: layout.font.md}]} numberOfLines={1}>
+                  {media.title}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.nowPlayBtn, {backgroundColor: colors.primary}]}
+                onPress={e => {
+                  e.stopPropagation?.();
+                  togglePause();
+                }}>
+                <Icon name={paused ? 'play' : 'pause'} size={18} color="#fff" />
+              </TouchableOpacity>
+            </LinearGradient>
+          </TouchableOpacity>
+        ) : null}
+
+        <SectionHeader title="Browse" />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.chips, {paddingHorizontal: layout.hPad}]}>
-          {QUICK_SEARCHES.map(q => (
-            <TouchableOpacity
-              key={q}
-              style={[styles.chip, {borderColor: `${colors.primary}40`, paddingVertical: layout.isCompact ? 8 : 10}]}
-              onPress={() => goToMediaTab('SearchTab', q)}>
-              <Icon name="flash" size={layout.font.sm} color={colors.primary} />
-              <Text style={[styles.chipText, {color: colors.text, fontSize: layout.font.sm}]}>{q}</Text>
-            </TouchableOpacity>
+          contentContainerStyle={[styles.hScroll, {paddingHorizontal: layout.hPad}]}>
+          {BROWSE.map(item => (
+            <BrowseTile
+              key={item.title}
+              title={item.title}
+              subtitle={item.subtitle}
+              icon={item.icon}
+              colors={item.colors}
+              onPress={() => goToMediaTab('SearchTab', item.query)}
+            />
           ))}
         </ScrollView>
 
-        <SectionHeader title="Power tools" subtitle="Everything this app can do" />
+        {savedItems.length > 0 ? (
+          <>
+            <SectionHeader
+              title="Your saves"
+              actionLabel="Library"
+              onAction={() => goToMediaTab('AudioTab')}
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[styles.hScroll, {paddingHorizontal: layout.hPad}]}>
+              {savedItems.map(item => (
+                <HomeMediaRow
+                  key={item.id}
+                  title={item.title}
+                  subtitle={item.type === 'AUDIO' ? 'Music' : 'Video'}
+                  thumbnailUrl={item.thumbnailUrl}
+                  type={item.type}
+                  onPress={() => playSaved(item)}
+                />
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
 
-        <View style={[styles.list, {marginHorizontal: layout.hPad}]}>
-          <PowerRow
-            icon="play-circle"
-            color={colors.primary}
-            title="Stream anything"
-            detail="Play audio or video instantly without downloading"
-            layout={layout}
+        {recentItems.length > 0 && !media ? (
+          <>
+            <SectionHeader title="Listen again" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[styles.hScroll, {paddingHorizontal: layout.hPad}]}>
+              {recentItems.slice(0, 8).map(item => (
+                <HomeMediaRow
+                  key={item.id}
+                  title={item.title}
+                  subtitle={item.type === 'AUDIO' ? 'Audio' : 'Video'}
+                  thumbnailUrl={item.thumbnailUrl}
+                  type={item.type}
+                  onPress={() => playRecent(item)}
+                />
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
+
+        <SectionHeader title="Explore" />
+        <View style={[styles.exploreGrid, {paddingHorizontal: layout.hPad, gap: layout.gap}]}>
+          <FeatureCard
+            icon="search"
+            title="Search"
+            subtitle="Find anything"
+            colors={[`${colors.primary}55`, `${colors.primary}15`]}
+            accent={colors.primary}
+            layout="grid"
+            width={gridW}
             onPress={() => goToMediaTab('SearchTab')}
           />
-          <PowerRow
-            icon="download"
-            color={colors.audio}
-            title="Offline library"
-            detail="Save MP3 and HD video to watch anytime"
-            layout={layout}
+          <FeatureCard
+            icon="library"
+            title="Library"
+            subtitle="Offline saves"
+            colors={[`${colors.audio}50`, `${colors.audio}12`]}
+            accent={colors.audio}
+            layout="grid"
+            width={gridW}
+            badge={savedItems.length > 0 ? String(savedItems.length) : undefined}
             onPress={() => goToMediaTab('AudioTab')}
           />
-          <PowerRow
-            icon="location"
-            color={colors.camera}
-            title="Geo camera"
-            detail="Capture with GPS, EXIF tags, and cloud backup"
-            layout={layout}
+          <FeatureCard
+            icon="camera"
+            title="Camera"
+            subtitle="Geo photos"
+            colors={[`${colors.camera}50`, `${colors.camera}12`]}
+            accent={colors.camera}
+            layout="grid"
+            width={gridW}
             onPress={goToCameraTab}
           />
-          <PowerRow
-            icon="images"
-            color={colors.face}
-            title="Library face scan"
-            detail="Find people in group photos and video frames"
-            layout={layout}
+          <FeatureCard
+            icon="happy"
+            title="Faces"
+            subtitle="Who is this?"
+            colors={[`${colors.face}45`, `${colors.face}10`]}
+            accent={colors.face}
+            layout="grid"
+            width={gridW}
             onPress={goToFacesTab}
-          />
-          <PowerRow
-            icon="color-palette"
-            color={colors.accent}
-            title="Themes & settings"
-            detail="5 color themes, server status, full guide"
-            layout={layout}
-            onPress={openSettings}
           />
         </View>
       </ScrollView>
@@ -267,126 +323,96 @@ export function HomeScreen() {
   );
 }
 
-function PowerRow({
-  icon,
-  color,
-  title,
-  detail,
-  layout,
-  onPress,
-}: {
-  icon: string;
-  color: string;
-  title: string;
-  detail: string;
-  layout: ReturnType<typeof useLayoutMetrics>;
-  onPress: () => void;
-}) {
-  const iconSize = layout.actionCircle;
-  return (
-    <TouchableOpacity style={[styles.powerRow, {padding: layout.isCompact ? SPACING.sm : SPACING.md}]} onPress={onPress} activeOpacity={0.85}>
-      <View style={[styles.powerIcon, {width: iconSize, height: iconSize, borderRadius: iconSize / 2, backgroundColor: `${color}22`}]}>
-        <Icon name={icon} size={layout.isCompact ? 18 : 20} color={color} />
-      </View>
-      <View style={styles.powerText}>
-        <Text style={[styles.powerTitle, {fontSize: layout.font.lg}]}>{title}</Text>
-        <Text style={[styles.powerDetail, {fontSize: layout.font.sm, lineHeight: layout.font.lineSm}]}>{detail}</Text>
-      </View>
-      <Icon name="chevron-forward" size={layout.isCompact ? 16 : 18} color={COLORS.textMuted} />
-    </TouchableOpacity>
-  );
-}
-
 const styles = StyleSheet.create({
   root: {flex: 1},
   content: {},
-  hero: {
-    marginTop: SPACING.sm,
-    borderRadius: RADIUS.xl,
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  topCopy: {flex: 1, minWidth: 0},
+  greeting: {
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  headline: {
+    color: COLORS.text,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  settingsBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
-  heroTop: {
+  searchEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: SPACING.sm,
-    marginBottom: SPACING.sm,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.lg,
   },
-  heroCopy: {minWidth: 0},
-  greeting: {
+  searchPlaceholder: {
     color: COLORS.textMuted,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  heroTitle: {
-    color: COLORS.text,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-  },
-  serverPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: RADIUS.lg,
-    alignSelf: 'flex-start',
-  },
-  serverPillRow: {},
-  serverDot: {width: 7, height: 7, borderRadius: 4},
-  serverText: {fontWeight: '800'},
-  offlineHint: {
-    marginBottom: SPACING.sm,
     fontWeight: '600',
-    lineHeight: 16,
+    flex: 1,
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-  },
-  quickList: {
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  chips: {
-    gap: SPACING.sm,
-    paddingBottom: SPACING.xs,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  nowPlaying: {
     borderRadius: RADIUS.lg,
-    backgroundColor: 'rgba(26,26,36,0.85)',
     borderWidth: 1,
-  },
-  chipText: {fontWeight: '700'},
-  list: {
-    borderRadius: RADIUS.lg,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: 'rgba(26,26,36,0.55)',
+    marginBottom: SPACING.md,
   },
-  powerRow: {
+  nowPlayingInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
-    padding: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    padding: SPACING.sm,
+    gap: SPACING.sm,
   },
-  powerIcon: {
+  nowThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: RADIUS.sm,
+  },
+  nowThumbFallback: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  powerText: {flex: 1, minWidth: 0},
-  powerTitle: {color: COLORS.text, fontWeight: '800'},
-  powerDetail: {color: COLORS.textMuted, fontWeight: '600', marginTop: 2},
+  nowMeta: {flex: 1, minWidth: 0},
+  nowLabel: {
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  nowTitle: {
+    color: COLORS.text,
+    fontWeight: '700',
+  },
+  nowPlayBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hScroll: {
+    gap: SPACING.sm,
+    paddingBottom: SPACING.xs,
+  },
+  exploreGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
 });
