@@ -18,15 +18,34 @@ import {ENTERPRISE, enterpriseStyles} from '../theme/enterprise';
 const Stack = createNativeStackNavigator<MediaStackParamList>();
 const TopTabs = createMaterialTopTabNavigator();
 
+const TAB_LABELS: Record<string, {full: string; compact: string}> = {
+  SearchTab: {full: 'Search', compact: 'Search'},
+  DownloadsTab: {full: 'Downloads', compact: 'Saves'},
+  PlaylistsTab: {full: 'Playlists', compact: 'Lists'},
+  FavoritesTab: {full: 'Favorites', compact: 'Hearts'},
+  AudioTab: {full: 'Music', compact: 'Music'},
+  VideoTab: {full: 'Videos', compact: 'Video'},
+};
+
+function tabTitle(name: string, compact: boolean): string {
+  const labels = TAB_LABELS[name];
+  if (!labels) {
+    return name;
+  }
+  return compact ? labels.compact : labels.full;
+}
+
 function MediaTabs() {
   const route = useRoute<RouteProp<MediaStackParamList, 'Search'>>();
   const layout = useLayoutMetrics(true);
   const initialTab = route.params?.tab ?? 'SearchTab';
+  const compactTabs = layout.isCompact;
 
   return (
     <TopTabs.Navigator
       initialRouteName={initialTab}
       screenOptions={{
+        tabBarScrollEnabled: true,
         tabBarStyle: [
           styles.tabBar,
           {
@@ -37,18 +56,37 @@ function MediaTabs() {
         tabBarIndicatorStyle: styles.tabIndicator,
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#879596',
-        tabBarLabelStyle: [styles.tabLabel, {fontSize: layout.font.sm}],
+        tabBarLabelStyle: [
+          styles.tabLabel,
+          {fontSize: compactTabs ? layout.font.xs : layout.font.sm},
+        ],
         tabBarItemStyle: styles.tabItem,
         tabBarPressColor: 'rgba(255,153,0,0.12)',
       }}>
-      <TopTabs.Screen name="SearchTab" component={SearchScreen} options={{title: 'Search'}} />
-      <TopTabs.Screen name="DownloadsTab" component={DownloadsScreen} options={{title: 'Downloads'}} />
-      <TopTabs.Screen name="PlaylistsTab" component={PlaylistsScreen} options={{title: 'Playlists'}} />
-      <TopTabs.Screen name="FavoritesTab" component={FavoritesScreen} options={{title: 'Favorites'}} />
-      <TopTabs.Screen name="AudioTab" options={{title: 'Music'}}>
+      <TopTabs.Screen
+        name="SearchTab"
+        component={SearchScreen}
+        options={{title: tabTitle('SearchTab', compactTabs)}}
+      />
+      <TopTabs.Screen
+        name="DownloadsTab"
+        component={DownloadsScreen}
+        options={{title: tabTitle('DownloadsTab', compactTabs)}}
+      />
+      <TopTabs.Screen
+        name="PlaylistsTab"
+        component={PlaylistsScreen}
+        options={{title: tabTitle('PlaylistsTab', compactTabs)}}
+      />
+      <TopTabs.Screen
+        name="FavoritesTab"
+        component={FavoritesScreen}
+        options={{title: tabTitle('FavoritesTab', compactTabs)}}
+      />
+      <TopTabs.Screen name="AudioTab" options={{title: tabTitle('AudioTab', compactTabs)}}>
         {() => <LibraryScreen type="AUDIO" />}
       </TopTabs.Screen>
-      <TopTabs.Screen name="VideoTab" options={{title: 'Videos'}}>
+      <TopTabs.Screen name="VideoTab" options={{title: tabTitle('VideoTab', compactTabs)}}>
         {() => <LibraryScreen type="VIDEO" />}
       </TopTabs.Screen>
     </TopTabs.Navigator>
@@ -99,5 +137,5 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   tabLabel: {fontWeight: '700', textTransform: 'none'},
-  tabItem: {minHeight: 42},
+  tabItem: {minHeight: 42, width: 'auto', minWidth: 72},
 });

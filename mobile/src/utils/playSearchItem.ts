@@ -2,7 +2,7 @@ import {Alert} from 'react-native';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaSearchResult, PlayableMedia} from '../features/media/domain/types';
 import type {MediaQuality} from '../features/media/domain/qualityPresets';
-import {qualityLabel} from '../features/media/domain/qualityPresets';
+import {defaultQuality, qualityLabel} from '../features/media/domain/qualityPresets';
 import {getApiBaseUrl} from '../config';
 import {openPlayerScreen} from '../navigation/navigationRef';
 import {
@@ -49,17 +49,22 @@ function pollDelay(attempt: number): number {
   return 1000;
 }
 
-function sessionKey(videoId: string, type: 'AUDIO' | 'VIDEO'): string {
-  return `${type}:${videoId}`;
+function normalizeQuality(type: 'AUDIO' | 'VIDEO', quality?: MediaQuality): MediaQuality {
+  return quality || defaultQuality(type);
+}
+
+function sessionKey(videoId: string, type: 'AUDIO' | 'VIDEO', quality?: MediaQuality): string {
+  return `${type}:${videoId}:${normalizeQuality(type, quality)}`;
 }
 
 function getSessionStream(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
+  quality?: MediaQuality,
 ): {streamPath: string; quality?: string} | null {
-  const hit = sessionStreamCache.get(sessionKey(videoId, type));
+  const hit = sessionStreamCache.get(sessionKey(videoId, type, quality));
   if (!hit || Date.now() > hit.expiresAt) {
-    sessionStreamCache.delete(sessionKey(videoId, type));
+    sessionStreamCache.delete(sessionKey(videoId, type, quality));
     return null;
   }
   return hit;
@@ -69,14 +74,16 @@ function putSessionStream(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
   streamPath: string,
-  quality?: string,
+  quality?: MediaQuality,
+  qualityLabelText?: string,
 ): void {
-  sessionStreamCache.set(sessionKey(videoId, type), {
+  const preset = normalizeQuality(type, quality);
+  sessionStreamCache.set(sessionKey(videoId, type, preset), {
     streamPath,
-    quality,
+    quality: qualityLabelText,
     expiresAt: Date.now() + SESSION_STREAM_TTL_MS,
   });
-  putPrefetchedStream(videoId, type, streamPath, quality);
+  putPrefetchedStream(videoId, type, streamPath, qualityLabelText, preset);
 }
 
 function isPlayablePath(path: string): boolean {
@@ -122,8 +129,10 @@ async function assertPlaybackCapable(): Promise<void> {
 function resolveReadyStream(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
+  quality?: MediaQuality,
 ): {streamPath: string; quality?: string} | null {
-  return getSessionStream(videoId, type) || getPrefetchedStream(videoId, type);
+  const preset = normalizeQuality(type, quality);
+  return getSessionStream(videoId, type, preset) || getPrefetchedStream(videoId, type, preset);
 }
 
 /** Fast playback: session/prefetch cache → device file → prepare poll. */
@@ -132,24 +141,27 @@ export async function waitForMediaReady(
   type: 'AUDIO' | 'VIDEO',
   onStatus?: (message?: string) => void,
   _searchItem?: Pick<MediaSearchResult, 'audioStreamUrl' | 'videoStreamUrl'>,
+  quality?: MediaQuality,
 ): Promise<{streamPath: string; quality?: string}> {
-  const cachedSession = getSessionStream(videoId, type);
+  const preset = normalizeQuality(type, quality);
+
+  const cachedSession = getSessionStream(videoId, type, preset);
   if (cachedSession) {
     onStatus?.('Resuming stream…');
     return cachedSession;
   }
 
-  const prefetched = getPrefetchedStream(videoId, type);
+  const prefetched = getPrefetchedStream(videoId, type, preset);
   if (prefetched) {
     onStatus?.('Starting stream…');
-    putSessionStream(videoId, type, prefetched.streamPath, prefetched.quality);
+    putSessionStream(videoId, type, prefetched.streamPath, preset, prefetched.quality);
     return prefetched;
   }
 
   const localUri = await getLocalPlaybackUri(videoId, type);
   if (localUri) {
     onStatus?.('Playing from device storage…');
-    putSessionStream(videoId, type, localUri, 'On device · Offline');
+    putSessionStream(videoId, type, localUri, preset, 'On device · Offline');
     return {streamPath: localUri, quality: 'On device · Offline'};
   }
 
@@ -158,17 +170,19 @@ export async function waitForMediaReady(
   }
 
   onStatus?.('Starting stream…');
-  void mediaApi.prepare(videoId, type).catch(() => undefined);
-  return pollPrepareUntilReady(videoId, type, onStatus);
+  void mediaApi.prepare(videoId, type, preset).catch(() => undefined);
+  return pollPrepareUntilReady(videoId, type, onStatus, preset);
 }
 
 async function pollPrepareUntilReady(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
   onStatus?: (message?: string) => void,
+  quality?: MediaQuality,
 ): Promise<{streamPath: string; quality?: string}> {
+  const preset = normalizeQuality(type, quality);
   for (let attempt = 0; attempt < 90; attempt += 1) {
-    const status = await mediaApi.prepare(videoId, type);
+    const status = await mediaApi.prepare(videoId, type, preset);
     if (!status.success || !status.data) {
       throw new Error(status.message || 'Could not prepare media');
     }
@@ -184,7 +198,7 @@ async function pollPrepareUntilReady(
     }
 
     if (data.status === 'READY' && data.streamUrl && isPlayablePath(data.streamUrl)) {
-      putSessionStream(videoId, type, data.streamUrl, data.quality);
+      putSessionStream(videoId, type, data.streamUrl, preset, data.quality);
       return {streamPath: data.streamUrl, quality: data.quality};
     }
 
@@ -206,17 +220,18 @@ export async function prepareAndStartPlayback(
   onStatus?: (message?: string) => void,
   quality?: MediaQuality,
 ): Promise<void> {
+  const preset = normalizeQuality(type, quality);
   const mediaBase: PlayableMedia = {
     title: item.title,
     type,
     streamUrl: '',
     thumbnailUrl: item.thumbnailUrl,
-    quality: quality ? qualityLabel(type, quality) : type === 'AUDIO' ? item.audioFormat : item.videoFormat,
+    quality: quality ? qualityLabel(type, preset) : type === 'AUDIO' ? item.audioFormat : item.videoFormat,
     sourceUrl: item.sourceUrl,
     videoId: item.videoId,
   };
 
-  prefetchMediaPrepare(item.videoId, type);
+  prefetchMediaPrepare(item.videoId, type, preset);
 
   try {
     await warmMediaServer();
@@ -228,7 +243,7 @@ export async function prepareAndStartPlayback(
     throw error;
   }
 
-  const instant = resolveReadyStream(item.videoId, type);
+  const instant = resolveReadyStream(item.videoId, type, preset);
   if (instant) {
     const streamUrl = resolveStreamUrl(instant.streamPath);
     const media: PlayableMedia = {
@@ -247,12 +262,18 @@ export async function prepareAndStartPlayback(
   onStatus?.('Opening player…');
 
   try {
-    const {streamPath, quality} = await waitForMediaReady(item.videoId, type, onStatus, item);
+    const {streamPath, quality: readyQuality} = await waitForMediaReady(
+      item.videoId,
+      type,
+      onStatus,
+      item,
+      preset,
+    );
     const streamUrl = resolveStreamUrl(streamPath);
     const media: PlayableMedia = {
       ...mediaBase,
       streamUrl,
-      quality: quality || mediaBase.quality,
+      quality: readyQuality || mediaBase.quality,
     };
     playback.attachStreamUrl(media, streamUrl);
     openPlayerScreen(media, streamUrl);

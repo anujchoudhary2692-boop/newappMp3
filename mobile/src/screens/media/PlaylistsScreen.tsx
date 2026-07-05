@@ -3,6 +3,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -16,13 +17,15 @@ import {MediaCard} from '../../components/MediaCard';
 import {usePlayback} from '../../context/PlaybackContext';
 import {COLORS, RADIUS, SPACING} from '../../config';
 import {ENTERPRISE, enterpriseStyles} from '../../theme/enterprise';
-import {openPlayerScreen} from '../../navigation/navigationRef';
+import {goToMediaTab, openPlayerScreen} from '../../navigation/navigationRef';
 import {
   addTrackToPlaylist,
   createPlaylist,
   deletePlaylist,
   getPlaylist,
   listPlaylists,
+  renamePlaylist,
+  reorderPlaylistTracks,
   removeTrackFromPlaylist,
   type Playlist,
   type PlaylistTrack,
@@ -37,10 +40,19 @@ export function PlaylistsScreen() {
   const [selected, setSelected] = useState<Playlist | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showRename, setShowRename] = useState(false);
+  const [renameInput, setRenameInput] = useState('');
 
   const load = useCallback(async () => {
     setPlaylists(await listPlaylists());
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -105,6 +117,34 @@ export function PlaylistsScreen() {
     await handlePlayTrack(tracks[0], tracks);
   };
 
+  const handleRenamePlaylist = async () => {
+    if (!selected) {
+      return;
+    }
+    try {
+      await renamePlaylist(selected.id, renameInput);
+      setShowRename(false);
+      openPlaylist(selected.id);
+      load();
+    } catch (e) {
+      Alert.alert('Rename failed', e instanceof Error ? e.message : 'Try again');
+    }
+  };
+
+  const moveTrack = async (index: number, direction: -1 | 1) => {
+    if (!selected) {
+      return;
+    }
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= selected.items.length) {
+      return;
+    }
+    const ids = selected.items.map(t => t.id);
+    [ids[index], ids[nextIndex]] = [ids[nextIndex], ids[index]];
+    await reorderPlaylistTracks(selected.id, ids);
+    openPlaylist(selected.id);
+  };
+
   if (selected) {
     return (
       <View style={enterpriseStyles.page}>
@@ -119,6 +159,14 @@ export function PlaylistsScreen() {
           <TouchableOpacity onPress={() => handlePlayAll(selected.items)} style={styles.playAllBtn}>
             <Icon name="play" size={18} color="#111" />
           </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setRenameInput(selected.name);
+              setShowRename(true);
+            }}
+            style={styles.renameBtn}>
+            <Icon name="pencil" size={18} color={COLORS.text} />
+          </TouchableOpacity>
         </View>
         <FlatList
           data={selected.items}
@@ -129,24 +177,66 @@ export function PlaylistsScreen() {
               title="Empty playlist"
               subtitle="Add songs from Search or Downloads"
               accentColor={COLORS.primary}
+              actionLabel="Browse Search"
+              onAction={() => goToMediaTab('SearchTab')}
             />
           }
           renderItem={({item, index}) => (
-            <MediaCard
-              title={item.title}
-              subtitle={item.quality || item.type}
-              thumbnailUrl={item.thumbnailUrl}
-              mode="library"
-              type={item.type}
-              onPlay={() => handlePlayTrack(item, selected.items)}
-              onDelete={async () => {
-                await removeTrackFromPlaylist(selected.id, item.id);
-                openPlaylist(selected.id);
-              }}
-            />
+            <View>
+              <MediaCard
+                title={item.title}
+                subtitle={item.quality || item.type}
+                thumbnailUrl={item.thumbnailUrl}
+                mode="library"
+                type={item.type}
+                onPlay={() => handlePlayTrack(item, selected.items)}
+                onDelete={async () => {
+                  await removeTrackFromPlaylist(selected.id, item.id);
+                  openPlaylist(selected.id);
+                }}
+              />
+              <View style={[styles.reorderRow, {marginHorizontal: layout.hPad}]}>
+                <TouchableOpacity
+                  style={styles.reorderBtn}
+                  disabled={index === 0}
+                  onPress={() => moveTrack(index, -1)}>
+                  <Icon name="chevron-up" size={18} color={index === 0 ? COLORS.textMuted : COLORS.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.reorderBtn}
+                  disabled={index === selected.items.length - 1}
+                  onPress={() => moveTrack(index, 1)}>
+                  <Icon name="chevron-down" size={18} color={index === selected.items.length - 1 ? COLORS.textMuted : COLORS.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
           contentContainerStyle={{paddingBottom: layout.contentBottomPadWithPlayer}}
         />
+
+        <Modal visible={showRename} transparent animationType="fade">
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Rename playlist</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Playlist name"
+                placeholderTextColor={COLORS.textMuted}
+                value={renameInput}
+                onChangeText={setRenameInput}
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity onPress={() => setShowRename(false)}>
+                  <Text style={styles.modalCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalSave} onPress={handleRenamePlaylist}>
+                  <Text style={styles.modalSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -164,12 +254,17 @@ export function PlaylistsScreen() {
       <FlatList
         data={playlists}
         keyExtractor={item => item.id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+        }
         ListEmptyComponent={
           <EmptyState
             icon="albums-outline"
             title="No playlists yet"
             subtitle="Tap New playlist to organize your music and videos"
             accentColor={COLORS.primary}
+            actionLabel="Go to Search"
+            onAction={() => goToMediaTab('SearchTab')}
           />
         }
         renderItem={({item}) => (
@@ -271,6 +366,32 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  renameBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: ENTERPRISE.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: SPACING.sm,
+  },
+  reorderRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: -SPACING.sm,
+    marginBottom: SPACING.md,
+    paddingLeft: SPACING.md,
+  },
+  reorderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: ENTERPRISE.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },

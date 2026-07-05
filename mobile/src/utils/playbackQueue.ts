@@ -2,13 +2,13 @@ import {api, MediaItem, PlayableMedia} from '../api/client';
 import {QueueTrack} from '../context/PlaybackContext';
 import {getLocalPlaybackUri} from './localMediaStore';
 import {resolveStreamUrl} from './mediaPlayback';
+import {extractYouTubeVideoId} from './youtubeUrl';
 
 function extractVideoId(sourceUrl?: string): string | null {
   if (!sourceUrl) {
     return null;
   }
-  const match = sourceUrl.match(/(?:v=|youtu\.be\/|\/shorts\/)([\w-]{11})/);
-  return match?.[1] || null;
+  return extractYouTubeVideoId(sourceUrl);
 }
 
 export async function libraryItemToTrack(item: MediaItem): Promise<QueueTrack> {

@@ -48,6 +48,8 @@ export const mediaApi = {
 
   resolveStreamUrl: (streamUrl: string) => resolveStreamUrl(streamUrl),
 
-  playStreamUrl: (videoId: string, type: 'AUDIO' | 'VIDEO') =>
-    `${getApiBaseUrl()}/api/media/stream/${videoId}?type=${type}`,
+  playStreamUrl: (videoId: string, type: 'AUDIO' | 'VIDEO', quality?: string) =>
+    `${getApiBaseUrl()}/api/media/stream/${videoId}?type=${type}${
+      quality ? `&quality=${encodeURIComponent(quality)}` : ''
+    }`,
 };

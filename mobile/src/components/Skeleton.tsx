@@ -1,6 +1,8 @@
 import React, {useEffect, useRef} from 'react';
 import {Animated, Easing, StyleSheet, View, ViewStyle} from 'react-native';
 import {COLORS, RADIUS, SPACING} from '../config';
+import {ENTERPRISE} from '../theme/enterprise';
+import {useLayoutMetrics} from '../utils/layout';
 
 interface SkeletonBoxProps {
   width: number | `${number}%`;
@@ -50,17 +52,21 @@ export function SkeletonBox({
 }
 
 export function MediaCardSkeleton() {
+  const layout = useLayoutMetrics(true);
+  const thumb = layout.thumbSize;
+  const circle = layout.actionCircle;
+
   return (
-    <View style={styles.card}>
-      <SkeletonBox width={88} height={88} borderRadius={RADIUS.md} />
+    <View style={[styles.card, {marginHorizontal: layout.hPad, borderColor: ENTERPRISE.cardBorder, backgroundColor: ENTERPRISE.cardBg}]}>
+      <SkeletonBox width={thumb} height={thumb} borderRadius={RADIUS.md} />
       <View style={styles.cardBody}>
-        <SkeletonBox width="92%" height={16} />
-        <SkeletonBox width="65%" height={12} style={styles.gapSm} />
+        <SkeletonBox width="92%" height={layout.font.md} />
+        <SkeletonBox width="65%" height={layout.font.sm} style={styles.gapSm} />
         <View style={styles.actionRow}>
-          <SkeletonBox width={36} height={36} borderRadius={18} />
-          <SkeletonBox width={36} height={36} borderRadius={18} />
-          <SkeletonBox width={36} height={36} borderRadius={18} />
-          <SkeletonBox width={36} height={36} borderRadius={18} />
+          <SkeletonBox width={circle} height={circle} borderRadius={circle / 2} />
+          <SkeletonBox width={circle} height={circle} borderRadius={circle / 2} />
+          <SkeletonBox width={circle} height={circle} borderRadius={circle / 2} />
+          <SkeletonBox width={circle} height={circle} borderRadius={circle / 2} />
         </View>
       </View>
     </View>
@@ -107,12 +113,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: SPACING.md,
     padding: SPACING.md,
-    marginHorizontal: SPACING.md,
     marginBottom: SPACING.sm,
-    backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
   },
   cardBody: {
     flex: 1,

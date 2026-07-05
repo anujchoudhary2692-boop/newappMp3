@@ -229,6 +229,7 @@ export function PlayerScreen({route, navigation}: Props) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pipActive, setPipActive] = useState(false);
   const [showInlineControls, setShowInlineControls] = useState(true);
   const [showFullscreenControls, setShowFullscreenControls] = useState(true);
   const [showQueueModal, setShowQueueModal] = useState(false);
@@ -246,6 +247,7 @@ export function PlayerScreen({route, navigation}: Props) {
     ignoreSilentSwitch: 'ignore' as const,
     playInBackground: true,
     playWhenInactive: true,
+    pictureInPicture: true,
     bufferConfig: {
       minBufferMs: 800,
       maxBufferMs: 12000,
@@ -289,11 +291,17 @@ export function PlayerScreen({route, navigation}: Props) {
 
   const handleShare = useCallback(async () => {
     try {
-      await Share.share({message: `🎵 ${playable?.title ?? 'MediaFace track'}`});
+      const link =
+        media?.sourceUrl ||
+        (media?.videoId ? `https://www.youtube.com/watch?v=${media.videoId}` : '');
+      const message = link
+        ? `🎵 ${playable?.title ?? 'MediaFace track'}\n${link}`
+        : `🎵 ${playable?.title ?? 'MediaFace track'}`;
+      await Share.share({message});
     } catch {
       // user cancelled
     }
-  }, [playable?.title]);
+  }, [playable?.title, media?.sourceUrl, media?.videoId]);
 
   const playbackRef = useRef(playback);
   playbackRef.current = playback;
@@ -504,6 +512,14 @@ export function PlayerScreen({route, navigation}: Props) {
     setShowInlineControls(true);
   };
 
+  const enterPiP = () => {
+    try {
+      videoRef.current?.enterPictureInPicture?.();
+    } catch {
+      Alert.alert('PiP unavailable', 'Picture-in-picture is not supported on this device.');
+    }
+  };
+
   if (!playable) {
     return (
       <View style={styles.center}>
@@ -557,6 +573,15 @@ export function PlayerScreen({route, navigation}: Props) {
           active={playback.repeatQueue}
           accent={accent}
           onPress={playback.toggleRepeatQueue}
+        />
+      ) : null}
+      {queueActive ? (
+        <FeatureChip
+          icon="shuffle"
+          label="Shuffle"
+          active={playback.shuffleQueue}
+          accent={accent}
+          onPress={playback.toggleShuffleQueue}
         />
       ) : null}
       <FeatureChip icon="refresh" label="Restart" accent={accent} onPress={() => (isVideo ? seekTo(0) : playback.seekTo(0))} />
@@ -618,6 +643,7 @@ export function PlayerScreen({route, navigation}: Props) {
                   console.warn('Player stream error', e);
                 }}
                 onEnd={handleTrackEnd}
+                onPictureInPictureStatusChanged={(e: {isActive: boolean}) => setPipActive(e.isActive)}
               />
               ) : (
                 <View style={styles.videoLoader}>
@@ -643,6 +669,9 @@ export function PlayerScreen({route, navigation}: Props) {
                     pointerEvents="none"
                   />
                   <View style={styles.videoTopRow} pointerEvents="box-none">
+                    <TouchableOpacity style={styles.videoIconBtn} onPress={enterPiP}>
+                      <Icon name={pipActive ? 'albums' : 'albums-outline'} size={18} color={COLORS.text} />
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.videoIconBtn} onPress={enterFullscreen}>
                       <Icon name="expand" size={18} color={COLORS.text} />
                     </TouchableOpacity>

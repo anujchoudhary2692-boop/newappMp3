@@ -50,11 +50,12 @@ public class MediaController {
     @GetMapping("/play/{videoId}")
     public ResponseEntity<ApiResponse<PlayUrlDto>> play(
             @PathVariable String videoId,
-            @RequestParam MediaType type) {
+            @RequestParam MediaType type,
+            @RequestParam(required = false) String quality) {
         try {
             PlayUrlDto dto = mediaService.preparePlayback(videoId, type);
             if (dto.getStreamUrl() != null && dto.getStreamUrl().contains("/api/media/prepare/")) {
-                mediaCacheService.prepare(videoId, type);
+                mediaCacheService.prepare(videoId, type, quality);
             }
             return ResponseEntity.ok(ApiResponse.ok(dto));
         } catch (Exception e) {
@@ -66,9 +67,10 @@ public class MediaController {
     @GetMapping("/prepare/{videoId}")
     public ResponseEntity<ApiResponse<PrepareStatusDto>> prepare(
             @PathVariable String videoId,
-            @RequestParam MediaType type) {
+            @RequestParam MediaType type,
+            @RequestParam(required = false) String quality) {
         try {
-            return ResponseEntity.ok(ApiResponse.ok(mediaCacheService.prepare(videoId, type)));
+            return ResponseEntity.ok(ApiResponse.ok(mediaCacheService.prepare(videoId, type, quality)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
@@ -83,6 +85,7 @@ public class MediaController {
     public ResponseEntity<?> stream(
             @PathVariable String videoId,
             @RequestParam MediaType type,
+            @RequestParam(required = false) String quality,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
         try {
             var cached = mediaService.tryServeCachedStream(videoId, type, rangeHeader);
@@ -90,7 +93,7 @@ public class MediaController {
                 return cached.get();
             }
 
-            var direct = mediaService.tryServeDirectStream(videoId, type, rangeHeader);
+            var direct = mediaService.tryServeDirectStream(videoId, type, rangeHeader, quality);
             if (direct.isPresent()) {
                 return direct.get();
             }
@@ -100,7 +103,7 @@ public class MediaController {
 
         StreamingResponseBody body = outputStream -> {
             try {
-                mediaService.writeStreamPipe(videoId, type, outputStream);
+                mediaService.writeStreamPipe(videoId, type, outputStream, quality);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Stream interrupted");

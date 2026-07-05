@@ -29,6 +29,9 @@ interface MediaCardProps {
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   onAddToPlaylist?: () => void;
+  batchSelect?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   downloading?: 'AUDIO' | 'VIDEO' | null;
   downloadProgress?: number | null;
   playing?: 'AUDIO' | 'VIDEO' | null;
@@ -63,6 +66,9 @@ export function MediaCard({
   isFavorite,
   onToggleFavorite,
   onAddToPlaylist,
+  batchSelect,
+  selected,
+  onToggleSelect,
   downloading,
   downloadProgress,
   playing,
@@ -141,6 +147,13 @@ export function MediaCard({
           )}
         </View>
       </TouchableOpacity>
+
+      {mode === 'search' && batchSelect ? (
+        <TouchableOpacity style={styles.batchSelectRow} onPress={onToggleSelect}>
+          <Icon name={selected ? 'checkbox' : 'square-outline'} size={18} color={selected ? COLORS.primary : COLORS.textMuted} />
+          <Text style={styles.batchSelectText}>{selected ? 'Selected' : 'Select for batch download'}</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {mode === 'search' && (
         <View style={[styles.iconActions, {paddingTop: layout.isCompact ? SPACING.sm : SPACING.md}]}>
@@ -305,6 +318,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  selectBtn: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectBtnActive: {
+    backgroundColor: 'rgba(255,153,0,0.35)',
+  },
   info: {
     flex: 1,
     marginLeft: SPACING.md,
@@ -405,6 +432,14 @@ const styles = StyleSheet.create({
   },
   iconLabel: {color: COLORS.textSecondary, fontWeight: '700'},
   iconLabelHidden: {height: 0, opacity: 0, marginBottom: 0},
+  batchSelectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.sm,
+  },
+  batchSelectText: {color: COLORS.textMuted, fontWeight: '600', fontSize: 12},
   actions: {
     flexDirection: 'row',
     gap: SPACING.sm,

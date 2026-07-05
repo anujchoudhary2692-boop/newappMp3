@@ -16,7 +16,7 @@ import {EmptyState} from '../../components/EmptyState';
 import {usePlayback} from '../../context/PlaybackContext';
 import {COLORS, RADIUS, SPACING} from '../../config';
 import {ENTERPRISE, enterpriseStyles} from '../../theme/enterprise';
-import {openPlayerScreen} from '../../navigation/navigationRef';
+import {goToMediaTab, openPlayerScreen} from '../../navigation/navigationRef';
 import {buildLibraryQueue} from '../../utils/playbackQueue';
 import {
   deleteLocalMedia,
@@ -193,6 +193,8 @@ export function DownloadsScreen() {
               title="No downloads yet"
               subtitle="Search any song or video, pick quality, save to your phone, or import from Files"
               accentColor={COLORS.primary}
+              actionLabel="Go to Search"
+              onAction={() => goToMediaTab('SearchTab')}
             />
           ) : null
         }

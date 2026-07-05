@@ -2,6 +2,7 @@ package com.mediaapp.service;
 
 import com.mediaapp.dto.PrepareStatusDto;
 import com.mediaapp.model.MediaType;
+import com.mediaapp.util.MediaQualityPresets;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +34,12 @@ public class MediaCacheService {
     private boolean renderHost;
 
     public PrepareStatusDto prepare(String videoId, MediaType type) {
-        String key = jobKey(videoId, type);
+        return prepare(videoId, type, null);
+    }
+
+    public PrepareStatusDto prepare(String videoId, MediaType type, String quality) {
+        String preset = MediaQualityPresets.normalize(type, quality);
+        String key = jobKey(videoId, type, preset);
 
         if (renderHost && !ytDlpService.hasCookies()) {
             return failedDto(videoId, type, cloudCookiesRequiredMessage());
@@ -43,7 +49,7 @@ public class MediaCacheService {
             Path cached = mediaService.cachePathFor(videoId, type);
             if (Files.exists(cached) && Files.size(cached) > 0
                     && (type != MediaType.VIDEO || mediaService.isCachedVideoPlayable(cached))) {
-                return readyDto(videoId, type, cached, null);
+                return readyDto(videoId, type, cached, null, preset);
             }
         } catch (Exception e) {
             log.debug("Cache check failed for {} {}: {}", videoId, type, e.getMessage());
@@ -78,36 +84,40 @@ public class MediaCacheService {
             return failedDto(videoId, type, "Media engine unavailable. Redeploy backend with yt-dlp.");
         }
 
+        String qualityLabel = type == MediaType.AUDIO
+                ? MediaQualityPresets.audioLabel(preset)
+                : MediaQualityPresets.videoLabel(preset);
+
         PrepareStatusDto preparing = PrepareStatusDto.builder()
                 .videoId(videoId)
                 .type(type)
                 .status(PrepareStatusDto.Status.PREPARING)
                 .contentType(mediaService.getStreamContentType(type))
-                .quality(type == MediaType.AUDIO ? "Preparing audio…" : "Preparing video…")
+                .quality("Preparing · " + qualityLabel)
                 .message(prepareMessage(type))
                 .build();
         jobs.put(key, preparing);
         jobStartedAt.put(key, System.currentTimeMillis());
 
-        executor.submit(() -> runPrepare(key, videoId, type));
+        executor.submit(() -> runPrepare(key, videoId, type, preset));
         return preparing;
     }
 
-    private void runPrepare(String key, String videoId, MediaType type) {
+    private void runPrepare(String key, String videoId, MediaType type, String qualityPreset) {
         try {
             try {
-                String directUrl = mediaService.resolveDirectUrlFastForClient(videoId, type);
+                String directUrl = mediaService.resolveDirectUrlFastForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);
-                jobs.put(key, readyDirectDto(videoId, type, directUrl));
+                jobs.put(key, readyDirectDto(videoId, type, directUrl, qualityPreset));
                 return;
             } catch (Exception fastEx) {
                 log.debug("Fast direct URL unavailable for {} {}: {}", videoId, type, fastEx.getMessage());
             }
 
             try {
-                String directUrl = mediaService.resolveDirectUrlForClient(videoId, type);
+                String directUrl = mediaService.resolveDirectUrlForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);
-                jobs.put(key, readyDirectDto(videoId, type, directUrl));
+                jobs.put(key, readyDirectDto(videoId, type, directUrl, qualityPreset));
                 return;
             } catch (Exception directEx) {
                 log.info("Direct URL unavailable for {} {}: {}", videoId, type, directEx.getMessage());
@@ -122,7 +132,7 @@ public class MediaCacheService {
             }
 
             mediaService.warmCacheAsync(videoId, type);
-            jobs.put(key, readyProxyDto(videoId, type));
+            jobs.put(key, readyProxyDto(videoId, type, qualityPreset));
         } catch (Exception e) {
             log.error("Prepare failed for {} {}", videoId, type, e);
             jobs.put(key, failedDto(videoId, type, mediaService.friendlyMediaError(e.getMessage())));
@@ -131,14 +141,17 @@ public class MediaCacheService {
         }
     }
 
-    private PrepareStatusDto readyDirectDto(String videoId, MediaType type, String directUrl) {
+    private PrepareStatusDto readyDirectDto(String videoId, MediaType type, String directUrl, String qualityPreset) {
+        String label = type == MediaType.AUDIO
+                ? MediaQualityPresets.audioLabel(qualityPreset)
+                : MediaQualityPresets.videoLabel(qualityPreset);
         return PrepareStatusDto.builder()
                 .videoId(videoId)
                 .type(type)
                 .status(PrepareStatusDto.Status.READY)
                 .streamUrl(directUrl)
                 .contentType(mediaService.getStreamContentType(type))
-                .quality(type == MediaType.AUDIO ? "Streaming Audio" : "Streaming Video")
+                .quality(label)
                 .message("Direct stream")
                 .build();
     }
@@ -169,14 +182,17 @@ public class MediaCacheService {
         return base + " Usually 3–10 seconds.";
     }
 
-    private PrepareStatusDto readyProxyDto(String videoId, MediaType type) {
+    private PrepareStatusDto readyProxyDto(String videoId, MediaType type, String qualityPreset) {
+        String label = type == MediaType.AUDIO
+                ? MediaQualityPresets.audioLabel(qualityPreset)
+                : MediaQualityPresets.videoLabel(qualityPreset);
         return PrepareStatusDto.builder()
                 .videoId(videoId)
                 .type(type)
                 .status(PrepareStatusDto.Status.READY)
-                .streamUrl("/api/media/stream/" + videoId + "?type=" + type)
+                .streamUrl("/api/media/stream/" + videoId + "?type=" + type + "&quality=" + qualityPreset)
                 .contentType(mediaService.getStreamContentType(type))
-                .quality(type == MediaType.AUDIO ? "Streaming Audio" : "Streaming Video")
+                .quality(label)
                 .message("Stream proxy")
                 .build();
     }
@@ -195,14 +211,17 @@ public class MediaCacheService {
                 .build();
     }
 
-    private PrepareStatusDto readyDto(String videoId, MediaType type, Path cached, String message) {
+    private PrepareStatusDto readyDto(String videoId, MediaType type, Path cached, String message, String qualityPreset) {
+        String label = type == MediaType.AUDIO
+                ? MediaQualityPresets.audioLabel(qualityPreset)
+                : MediaQualityPresets.videoLabel(qualityPreset);
         return PrepareStatusDto.builder()
                 .videoId(videoId)
                 .type(type)
                 .status(PrepareStatusDto.Status.READY)
                 .streamUrl("/files/cache/" + cached.getFileName())
                 .contentType(type == MediaType.AUDIO ? "audio/mp4" : "video/mp4")
-                .quality(type == MediaType.AUDIO ? "Cached Audio" : mediaService.videoQualityLabelPublic())
+                .quality(label)
                 .message(message)
                 .build();
     }
@@ -211,7 +230,7 @@ public class MediaCacheService {
         return TimeUnit.SECONDS.toMillis(prepareTimeoutSeconds);
     }
 
-    private static String jobKey(String videoId, MediaType type) {
-        return videoId + ":" + type.name();
+    private static String jobKey(String videoId, MediaType type, String qualityPreset) {
+        return videoId + ":" + type.name() + ":" + qualityPreset;
     }
 }

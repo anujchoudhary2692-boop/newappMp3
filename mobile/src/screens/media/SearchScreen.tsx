@@ -1,8 +1,8 @@
 import React, {useCallback, useState} from 'react';
 import {
   Alert,
+  Clipboard,
   FlatList,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,6 +17,7 @@ import {MediaCard, formatDuration} from '../../components/MediaCard';
 import {EmptyState} from '../../components/EmptyState';
 import {MediaListSkeleton} from '../../components/Skeleton';
 import {QualityPickerSheet, QualityAction} from '../../components/QualityPickerSheet';
+import {PlaylistPickerSheet} from '../../components/media/PlaylistPickerSheet';
 import {usePlayback} from '../../context/PlaybackContext';
 import {COLORS, RADIUS, SPACING} from '../../config';
 import {ENTERPRISE} from '../../theme/enterprise';
@@ -29,6 +30,9 @@ import {prepareAndStartPlayback, showDownloadError} from '../../features/media/s
 import {downloadSearchItemToDevice} from '../../utils/localMediaStore';
 import {prefetchMediaPrepare, warmMediaServer} from '../../utils/mediaPrefetch';
 import {consumePendingSearchQuery} from '../../utils/searchIntent';
+import {listSearchHistory, removeSearchHistoryItem} from '../../utils/searchHistoryStore';
+import {enqueueDownload} from '../../utils/downloadQueueStore';
+import {DownloadQueueBar} from '../../components/media/DownloadQueueBar';
 import {listFavorites, toggleFavorite} from '../../utils/favoritesStore';
 import {
   addTrackToPlaylist,
@@ -37,6 +41,7 @@ import {
   type Playlist,
 } from '../../utils/playlistStore';
 import {useLayoutMetrics} from '../../utils/layout';
+import {extractYouTubeVideoId, youTubeWatchUrl} from '../../utils/youtubeUrl';
 import {enterpriseStyles} from '../../theme/enterprise';
 
 const QUICK_SEARCHES = [
@@ -63,10 +68,18 @@ export function SearchScreen() {
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [playlistTarget, setPlaylistTarget] = useState<MediaSearchResult | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [history, setHistory] = useState<string[]>([]);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState<Set<string>>(new Set());
+  const [batchPickerType, setBatchPickerType] = useState<'AUDIO' | 'VIDEO'>('AUDIO');
 
   const loadFavorites = useCallback(async () => {
     const favs = await listFavorites();
     setFavoriteIds(new Set(favs.map(f => f.id)));
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    setHistory(await listSearchHistory());
   }, []);
 
   useFocusEffect(
@@ -76,7 +89,8 @@ export function SearchScreen() {
         setQuery(pending);
       }
       loadFavorites();
-    }, [setQuery, loadFavorites]),
+      loadHistory();
+    }, [setQuery, loadFavorites, loadHistory]),
   );
 
   const openPicker = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', action: QualityAction) => {
@@ -94,7 +108,7 @@ export function SearchScreen() {
   };
 
   const runPlay = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', quality: MediaQuality) => {
-    prefetchMediaPrepare(item.videoId, type);
+    prefetchMediaPrepare(item.videoId, type, quality);
     setPlaying(prev => ({...prev, [item.videoId]: type}));
     void prepareAndStartPlayback(item, type, playback, undefined, quality)
       .catch(() => undefined)
@@ -151,9 +165,37 @@ export function SearchScreen() {
     setPickerItem(null);
     if (action === 'play') {
       runPlay(item, type, quality);
+    } else if (batchMode && selectedBatch.size > 0) {
+      const targets = results.filter(r => selectedBatch.has(r.videoId));
+      targets.forEach(t => enqueueDownload(t, type, quality));
+      Alert.alert('Queued', `${targets.length} download(s) added to queue`);
+      setSelectedBatch(new Set());
     } else {
       runDownload(item, type, quality);
     }
+  };
+
+  const toggleBatchSelect = (videoId: string) => {
+    setSelectedBatch(prev => {
+      const next = new Set(prev);
+      if (next.has(videoId)) {
+        next.delete(videoId);
+      } else {
+        next.add(videoId);
+      }
+      return next;
+    });
+  };
+
+  const queueBatchDownloads = () => {
+    const targets = results.filter(r => selectedBatch.has(r.videoId));
+    if (targets.length === 0) {
+      Alert.alert('Select items', 'Turn on Batch mode and select search results first.');
+      return;
+    }
+    setPickerItem(targets[0]);
+    setPickerType(batchPickerType);
+    setPickerAction('download');
   };
 
   const handleToggleFavorite = async (item: MediaSearchResult) => {
@@ -206,6 +248,18 @@ export function SearchScreen() {
     Alert.alert('Added', 'Saved to new playlist');
   };
 
+  const handlePasteLink = async () => {
+    const text = await Clipboard.getString();
+    const videoId = extractYouTubeVideoId(text);
+    if (!videoId) {
+      Alert.alert('Invalid link', 'Copy a YouTube watch, youtu.be, or shorts link first.');
+      return;
+    }
+    const url = youTubeWatchUrl(videoId);
+    setQuery(url);
+    search(url);
+  };
+
   return (
     <View style={enterpriseStyles.page}>
       <SearchBar
@@ -215,12 +269,66 @@ export function SearchScreen() {
         loading={loading}
         placeholder="Search any song, artist, music video..."
       />
+      <TouchableOpacity
+        style={[styles.pasteRow, {marginHorizontal: layout.hPad}]}
+        onPress={handlePasteLink}>
+        <Icon name="link-outline" size={16} color={COLORS.primary} />
+        <Text style={[styles.pasteText, {fontSize: layout.font.sm}]}>Paste YouTube link</Text>
+      </TouchableOpacity>
+
+      <View style={[styles.toolRow, {marginHorizontal: layout.hPad}]}>
+        <TouchableOpacity
+          style={[styles.toolChip, batchMode && styles.toolChipActive]}
+          onPress={() => {
+            setBatchMode(v => !v);
+            setSelectedBatch(new Set());
+          }}>
+          <Icon name="albums-outline" size={14} color={batchMode ? COLORS.primary : COLORS.textMuted} />
+          <Text style={[styles.toolChipText, batchMode && styles.toolChipTextActive]}>Batch</Text>
+        </TouchableOpacity>
+        {batchMode ? (
+          <>
+            <TouchableOpacity
+              style={[styles.toolChip, batchPickerType === 'AUDIO' && styles.toolChipActive]}
+              onPress={() => setBatchPickerType('AUDIO')}>
+              <Text style={styles.toolChipText}>MP3</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toolChip, batchPickerType === 'VIDEO' && styles.toolChipActive]}
+              onPress={() => setBatchPickerType('VIDEO')}>
+              <Text style={styles.toolChipText}>MP4</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.queueBtn} onPress={queueBatchDownloads}>
+              <Text style={styles.queueBtnText}>Queue ({selectedBatch.size})</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
+      </View>
+
+      {history.length > 0 && results.length === 0 && !loading ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.chips, {paddingHorizontal: layout.hPad}]}
+          style={styles.chipsWrap}>
+          {history.map(h => (
+            <TouchableOpacity
+              key={h}
+              style={styles.chip}
+              onPress={() => setQuery(h)}
+              onLongPress={() => removeSearchHistoryItem(h).then(loadHistory)}>
+              <Icon name="time-outline" size={14} color={COLORS.textMuted} />
+              <Text style={styles.chipText}>{h}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : null}
 
       {results.length === 0 && !loading ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chips}
+          contentContainerStyle={[styles.chips, {paddingHorizontal: layout.hPad}]}
           style={styles.chipsWrap}>
           {QUICK_SEARCHES.map(q => (
             <TouchableOpacity key={q} style={styles.chip} onPress={() => setQuery(q)}>
@@ -277,6 +385,9 @@ export function SearchScreen() {
             isFavorite={favoriteIds.has(`AUDIO:${item.videoId}`)}
             onToggleFavorite={() => handleToggleFavorite(item)}
             onAddToPlaylist={() => openPlaylistPicker(item)}
+            batchSelect={batchMode}
+            selected={selectedBatch.has(item.videoId)}
+            onToggleSelect={() => toggleBatchSelect(item.videoId)}
           />
         )}
         contentContainerStyle={
@@ -295,38 +406,51 @@ export function SearchScreen() {
         onConfirm={handlePickerConfirm}
       />
 
-      <Modal visible={playlistTarget != null} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Add to playlist</Text>
-            <TouchableOpacity style={styles.newPlRow} onPress={createPlaylistAndAdd}>
-              <Icon name="add" size={20} color={COLORS.primary} />
-              <Text style={styles.newPlText}>Create new playlist</Text>
-            </TouchableOpacity>
-            <FlatList
-              data={playlists}
-              keyExtractor={p => p.id}
-              renderItem={({item: pl}) => (
-                <TouchableOpacity style={styles.plRow} onPress={() => addSearchToPlaylist(pl.id)}>
-                  <Text style={styles.plName}>{pl.name}</Text>
-                  <Text style={styles.plCount}>{pl.items.length} tracks</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity onPress={() => setPlaylistTarget(null)} style={styles.cancelBtn}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <PlaylistPickerSheet
+        visible={playlistTarget != null}
+        playlists={playlists}
+        onClose={() => setPlaylistTarget(null)}
+        onSelect={addSearchToPlaylist}
+        onCreateNew={createPlaylistAndAdd}
+      />
+      <DownloadQueueBar />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {flex: 1},
+  pasteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: SPACING.xs,
+    paddingVertical: 6,
+  },
+  pasteText: {color: COLORS.primary, fontWeight: '700'},
+  toolRow: {flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.sm},
+  toolChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: ENTERPRISE.cardBorder,
+  },
+  toolChipActive: {borderColor: COLORS.primary, backgroundColor: 'rgba(255,153,0,0.12)'},
+  toolChipText: {color: COLORS.textMuted, fontWeight: '700', fontSize: 12},
+  toolChipTextActive: {color: COLORS.primary},
+  queueBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.primary,
+  },
+  queueBtnText: {color: '#111', fontWeight: '800', fontSize: 12},
   chipsWrap: {maxHeight: 48, marginBottom: SPACING.xs},
-  chips: {paddingHorizontal: SPACING.md, gap: SPACING.sm},
+  chips: {gap: SPACING.sm},
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -341,24 +465,4 @@ const styles = StyleSheet.create({
   chipText: {color: '#E3E6E6', fontWeight: '700', fontSize: 13},
   list: {},
   emptyList: {flexGrow: 1},
-  modalBackdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end'},
-  modalSheet: {
-    backgroundColor: ENTERPRISE.cardBg,
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    maxHeight: '60%',
-  },
-  modalTitle: {color: COLORS.text, fontSize: 18, fontWeight: '800', marginBottom: SPACING.md},
-  newPlRow: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: SPACING.md},
-  newPlText: {color: COLORS.primary, fontWeight: '700'},
-  plRow: {
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: ENTERPRISE.divider,
-  },
-  plName: {color: COLORS.text, fontWeight: '700'},
-  plCount: {color: COLORS.textMuted, fontSize: 12},
-  cancelBtn: {alignItems: 'center', paddingVertical: SPACING.md},
-  cancelText: {color: COLORS.textMuted, fontWeight: '700'},
 });

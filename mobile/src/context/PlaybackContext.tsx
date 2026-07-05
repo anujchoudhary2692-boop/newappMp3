@@ -2,6 +2,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +13,12 @@ import {PlayableMedia} from '../api/client';
 import {isPlayerScreenOpen, openPlayerScreen} from '../navigation/navigationRef';
 import {buildMediaSource} from '../utils/mediaPlayback';
 import {pushRecentMedia} from '../utils/recentMedia';
+import {
+  bindNowPlayingHandlers,
+  clearNowPlaying,
+  initNowPlayingControls,
+  updateNowPlaying,
+} from '../services/nowPlayingService';
 
 export interface QueueTrack {
   id: string;
@@ -30,6 +37,7 @@ interface PlaybackContextValue {
   queueIndex: number;
   queueLength: number;
   repeatQueue: boolean;
+  shuffleQueue: boolean;
   hasNext: boolean;
   hasPrevious: boolean;
   playbackRate: number;
@@ -42,6 +50,7 @@ interface PlaybackContextValue {
   playNext: () => void;
   playPrevious: () => void;
   toggleRepeatQueue: () => void;
+  toggleShuffleQueue: () => void;
   cyclePlaybackRate: () => void;
   setPlaybackRate: (rate: number) => void;
   onTrackEnd: () => void;
@@ -68,12 +77,22 @@ export function usePlayback() {
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2];
 
+function shuffleTracks<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 export function PlaybackProvider({children}: {children: React.ReactNode}) {
   const videoRef = useRef<VideoRef>(null);
   const pendingSeek = useRef(0);
   const queueRef = useRef<QueueTrack[]>([]);
   const queueIndexRef = useRef(-1);
   const repeatQueueRef = useRef(false);
+  const shuffleQueueRef = useRef(false);
   const [media, setMedia] = useState<PlayableMedia | null>(null);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [streamKey, setStreamKey] = useState(0);
@@ -85,10 +104,12 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   const [queueIndex, setQueueIndex] = useState(-1);
   const [queueLength, setQueueLength] = useState(0);
   const [repeatQueue, setRepeatQueue] = useState(false);
+  const [shuffleQueue, setShuffleQueue] = useState(false);
   const [queueTracks, setQueueTracks] = useState<QueueTrack[]>([]);
   const [playbackRate, setPlaybackRateState] = useState(1);
 
   repeatQueueRef.current = repeatQueue;
+  shuffleQueueRef.current = shuffleQueue;
 
   const clearQueue = useCallback(() => {
     queueRef.current = [];
@@ -162,12 +183,20 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     if (tracks.length === 0 || startIndex < 0 || startIndex >= tracks.length) {
       return;
     }
-    queueRef.current = tracks;
-    queueIndexRef.current = startIndex;
-    setQueueIndex(startIndex);
-    setQueueLength(tracks.length);
-    setQueueTracks(tracks);
-    const track = tracks[startIndex];
+    let ordered = tracks;
+    let index = startIndex;
+    if (shuffleQueueRef.current && tracks.length > 1) {
+      const current = tracks[startIndex];
+      ordered = shuffleTracks(tracks);
+      const shuffledIndex = ordered.findIndex(t => t.id === current.id);
+      index = shuffledIndex >= 0 ? shuffledIndex : 0;
+    }
+    queueRef.current = ordered;
+    queueIndexRef.current = index;
+    setQueueIndex(index);
+    setQueueLength(ordered.length);
+    setQueueTracks(ordered);
+    const track = ordered[index];
     applyTrack(track.media, track.streamUrl);
   }, [applyTrack]);
 
@@ -213,6 +242,10 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     setRepeatQueue(value => !value);
   }, []);
 
+  const toggleShuffleQueue = useCallback(() => {
+    setShuffleQueue(value => !value);
+  }, []);
+
   const onTrackEnd = useCallback(() => {
     const nextIdx = queueIndexRef.current + 1;
     const queue = queueRef.current;
@@ -253,6 +286,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   const stop = useCallback(() => {
     clearQueue();
     setRepeatQueue(false);
+    setShuffleQueue(false);
     setMedia(null);
     setStreamUrl(null);
     setPaused(true);
@@ -321,6 +355,48 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     (queueIndex < queueLength - 1 || repeatQueue);
   const hasPrevious = queueLength > 0 && queueIndex > 0;
 
+  const remoteRef = useRef({
+    resume,
+    pause,
+    playNext,
+    playPrevious,
+    seekTo,
+    togglePause,
+  });
+  remoteRef.current = {resume, pause, playNext, playPrevious, seekTo, togglePause};
+
+  useEffect(() => {
+    initNowPlayingControls();
+    bindNowPlayingHandlers({
+      onPlay: () => remoteRef.current.resume(),
+      onPause: () => remoteRef.current.pause(),
+      onNext: () => remoteRef.current.playNext(),
+      onPrevious: () => remoteRef.current.playPrevious(),
+      onSeek: (position: number) => remoteRef.current.seekTo(position),
+    });
+    return () => {
+      bindNowPlayingHandlers(null);
+      clearNowPlaying();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!media || !streamUrl) {
+      clearNowPlaying();
+      return;
+    }
+    updateNowPlaying({
+      title: media.title,
+      artist: media.quality || 'MediaFace',
+      artwork: media.thumbnailUrl,
+      duration,
+      elapsed: currentTime,
+      isPlaying: !paused && engineActive,
+      hasNext,
+      hasPrevious: hasPrevious || currentTime > 3,
+    });
+  }, [media, streamUrl, paused, currentTime, duration, hasNext, hasPrevious, engineActive]);
+
   const value = useMemo(
     () => ({
       media,
@@ -333,6 +409,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       queueIndex,
       queueLength,
       repeatQueue,
+      shuffleQueue,
       hasNext,
       hasPrevious,
       playbackRate,
@@ -345,6 +422,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       playNext,
       playPrevious,
       toggleRepeatQueue,
+      toggleShuffleQueue,
       cyclePlaybackRate,
       setPlaybackRate,
       onTrackEnd,
@@ -369,6 +447,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       queueIndex,
       queueLength,
       repeatQueue,
+      shuffleQueue,
       hasNext,
       hasPrevious,
       playbackRate,
@@ -381,6 +460,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       playNext,
       playPrevious,
       toggleRepeatQueue,
+      toggleShuffleQueue,
       cyclePlaybackRate,
       setPlaybackRate,
       onTrackEnd,

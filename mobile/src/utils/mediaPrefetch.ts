@@ -1,6 +1,8 @@
 import {ensureMediaServer} from '../core/api/httpClient';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaSearchResult} from '../features/media/domain/types';
+import {defaultQuality} from '../features/media/domain/qualityPresets';
+import type {MediaQuality} from '../features/media/domain/qualityPresets';
 
 const PREFETCH_TTL_MS = 30 * 60 * 1000;
 const prefetched = new Set<string>();
@@ -12,8 +14,9 @@ const readyCache = new Map<
 
 let mediaServerWarm: Promise<string> | null = null;
 
-function jobKey(videoId: string, type: 'AUDIO' | 'VIDEO'): string {
-  return `${type}:${videoId}`;
+function jobKey(videoId: string, type: 'AUDIO' | 'VIDEO', quality?: MediaQuality): string {
+  const preset = quality || defaultQuality(type);
+  return `${type}:${videoId}:${preset}`;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -36,10 +39,11 @@ function isPlayablePath(path: string): boolean {
 export function getPrefetchedStream(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
+  quality?: MediaQuality,
 ): {streamPath: string; quality?: string} | null {
-  const hit = readyCache.get(jobKey(videoId, type));
+  const hit = readyCache.get(jobKey(videoId, type, quality));
   if (!hit || Date.now() > hit.expiresAt) {
-    readyCache.delete(jobKey(videoId, type));
+    readyCache.delete(jobKey(videoId, type, quality));
     return null;
   }
   return hit;
@@ -49,14 +53,15 @@ export function putPrefetchedStream(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
   streamPath: string,
-  quality?: string,
+  qualityLabel?: string,
+  quality?: MediaQuality,
 ): void {
   if (!isPlayablePath(streamPath)) {
     return;
   }
-  readyCache.set(jobKey(videoId, type), {
+  readyCache.set(jobKey(videoId, type, quality), {
     streamPath,
-    quality,
+    quality: qualityLabel,
     expiresAt: Date.now() + PREFETCH_TTL_MS,
   });
 }
@@ -82,21 +87,23 @@ export function invalidateMediaServerWarm(): void {
 async function pollPrepareUntilReady(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
+  quality?: MediaQuality,
 ): Promise<void> {
-  const key = jobKey(videoId, type);
+  const key = jobKey(videoId, type, quality);
   if (prefetching.has(key)) {
     return;
   }
   prefetching.add(key);
+  const preset = quality || defaultQuality(type);
 
   try {
     for (let attempt = 0; attempt < 60; attempt += 1) {
-      const existing = getPrefetchedStream(videoId, type);
+      const existing = getPrefetchedStream(videoId, type, preset);
       if (existing) {
         return;
       }
 
-      const response = await mediaApi.prepare(videoId, type);
+      const response = await mediaApi.prepare(videoId, type, preset);
       if (!response.success || !response.data) {
         return;
       }
@@ -107,7 +114,7 @@ async function pollPrepareUntilReady(
       }
 
       if (data.status === 'READY' && data.streamUrl && isPlayablePath(data.streamUrl)) {
-        putPrefetchedStream(videoId, type, data.streamUrl, data.quality);
+        putPrefetchedStream(videoId, type, data.streamUrl, data.quality, preset);
         return;
       }
 
@@ -122,15 +129,16 @@ async function pollPrepareUntilReady(
 export function prefetchMediaPrepare(
   videoId: string,
   type: 'AUDIO' | 'VIDEO' = 'AUDIO',
+  quality?: MediaQuality,
 ): void {
-  const key = jobKey(videoId, type);
-  if (prefetched.has(key) || getPrefetchedStream(videoId, type)) {
+  const key = jobKey(videoId, type, quality);
+  if (prefetched.has(key) || getPrefetchedStream(videoId, type, quality)) {
     return;
   }
   prefetched.add(key);
 
   void warmMediaServer()
-    .then(() => pollPrepareUntilReady(videoId, type))
+    .then(() => pollPrepareUntilReady(videoId, type, quality))
     .catch(() => {
       prefetched.delete(key);
     });

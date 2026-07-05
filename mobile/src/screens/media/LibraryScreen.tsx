@@ -17,7 +17,7 @@ import {MediaListSkeleton} from '../../components/Skeleton';
 import {usePlayback} from '../../context/PlaybackContext';
 import {api, MediaItem} from '../../api/client';
 import {buildLibraryQueue} from '../../utils/playbackQueue';
-import {openPlayerScreen} from '../../navigation/navigationRef';
+import {goToMediaTab, openPlayerScreen} from '../../navigation/navigationRef';
 import {COLORS, RADIUS, SPACING} from '../../config';
 import {ENTERPRISE, enterpriseStyles} from '../../theme/enterprise';
 import {connectionErrorHint} from '../../utils/serverConnection';
@@ -58,7 +58,7 @@ function mergeLibraryItems(serverItems: MediaItem[], localItems: MediaItem[]): M
 
 export function LibraryScreen({type}: Props) {
   const layout = useLayoutMetrics(true);
-  const {playQueue, media, queueLength, repeatQueue, toggleRepeatQueue} = usePlayback();
+  const {playQueue, media, queueLength, repeatQueue, toggleRepeatQueue, shuffleQueue, toggleShuffleQueue} = usePlayback();
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const isAudio = type === 'AUDIO';
@@ -152,7 +152,7 @@ export function LibraryScreen({type}: Props) {
                 <View style={styles.sectionTitles}>
                   <View style={styles.titleRow}>
                     <Icon name={isAudio ? 'musical-notes' : 'videocam'} size={20} color={accent} />
-                    <Text style={[styles.sectionTitle, {color: accent}]}>
+                    <Text style={[styles.sectionTitle, {color: accent, fontSize: layout.font.xl}]}>
                       {isAudio ? 'My Music' : 'My Videos'}
                     </Text>
                   </View>
@@ -161,14 +161,22 @@ export function LibraryScreen({type}: Props) {
                   </Text>
                 </View>
                 {items.length > 1 ? (
-                  <TouchableOpacity
-                    style={[styles.repeatChip, repeatQueue && {borderColor: accent, backgroundColor: `${accent}22`}]}
-                    onPress={toggleRepeatQueue}>
-                    <Icon name="repeat" size={16} color={repeatQueue ? accent : COLORS.textMuted} />
-                    <Text style={[styles.repeatChipText, repeatQueue && {color: accent}]}>
-                      Repeat
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.queueChips}>
+                    <TouchableOpacity
+                      style={[styles.repeatChip, shuffleQueue && {borderColor: accent, backgroundColor: `${accent}22`}]}
+                      onPress={toggleShuffleQueue}>
+                      <Icon name="shuffle" size={16} color={shuffleQueue ? accent : COLORS.textMuted} />
+                      <Text style={[styles.repeatChipText, shuffleQueue && {color: accent}]}>Shuffle</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.repeatChip, repeatQueue && {borderColor: accent, backgroundColor: `${accent}22`}]}
+                      onPress={toggleRepeatQueue}>
+                      <Icon name="repeat" size={16} color={repeatQueue ? accent : COLORS.textMuted} />
+                      <Text style={[styles.repeatChipText, repeatQueue && {color: accent}]}>
+                        Repeat
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : null}
               </View>
             </LinearGradient>
@@ -185,6 +193,8 @@ export function LibraryScreen({type}: Props) {
                   : 'Search and save HD videos — watch anytime without internet'
               }
               accentColor={accent}
+              actionLabel="Go to Search"
+              onAction={() => goToMediaTab('SearchTab')}
             />
           ) : null
         }
@@ -236,6 +246,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: SPACING.sm,
   },
+  queueChips: {flexDirection: 'row', gap: SPACING.sm, flexShrink: 0},
   sectionTitles: {
     flex: 1,
   },

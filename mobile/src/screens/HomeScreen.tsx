@@ -140,7 +140,7 @@ export function HomeScreen() {
     {id: 'video', label: 'Videos', icon: 'videocam', color: colors.video, onPress: () => goToMediaTab('VideoTab')},
     {id: 'camera', label: 'Camera', icon: 'camera', color: colors.camera, onPress: goToCameraTab},
     {id: 'faces', label: 'Face AI', icon: 'scan', color: colors.face, onPress: goToFacesTab},
-    {id: 'library', label: 'Downloads', icon: 'download', color: ENTERPRISE.brand, onPress: () => goToMediaTab('AudioTab')},
+    {id: 'library', label: 'Downloads', icon: 'download', color: ENTERPRISE.brand, onPress: () => goToMediaTab('DownloadsTab')},
     {id: 'guide', label: 'Help', icon: 'book', color: colors.accent, onPress: openGuide},
     {id: 'settings', label: 'Account', icon: 'person', color: '#C7CED4', onPress: openSettings},
   ];
@@ -165,7 +165,7 @@ export function HomeScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ENTERPRISE.brand} />
         }
-        contentContainerStyle={{paddingBottom: layout.contentBottomPad + 16}}>
+        contentContainerStyle={{paddingBottom: layout.contentBottomPadWithPlayer}}>
         {media && streamUrl ? (
           <TouchableOpacity
             style={styles.nowPlaying}

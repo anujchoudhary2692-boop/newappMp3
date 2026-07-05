@@ -148,8 +148,13 @@ public class MediaService {
 
     public Optional<ResponseEntity<Resource>> tryServeDirectStream(
             String videoId, MediaType type, String rangeHeader) {
+        return tryServeDirectStream(videoId, type, rangeHeader, null);
+    }
+
+    public Optional<ResponseEntity<Resource>> tryServeDirectStream(
+            String videoId, MediaType type, String rangeHeader, String qualityPreset) {
         try {
-            String directUrl = resolveDirectUrl(videoId, type, false);
+            String directUrl = resolveDirectUrl(videoId, type, false, qualityPreset);
             warmCacheAsync(videoId, type);
             return Optional.of(proxyHttpStream(directUrl, rangeHeader, getStreamContentType(type)));
         } catch (Exception e) {
@@ -160,8 +165,13 @@ public class MediaService {
 
     public void writeStreamPipe(String videoId, MediaType type, java.io.OutputStream outputStream)
             throws IOException, InterruptedException {
+        writeStreamPipe(videoId, type, outputStream, null);
+    }
+
+    public void writeStreamPipe(String videoId, MediaType type, java.io.OutputStream outputStream, String qualityPreset)
+            throws IOException, InterruptedException {
         requireCloudPlaybackAllowed();
-        pipeFromYtDlp(buildSourceUrl(videoId), type, outputStream);
+        pipeFromYtDlp(buildSourceUrl(videoId), type, outputStream, qualityPreset);
         warmCacheAsync(videoId, type);
     }
 
@@ -355,15 +365,19 @@ public class MediaService {
 
     private void pipeFromYtDlp(String sourceUrl, MediaType type, java.io.OutputStream outputStream)
             throws IOException, InterruptedException {
+        pipeFromYtDlp(sourceUrl, type, outputStream, null);
+    }
+
+    private void pipeFromYtDlp(String sourceUrl, MediaType type, java.io.OutputStream outputStream, String qualityPreset)
+            throws IOException, InterruptedException {
         List<String> trailing = new ArrayList<>();
         trailing.add("-o");
         trailing.add("-");
+        trailing.add("-f");
         if (type == MediaType.AUDIO) {
-            trailing.add("-f");
-            trailing.add("140/bestaudio[ext=m4a]/bestaudio/best");
+            trailing.add(MediaQualityPresets.ytDlpAudioFormat(qualityPreset));
         } else {
-            trailing.add("-f");
-            trailing.add("18/best[height<=480][ext=mp4][vcodec^=avc1]/best[ext=mp4]/best");
+            trailing.add(MediaQualityPresets.ytDlpVideoFormat(qualityPreset));
         }
         ytDlpService.pipeWithFallbacks(sourceUrl, trailing, outputStream, ytDlpTimeoutSeconds);
     }

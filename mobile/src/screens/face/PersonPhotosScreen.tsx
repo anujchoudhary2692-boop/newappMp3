@@ -2,7 +2,6 @@ import React, {useCallback, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   FlatList,
   Image,
   Modal,
@@ -22,13 +21,12 @@ import {COLORS, RADIUS, SPACING} from '../../config';
 import {FaceStackParamList} from '../../navigation/types';
 import {ScanMode, ScanProgress, scanPersonLibrary} from '../../utils/libraryScanner';
 import {formatVideoTimestamp} from '../../utils/videoFrames';
+import {useLayoutMetrics} from '../../utils/layout';
 
 type Props = NativeStackScreenProps<FaceStackParamList, 'PersonPhotos'>;
 
 const GRID_GAP = 2;
 const NUM_COLUMNS = 3;
-const TILE_SIZE =
-  (Dimensions.get('window').width - GRID_GAP * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 
 function photoBadge(photo: PersonPhoto) {
   if (photo.groupPhoto) {
@@ -42,6 +40,8 @@ function photoBadge(photo: PersonPhoto) {
 
 export function PersonPhotosScreen({route}: Props) {
   const {personId, personName} = route.params;
+  const layout = useLayoutMetrics(true);
+  const tileSize = (layout.contentW - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
   const [photos, setPhotos] = useState<PersonPhoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -211,7 +211,11 @@ export function PersonPhotosScreen({route}: Props) {
           data={photos}
           keyExtractor={item => item.id}
           numColumns={NUM_COLUMNS}
-          contentContainerStyle={photos.length === 0 ? styles.emptyList : styles.grid}
+          contentContainerStyle={
+            photos.length === 0
+              ? [styles.emptyList, {paddingBottom: layout.contentBottomPadWithPlayer}]
+              : [styles.grid, {paddingHorizontal: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer}]
+          }
           ListEmptyComponent={
             !loading ? (
               <View style={styles.empty}>
@@ -227,7 +231,7 @@ export function PersonPhotosScreen({route}: Props) {
             const badge = photoBadge(item);
             return (
               <TouchableOpacity
-                style={styles.tile}
+                style={[styles.tile, {width: tileSize, height: tileSize}]}
                 onPress={() => setViewerPhoto(item)}
                 onLongPress={() => handleDeletePhoto(item)}
                 activeOpacity={0.85}>
@@ -275,7 +279,9 @@ export function PersonPhotosScreen({route}: Props) {
               </View>
             </>
           ) : null}
-          <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerPhoto(null)}>
+          <TouchableOpacity
+            style={[styles.viewerClose, {top: layout.insets.top + 12, right: layout.hPad}]}
+            onPress={() => setViewerPhoto(null)}>
             <Icon name="close" size={28} color={COLORS.text} />
           </TouchableOpacity>
         </Pressable>
@@ -337,11 +343,9 @@ const styles = StyleSheet.create({
     borderColor: COLORS.danger,
   },
   stopBtnText: {color: COLORS.danger, fontWeight: '700', fontSize: 12},
-  grid: {padding: GRID_GAP},
+  grid: {paddingTop: GRID_GAP},
   emptyList: {flexGrow: 1},
   tile: {
-    width: TILE_SIZE,
-    height: TILE_SIZE,
     margin: GRID_GAP / 2,
     borderRadius: RADIUS.sm,
     overflow: 'hidden',
@@ -398,5 +402,5 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   viewerMetaText: {color: COLORS.text, fontSize: 13, fontWeight: '600'},
-  viewerClose: {position: 'absolute', top: 50, right: 20, padding: 8},
+  viewerClose: {position: 'absolute', padding: 8},
 });

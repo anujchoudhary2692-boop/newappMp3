@@ -5,6 +5,7 @@ import {isProductionMode} from '../../../config';
 import {connectionErrorHint, isRecoverableRequestError} from '../../../utils/serverConnection';
 import {prefetchSearchResults, warmMediaServer} from '../../../utils/mediaPrefetch';
 import {getCachedSearch, setCachedSearch} from '../../../utils/searchCache';
+import {addSearchHistory} from '../../../utils/searchHistoryStore';
 import {mediaApi} from '../api/mediaApi';
 import type {MediaSearchResult} from '../domain/types';
 
@@ -48,6 +49,7 @@ export function useMediaSearch() {
         setResults(data);
         setCachedSearch(q, data);
         prefetchSearchResults(data);
+        void addSearchHistory(q);
         return;
       }
       Alert.alert('Search failed', response.message || 'Try again');
@@ -69,6 +71,7 @@ export function useMediaSearch() {
               setResults(data);
               setCachedSearch(q, data);
               prefetchSearchResults(data);
+              void addSearchHistory(q);
               return;
             }
           } catch {

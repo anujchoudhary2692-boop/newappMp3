@@ -29,6 +29,7 @@
     "react-native-geolocation-service": "^5.3.1",
     "react-native-image-picker": "^8.2.1",
     "react-native-linear-gradient": "^2.8.3",
+    "react-native-music-control": "^1.4.1",
     "react-native-nitro-image": "^0.15.1",
     "react-native-nitro-modules": "^0.35.9",
     "react-native-pager-view": "^8.0.2",
