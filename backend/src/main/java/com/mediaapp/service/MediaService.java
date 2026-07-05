@@ -494,8 +494,8 @@ public class MediaService {
                 .videoFormat("MP4")
                 .audioQuality("Best Audio")
                 .videoQuality("Best Video")
-                .audioStreamUrl("/api/media/stream/" + videoId + "?type=AUDIO")
-                .videoStreamUrl("/api/media/stream/" + videoId + "?type=VIDEO")
+                .audioStreamUrl("/api/media/stream/" + mediaId + "?type=AUDIO")
+                .videoStreamUrl("/api/media/stream/" + mediaId + "?type=VIDEO")
                 .build();
     }
 
@@ -722,10 +722,6 @@ public class MediaService {
                     "YouTube blocked on cloud. Use web/SoundCloud results, set YOUTUBE_COOKIES_BASE64, "
                             + "or use Mac backend on same Wi‑Fi.");
         }
-    }
-
-    public boolean isYouTubeMedia(String videoId) {
-        return isYouTubeUrl(resolveSourceUrl(videoId));
     }
 
     public boolean isYouTubeMedia(String videoId) {

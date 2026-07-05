@@ -13,7 +13,7 @@ WORKDIR /build
 COPY backend/pom.xml .
 COPY backend/src ./src
 COPY --from=web /web/dist ./src/main/resources/static/
-RUN mvn -q package -DskipTests
+RUN mvn -B clean package -DskipTests
 
 # Stage 3 — runtime
 FROM eclipse-temurin:17-jre-jammy
