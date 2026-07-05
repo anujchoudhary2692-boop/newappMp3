@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginBottom: SPACING.sm,
   },
-  chipsRow: {flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm},
+  chipsRow: {flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.sm},
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,

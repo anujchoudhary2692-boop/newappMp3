@@ -18,6 +18,7 @@ import {
 } from '../features/media/domain/qualityPresets';
 import {COLORS, RADIUS, SPACING} from '../config';
 import {ENTERPRISE} from '../theme/enterprise';
+import {useLayoutMetrics} from '../utils/layout';
 
 export type QualityAction = 'play' | 'download';
 
@@ -38,6 +39,7 @@ export function QualityPickerSheet({
   onClose,
   onConfirm,
 }: QualityPickerSheetProps) {
+  const layout = useLayoutMetrics(false);
   const isAudio = mediaType === 'AUDIO';
   const accent = isAudio ? COLORS.audio : COLORS.video;
   const options = isAudio ? AUDIO_QUALITY_OPTIONS : VIDEO_QUALITY_OPTIONS;
@@ -56,7 +58,7 @@ export function QualityPickerSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, {paddingBottom: layout.contentBottomPad}]} onPress={e => e.stopPropagation()}>
           <View style={styles.handle} />
           <Text style={styles.title} numberOfLines={2}>
             {item.title}

@@ -245,10 +245,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: SPACING.sm,
+    flexWrap: 'wrap',
   },
-  queueChips: {flexDirection: 'row', gap: SPACING.sm, flexShrink: 0},
+  queueChips: {flexDirection: 'row', gap: SPACING.sm, flexShrink: 0, flexWrap: 'wrap'},
   sectionTitles: {
     flex: 1,
+    minWidth: 0,
   },
   sectionTitle: {
     fontSize: 22,

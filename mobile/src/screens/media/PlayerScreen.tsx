@@ -617,7 +617,17 @@ export function PlayerScreen({route, navigation}: Props) {
         accentColor={accent}
       />
 
-      <View style={[styles.body, {paddingHorizontal: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer}]}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={{
+          paddingHorizontal: layout.hPad,
+          paddingTop: SPACING.md,
+          paddingBottom: layout.contentBottomPadWithPlayer,
+          flexGrow: 1,
+          gap: SPACING.sm,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled">
         {isVideo ? (
           <>
             <Pressable
@@ -840,11 +850,7 @@ export function PlayerScreen({route, navigation}: Props) {
             </TouchableOpacity>
           </View>
         )}
-      </View>
-
-      {isVideo && (
-        <Modal
-          visible={isFullscreen}
+      </ScrollView>
           animationType="fade"
           supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
           onRequestClose={exitFullscreen}>
@@ -1001,7 +1007,7 @@ export function PlayerScreen({route, navigation}: Props) {
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.background},
   center: {flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.background},
-  body: {flex: 1, padding: SPACING.md, gap: SPACING.sm},
+  body: {flex: 1},
   audioStage: {flex: 1, alignItems: 'center', gap: SPACING.sm},
   artworkGlowWrap: {alignItems: 'center', justifyContent: 'center', marginTop: SPACING.sm},
   artworkGlow: {

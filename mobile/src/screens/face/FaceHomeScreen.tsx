@@ -215,7 +215,9 @@ export function FaceHomeScreen() {
               </View>
             )}
             <View style={styles.personInfo}>
-              <Text style={[styles.personName, {fontSize: layout.font.lg}]}>{item.name}</Text>
+              <Text style={[styles.personName, {fontSize: layout.font.lg}]} numberOfLines={1}>
+                {item.name}
+              </Text>
               {(item.photoCount ?? 0) > 0 ? (
                 <Text style={styles.photoCount}>
                   {item.photoCount} photo{item.photoCount === 1 ? '' : 's'}
@@ -408,6 +410,7 @@ const styles = StyleSheet.create({
   },
   personInfo: {
     flex: 1,
+    minWidth: 0,
     marginLeft: SPACING.md,
   },
   personName: {

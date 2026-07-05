@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
   },
   scanPrimaryText: {color: COLORS.background, fontWeight: '800', fontSize: 15},
-  scanRow: {flexDirection: 'row', gap: SPACING.sm},
+  scanRow: {flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm},
   scanSecondary: {
     flex: 1,
     flexDirection: 'row',

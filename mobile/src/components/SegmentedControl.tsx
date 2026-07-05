@@ -81,13 +81,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: RADIUS.xl,
     padding: 4,
-    alignSelf: 'center',
+    alignSelf: 'stretch',
+    width: '100%',
   },
   segment: {
-    paddingHorizontal: 22,
+    flex: 1,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: RADIUS.lg,
-    minWidth: 88,
+    minWidth: 0,
     alignItems: 'center',
   },
   label: {

@@ -213,7 +213,7 @@ export function RegisterFaceScreen({navigation}: Props) {
         </View>
 
         {imageUri ? (
-          <Image source={{uri: imageUri}} style={styles.preview} resizeMode="cover" />
+          <Image source={{uri: imageUri}} style={[styles.preview, {height: layout.mediaHeight * 0.6}]} resizeMode="cover" />
         ) : null}
 
         <TouchableOpacity
@@ -312,7 +312,6 @@ const styles = StyleSheet.create({
   imageBtnText: {color: COLORS.face, fontWeight: '600'},
   preview: {
     width: '100%',
-    height: 260,
     borderRadius: 16,
     marginTop: SPACING.md,
     backgroundColor: COLORS.surfaceLight,

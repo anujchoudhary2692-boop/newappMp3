@@ -66,8 +66,8 @@ export function AlertsFeedScreen() {
               }}>
               <Image source={{uri: imageUrl(item.imageUrl)}} style={styles.thumb} />
               <View style={styles.meta}>
-                <Text style={styles.name}>{item.personName || 'Unknown'}</Text>
-                <Text style={styles.sub}>
+                <Text style={styles.name} numberOfLines={1}>{item.personName || 'Unknown'}</Text>
+                <Text style={styles.sub} numberOfLines={2}>
                   {item.sourceType} · {Math.round(item.confidence)}%
                   {item.locationLabel ? ` · ${item.locationLabel}` : ''}
                 </Text>
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   thumb: {width: 64, height: 64, borderRadius: 8},
-  meta: {flex: 1, justifyContent: 'center'},
+  meta: {flex: 1, minWidth: 0, justifyContent: 'center'},
   name: {fontWeight: '800', color: COLORS.text},
   sub: {fontSize: 12, color: COLORS.textMuted, marginTop: 4},
 });

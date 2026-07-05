@@ -35,6 +35,7 @@ function MiniPlayer() {
 export function Layout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const pb = usePlayback();
 
   useEffect(() => {
     wakeServer(180000)
@@ -69,7 +70,7 @@ export function Layout() {
 
   return (
     <>
-      <div className="app-shell">
+      <div className={`app-shell${pb.media ? ' app-shell--with-mini' : ''}`}>
         <Outlet />
       </div>
       <MiniPlayer />

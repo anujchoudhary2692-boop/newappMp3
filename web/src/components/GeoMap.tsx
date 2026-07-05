@@ -4,6 +4,7 @@ import type {GeoMapPoint} from '../utils/geocode';
 interface Props {
   points: GeoMapPoint[];
   height?: number;
+  className?: string;
 }
 
 declare global {
@@ -12,7 +13,7 @@ declare global {
   }
 }
 
-export function GeoMap({points, height = 320}: Props) {
+export function GeoMap({points, height = 320, className}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const valid = points.filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
 
@@ -78,8 +79,9 @@ export function GeoMap({points, height = 320}: Props) {
   return (
     <div
       ref={containerRef}
+      className={className}
       style={{
-        height,
+        height: className ? undefined : height,
         width: '100%',
         borderRadius: 12,
         overflow: 'hidden',

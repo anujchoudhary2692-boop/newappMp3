@@ -105,7 +105,7 @@ export function PersonTimelineScreen({route, navigation}: Props) {
         showBack
         accentColor={COLORS.face}
       />
-      <View style={{flexDirection: 'row', paddingHorizontal: layout.hPad, gap: 8, marginBottom: 8}}>
+      <View style={[styles.exportRow, {paddingHorizontal: layout.hPad}]}>
         <TouchableOpacity style={styles.exportBtn} onPress={() => void openTraceExport(personId, 'csv')}>
           <Text style={styles.exportText}>Export CSV</Text>
         </TouchableOpacity>
@@ -142,8 +142,8 @@ export function PersonTimelineScreen({route, navigation}: Props) {
                   onPress={() => openMaps(entry.latitude, entry.longitude)}>
                   <Image source={{uri: imageUrl(entry.imageUrl)}} style={styles.thumb} />
                   <View style={styles.meta}>
-                    <Text style={styles.source}>{sourceLabel(entry)}</Text>
-                    <Text style={styles.sub}>
+                    <Text style={styles.source} numberOfLines={1}>{sourceLabel(entry)}</Text>
+                    <Text style={styles.sub} numberOfLines={2}>
                       {Math.round(entry.confidence)}% match
                       {entry.locationLabel ? ` · ${entry.locationLabel}` : ''}
                     </Text>
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   thumb: {width: 56, height: 56, borderRadius: 8, backgroundColor: COLORS.surface2},
-  meta: {flex: 1},
+  meta: {flex: 1, minWidth: 0},
   source: {fontWeight: '700', color: COLORS.text},
   sub: {fontSize: 12, color: COLORS.textMuted, marginTop: 2},
   fab: {
@@ -201,8 +201,16 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   fabText: {color: '#fff', fontWeight: '700'},
+  exportRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
   exportBtn: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '22%',
+    minWidth: 72,
     paddingVertical: 10,
     borderRadius: 8,
     backgroundColor: COLORS.surface2,

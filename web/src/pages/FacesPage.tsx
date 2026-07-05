@@ -262,9 +262,9 @@ export function FacesPage() {
               <div
                 key={p.id}
                 style={{display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderBottom: '1px solid var(--border)'}}>
-                <div style={{flex: 1}}>
-                  <div style={{fontWeight: 700}}>{p.name}</div>
-                  <div style={{fontSize: 12, color: 'var(--muted)'}}>
+                <div style={{flex: 1, minWidth: 0}}>
+                  <div style={{fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{p.name}</div>
+                  <div style={{fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                     {p.photoCount ?? 0} sightings {p.notes ? `· ${p.notes}` : ''}
                   </div>
                 </div>
@@ -325,10 +325,10 @@ export function FacesPage() {
           ) : (
             alerts.map(a => (
               <div key={a.id} style={{display: 'flex', gap: 12, padding: 12, borderBottom: '1px solid var(--border)'}}>
-                <img src={resolveUrl(a.imageUrl)} alt="" style={{width: 56, height: 56, borderRadius: 8, objectFit: 'cover'}} />
-                <div>
-                  <div style={{fontWeight: 700}}>{a.personName || 'Unknown'}</div>
-                  <div style={{fontSize: 12, color: 'var(--muted)'}}>
+                <img src={resolveUrl(a.imageUrl)} alt="" style={{width: 56, height: 56, borderRadius: 8, objectFit: 'cover', flexShrink: 0}} />
+                <div style={{flex: 1, minWidth: 0}}>
+                  <div className="text-truncate" style={{fontWeight: 700}}>{a.personName || 'Unknown'}</div>
+                  <div className="text-truncate" style={{fontSize: 12, color: 'var(--muted)'}}>
                     {sourceLabel(a)} · {Math.round(a.confidence)}%
                     {a.locationLabel ? ` · ${a.locationLabel}` : ''}
                   </div>
@@ -359,7 +359,7 @@ export function FacesPage() {
           {timeline.some(e => e.latitude != null && e.longitude != null) ? (
             <div style={{marginBottom: 16}}>
               <GeoMap
-                height={280}
+                className="geo-map"
                 points={timeline
                   .filter(e => e.latitude != null && e.longitude != null)
                   .map(e => ({
@@ -382,9 +382,9 @@ export function FacesPage() {
                 {entries.map(entry => (
                   <div key={entry.id} style={{display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)'}}>
                     <img src={resolveUrl(entry.imageUrl)} alt="" style={{width: 48, height: 48, borderRadius: 8, objectFit: 'cover'}} />
-                    <div style={{flex: 1}}>
-                      <div style={{fontWeight: 600}}>{sourceLabel(entry)}</div>
-                      <div style={{fontSize: 12, color: 'var(--muted)'}}>
+                    <div style={{flex: 1, minWidth: 0}}>
+                      <div style={{fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis'}}>{sourceLabel(entry)}</div>
+                      <div style={{fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis'}}>
                         {Math.round(entry.confidence)}% match
                         {entry.locationLabel ? ` · ${entry.locationLabel}` : ''}
                         {entry.mediaTitle ? ` · ${entry.mediaTitle}` : ''}

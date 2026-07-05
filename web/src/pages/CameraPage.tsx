@@ -197,7 +197,7 @@ export function CameraPage() {
       {mode === 'camera' ? (
         <div>
           <video ref={videoRef} playsInline muted style={{width: '100%', borderRadius: 12, background: '#000'}} />
-          <div style={{display: 'flex', gap: 12, marginTop: 16, justifyContent: 'center'}}>
+          <div style={{display: 'flex', gap: 12, marginTop: 16, justifyContent: 'center', flexWrap: 'wrap'}}>
             <button className="btn btn-primary" onClick={() => void snapPhoto()}>
               📷 Photo
             </button>
@@ -213,8 +213,8 @@ export function CameraPage() {
           <p className="empty">No geo-tagged captures yet.</p>
         ) : (
           <div>
-            <GeoMap points={mapPoints} height={420} />
-            <div style={{display: 'flex', gap: 8, marginTop: 12}}>
+            <GeoMap points={mapPoints} className="geo-map" />
+            <div style={{display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap'}}>
               <a className="btn btn-ghost" href={resolveUrl('/api/captures/export?format=geojson')} download>
                 Export GeoJSON
               </a>
