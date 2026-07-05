@@ -62,6 +62,25 @@ export interface Person {
   photoCount?: number;
 }
 
+export interface PersonTimelineEntry {
+  id: string;
+  personId: string;
+  personName?: string;
+  imageUrl: string;
+  confidence: number;
+  matchedAt?: string;
+  sourceType?: string;
+  sourceTimestampMs?: number;
+  captureId?: string;
+  mediaVideoId?: string;
+  mediaTitle?: string;
+  latitude?: number;
+  longitude?: number;
+  locationLabel?: string;
+  groupPhoto?: boolean;
+  playbackUrl?: string;
+}
+
 export interface CaptureItem {
   id: string;
   type: 'PHOTO' | 'VIDEO';

@@ -34,4 +34,12 @@ public class PersonPhoto {
     private Boolean groupPhoto;
     /** Which face index matched (0-based) */
     private Integer matchedFaceIndex;
+    /** Linked camera capture */
+    private String captureId;
+    /** Cached media video id */
+    private String mediaVideoId;
+    private String mediaTitle;
+    private Double latitude;
+    private Double longitude;
+    private String locationLabel;
 }

@@ -18,11 +18,22 @@ export interface PersonPhoto {
   confidence: number;
   matchedAt?: string;
   devicePhotoId?: string;
-  sourceType?: 'PHOTO' | 'VIDEO' | string;
+  sourceType?: 'PHOTO' | 'VIDEO' | 'CAPTURE' | 'CAPTURE_VIDEO' | 'MEDIA_VIDEO' | 'SCAN' | string;
   sourceTimestampMs?: number;
   facesDetected?: number;
   groupPhoto?: boolean;
   matchedFaceIndex?: number;
+  captureId?: string;
+  mediaVideoId?: string;
+  mediaTitle?: string;
+  latitude?: number;
+  longitude?: number;
+  locationLabel?: string;
+}
+
+export interface PersonTimelineEntry extends PersonPhoto {
+  personName?: string;
+  playbackUrl?: string;
 }
 
 export interface LibraryScanResult {

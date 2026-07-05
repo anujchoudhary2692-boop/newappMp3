@@ -22,6 +22,7 @@ public class CaptureService {
 
     private final CaptureRepository captureRepository;
     private final Path capturesPath;
+    private final FaceScanService faceScanService;
 
     public CaptureDto saveCapture(
             MultipartFile file,
@@ -62,9 +63,13 @@ public class CaptureService {
                 .country(country)
                 .capturedAt(Instant.now())
                 .durationMs(durationMs)
+                .scanStatus("PENDING")
+                .matchCount(0)
                 .build();
 
-        return toDto(captureRepository.save(capture));
+        Capture saved = captureRepository.save(capture);
+        faceScanService.queueCaptureScan(saved.getId());
+        return toDto(saved);
     }
 
     public List<CaptureDto> listCaptures() {

@@ -4,6 +4,8 @@ import {FaceHomeScreen} from '../screens/face/FaceHomeScreen';
 import {RegisterFaceScreen} from '../screens/face/RegisterFaceScreen';
 import {IdentifyFaceScreen} from '../screens/face/IdentifyFaceScreen';
 import {PersonPhotosScreen} from '../screens/face/PersonPhotosScreen';
+import {PersonTimelineScreen} from '../screens/face/PersonTimelineScreen';
+import {AlertsFeedScreen} from '../screens/face/AlertsFeedScreen';
 import {COLORS} from '../config';
 import {FaceStackParamList} from './types';
 
@@ -20,6 +22,8 @@ export function FaceNavigator() {
       <Stack.Screen name="RegisterFace" component={RegisterFaceScreen} />
       <Stack.Screen name="IdentifyFace" component={IdentifyFaceScreen} />
       <Stack.Screen name="PersonPhotos" component={PersonPhotosScreen} />
+      <Stack.Screen name="PersonTimeline" component={PersonTimelineScreen} />
+      <Stack.Screen name="AlertsFeed" component={AlertsFeedScreen} />
     </Stack.Navigator>
   );
 }

@@ -14,7 +14,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import LinearGradient from 'react-native-linear-gradient';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {useFocusEffect} from '@react-navigation/native';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {api, PersonPhoto} from '../../api/client';
 import {AppHeader} from '../../components/AppHeader';
 import {COLORS, RADIUS, SPACING} from '../../config';
@@ -40,6 +40,7 @@ function photoBadge(photo: PersonPhoto) {
 
 export function PersonPhotosScreen({route}: Props) {
   const {personId, personName} = route.params;
+  const navigation = useNavigation<NativeStackScreenProps<FaceStackParamList>['navigation']>();
   const layout = useLayoutMetrics(true);
   const tileSize = (layout.contentW - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
   const [photos, setPhotos] = useState<PersonPhoto[]>([]);
@@ -108,6 +109,9 @@ export function PersonPhotosScreen({route}: Props) {
         shouldCancel: () => cancelScanRef.current,
         knownDeviceIds: knownIdsRef.current,
         onProgress: setScanProgress,
+        onMatch: match => {
+          Alert.alert('Match found', `${personName} detected (${Math.round(match.confidence)}%)`);
+        },
       });
 
       await loadPhotos();
@@ -189,6 +193,12 @@ export function PersonPhotosScreen({route}: Props) {
               <Text style={styles.scanPrimaryText}>Scan all</Text>
             </TouchableOpacity>
             <View style={styles.scanRow}>
+              <TouchableOpacity
+                style={styles.scanSecondary}
+                onPress={() => navigation.navigate('PersonTimeline', {personId, personName})}>
+                <Icon name="time-outline" size={16} color={COLORS.face} />
+                <Text style={styles.scanSecondaryText}>Trace</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.scanSecondary} onPress={() => startScan('photos')}>
                 <Icon name="images-outline" size={16} color={COLORS.face} />
                 <Text style={styles.scanSecondaryText}>Photos</Text>

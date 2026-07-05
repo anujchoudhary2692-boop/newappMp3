@@ -22,6 +22,7 @@ export interface ScanOptions {
   onProgress: (progress: ScanProgress) => void;
   shouldCancel: () => boolean;
   knownDeviceIds?: Set<string>;
+  onMatch?: (result: {confidence: number; groupPhoto?: boolean}) => void;
 }
 
 async function requestLibraryPermission(): Promise<boolean> {
@@ -58,6 +59,7 @@ async function scanOneImage(
   iosAssetId: string | undefined,
   sourceType: 'PHOTO' | 'VIDEO',
   sourceTimestampMs?: number,
+  onMatch?: ScanOptions['onMatch'],
 ): Promise<{saved: boolean; groupPhoto?: boolean}> {
   const response = await api.scanLibraryPhoto(
     personId,
@@ -68,6 +70,7 @@ async function scanOneImage(
     sourceTimestampMs,
   );
   if (response.success && response.data?.matched && response.data.saved) {
+    onMatch?.({confidence: response.data.confidence, groupPhoto: response.data.groupPhoto});
     return {saved: true, groupPhoto: response.data.groupPhoto};
   }
   return {saved: false};
@@ -77,6 +80,7 @@ async function processAsset(
   personId: string,
   edge: PhotoIdentifier,
   knownDeviceIds: Set<string>,
+  onMatch?: ScanOptions['onMatch'],
 ): Promise<{scanned: number; found: number; photos: number; videos: number; groupMatches: number}> {
   const node = edge.node;
   const isVideo = node.type?.startsWith('video') || node.type === 'video';
@@ -108,6 +112,7 @@ async function processAsset(
           assetId,
           'VIDEO',
           frame.timestampMs,
+          onMatch,
         );
         if (result.saved) {
           found += 1;
@@ -136,6 +141,8 @@ async function processAsset(
         devicePhotoId,
         assetId,
         'PHOTO',
+        undefined,
+        onMatch,
       );
       if (result.saved) {
         found += 1;
@@ -198,7 +205,7 @@ export async function scanPersonLibrary(options: ScanOptions): Promise<ScanProgr
       }
       const chunk = batch.slice(i, i + CONCURRENCY);
       const results = await Promise.all(
-        chunk.map(edge => processAsset(options.personId, edge, knownDeviceIds)),
+        chunk.map(edge => processAsset(options.personId, edge, knownDeviceIds, options.onMatch)),
       );
       for (const r of results) {
         progress.scanned += r.scanned;

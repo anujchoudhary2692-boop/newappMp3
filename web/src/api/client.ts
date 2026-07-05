@@ -5,6 +5,7 @@ import type {
   MediaItem,
   MediaSearchResult,
   Person,
+  PersonTimelineEntry,
   PrepareStatus,
 } from '../types/media';
 
@@ -90,11 +91,22 @@ export const api = {
   deleteMedia: (id: string) => request<void>(`/api/media/${id}`, {method: 'DELETE'}),
 
   listFaces: () => request<Person[]>('/api/faces'),
-  faceStatus: () => request<{ready: boolean; message: string}>('/api/faces/status'),
+  faceStatus: () => request<{ready?: boolean; engineReady?: boolean; message: string}>('/api/faces/status'),
   registerFace: (form: FormData) =>
     request<Person>('/api/faces/register', {method: 'POST', body: form}, 60000),
   identifyFace: (form: FormData) =>
-    request<{personName?: string; confidence?: number; candidates?: unknown[]}>('/api/faces/identify', {method: 'POST', body: form}, 60000),
+    request<{personName?: string; personId?: string; confidence?: number; matched?: boolean; candidates?: unknown[]}>('/api/faces/identify', {method: 'POST', body: form}, 60000),
+  personTimeline: (personId: string, limit = 200) =>
+    request<PersonTimelineEntry[]>(`/api/faces/person/${personId}/timeline?limit=${limit}`),
+  recentFaceAlerts: (limit = 50) =>
+    request<PersonTimelineEntry[]>(`/api/faces/alerts/recent?limit=${limit}`),
+  scanCaptureFaces: (captureId: string) =>
+    request<{captureId: string; scanStatus: string; matchCount: number; message?: string}>(
+      `/api/faces/scan-capture/${captureId}`,
+      {method: 'POST'},
+    ),
+  scanMediaFaces: (videoId: string) =>
+    request<string>(`/api/faces/scan-media/${videoId}`, {method: 'POST'}),
   deleteFace: (id: string) => request<void>(`/api/faces/${id}`, {method: 'DELETE'}),
 
   listCaptures: () => request<CaptureItem[]>('/api/captures'),

@@ -30,4 +30,7 @@ public class Capture {
     private String country;
     private Instant capturedAt;
     private Long durationMs;
+    /** PENDING, SCANNING, DONE, SKIPPED, FAILED */
+    private String scanStatus;
+    private Integer matchCount;
 }

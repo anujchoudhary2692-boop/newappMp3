@@ -22,10 +22,10 @@ app:
     api-key: ${API_KEY:}
     require-api-key: ${REQUIRE_API_KEY:false}
   features:
-    face-ai: false
-    face-library-scan: false
-    camera-capture: false
-    camera-geotag: false
+    face-ai: ${FEATURE_FACE_AI:true}
+    face-library-scan: ${FEATURE_FACE_LIBRARY_SCAN:true}
+    camera-capture: ${FEATURE_CAMERA_CAPTURE:true}
+    camera-geotag: ${FEATURE_CAMERA_GEOTAG:true}
   discovery:
     bonjour-enabled: false
   media:

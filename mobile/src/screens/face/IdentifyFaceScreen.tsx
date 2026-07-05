@@ -51,6 +51,12 @@ export function IdentifyFaceScreen() {
       const response = await api.identifyFace(imageUri);
       if (response.success) {
         setResult(response.data);
+        if (response.data.matched && response.data.personName) {
+          Alert.alert(
+            'Match found',
+            `${response.data.personName} (${Math.round(response.data.confidence)}% confidence)`,
+          );
+        }
       } else {
         Alert.alert('Failed', response.message || 'Identification failed');
       }

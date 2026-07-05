@@ -119,6 +119,14 @@ export function FaceHomeScreen() {
     Alert.alert(person.name, undefined, [
       {text: 'Edit name & notes', onPress: () => openEdit(person)},
       {
+        text: 'View trace timeline',
+        onPress: () =>
+          navigation.navigate('PersonTimeline', {
+            personId: person.id,
+            personName: person.name,
+          }),
+      },
+      {
         text: 'View photos',
         onPress: () =>
           navigation.navigate('PersonPhotos', {
@@ -146,6 +154,14 @@ export function FaceHomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.secondaryBtn, {paddingVertical: layout.isCompact ? SPACING.sm : SPACING.md}]}
+            onPress={() => navigation.navigate('AlertsFeed')}>
+            <Icon name="notifications" size={layout.font.md} color={COLORS.face} />
+            <Text style={[styles.secondaryBtnText, {fontSize: layout.font.sm}]}>Alerts</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={[styles.heroActions, layout.isSmallPhone && styles.heroActionsStack, {marginTop: SPACING.sm}]}>
+          <TouchableOpacity
+            style={[styles.secondaryBtn, {paddingVertical: layout.isCompact ? SPACING.sm : SPACING.md, flex: 1}]}
             onPress={() => navigation.navigate('IdentifyFace')}>
             <Icon name="scan" size={layout.font.md} color={COLORS.face} />
             <Text style={[styles.secondaryBtnText, {fontSize: layout.font.sm}]}>Who is this?</Text>

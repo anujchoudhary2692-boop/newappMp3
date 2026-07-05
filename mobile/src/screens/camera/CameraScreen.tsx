@@ -79,6 +79,9 @@ export function CameraScreen() {
   const [address, setAddress] = useState<GeoAddress | undefined>();
   const [locating, setLocating] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [liveIdentify, setLiveIdentify] = useState(false);
+  const [liveMatch, setLiveMatch] = useState<{name: string; confidence: number} | null>(null);
+  const liveScanRef = useRef(false);
   const [lastThumb, setLastThumb] = useState<string | undefined>();
   const [flash, setFlash] = useState<'off' | 'on'>('off');
   const [timerSec, setTimerSec] = useState<0 | 3>(0);
@@ -134,6 +137,39 @@ export function CameraScreen() {
       setLocating(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!liveIdentify || !sessionReady || recording || busy) {
+      return;
+    }
+    const timer = setInterval(() => {
+      void (async () => {
+        if (liveScanRef.current || busy || recording) {
+          return;
+        }
+        liveScanRef.current = true;
+        try {
+          const photo = await photoOutput.capturePhoto({flashMode: 'off', enableShutterSound: false}, {});
+          const path = await photo.saveToTemporaryFileAsync();
+          photo.dispose();
+          const uri = path.startsWith('file://') ? path : `file://${path}`;
+          const res = await api.identifyFace(uri);
+          if (res.success && res.data.matched && res.data.personName) {
+            setLiveMatch({name: res.data.personName, confidence: res.data.confidence});
+            Alert.alert(
+              'Person detected',
+              `${res.data.personName} (${Math.round(res.data.confidence)}% confidence)`,
+            );
+          }
+        } catch {
+          // ignore background scan errors
+        } finally {
+          liveScanRef.current = false;
+        }
+      })();
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [liveIdentify, sessionReady, recording, busy, photoOutput]);
 
   const bootstrap = useCallback(async () => {
     const camOk = hasCamera || (await requestCamera());
@@ -250,6 +286,14 @@ export function CameraScreen() {
       const geo = locationEnabled ? await resolveCaptureLocation() : {};
       await savePhotoToGallery(path, geo.location ?? location);
       await uploadCapture(path, 'PHOTO', 'image/jpeg', `photo_${Date.now()}.jpg`);
+      try {
+        const res = await api.identifyFace(`file://${path}`);
+        if (res.success && res.data.matched && res.data.personName) {
+          Alert.alert('Face match', `${res.data.personName} detected — saved to cloud trace`);
+        }
+      } catch {
+        // face scan optional
+      }
       setLastThumb(`file://${path}`);
       showToast(geo.address?.shortLabel ? `Saved · ${geo.address.shortLabel}` : 'Photo saved');
     } catch (error) {
@@ -470,6 +514,16 @@ export function CameraScreen() {
         </View>
       ) : null}
 
+      {liveMatch ? (
+        <View style={styles.liveMatchBadge} pointerEvents="none">
+          <GlassSurface padding={12} radius={RADIUS.lg} accent={COLORS.face}>
+            <Text style={styles.liveMatchText}>
+              {liveMatch.name} · {Math.round(liveMatch.confidence)}%
+            </Text>
+          </GlassSurface>
+        </View>
+      ) : null}
+
       {/* TOP BAR */}
       <View style={[styles.topBar, {paddingTop: layout.insets.top + 8, paddingHorizontal: layout.hPad}]}>
         <TouchableOpacity
@@ -616,6 +670,18 @@ export function CameraScreen() {
               fontSize={layout.font.xs}
             />
             <ToolChip
+              icon="scan"
+              label={liveIdentify ? 'Face on' : 'Face ID'}
+              active={liveIdentify}
+              onPress={() => {
+                setLiveIdentify(v => !v);
+                if (liveIdentify) {
+                  setLiveMatch(null);
+                }
+              }}
+              fontSize={layout.font.xs}
+            />
+            <ToolChip
               icon={locationEnabled ? 'navigate' : 'navigate-outline'}
               label={locationEnabled ? 'GPS on' : 'GPS off'}
               active={locationEnabled}
@@ -698,6 +764,13 @@ const styles = StyleSheet.create({
     zIndex: 11,
   },
   countdownText: {color: '#fff', fontWeight: '200'},
+  liveMatchBadge: {
+    position: 'absolute',
+    top: '18%',
+    alignSelf: 'center',
+    zIndex: 20,
+  },
+  liveMatchText: {color: COLORS.text, fontWeight: '800', fontSize: 14},
   topBar: {
     position: 'absolute',
     top: 0,

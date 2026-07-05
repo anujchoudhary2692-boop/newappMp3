@@ -9,22 +9,23 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PersonPhotoDto {
+public class PersonTimelineEntryDto {
     private String id;
     private String personId;
+    private String personName;
     private String imageUrl;
     private double confidence;
     private String matchedAt;
-    private String devicePhotoId;
     private String sourceType;
     private Long sourceTimestampMs;
-    private Integer facesDetected;
-    private Boolean groupPhoto;
-    private Integer matchedFaceIndex;
+    private String devicePhotoId;
     private String captureId;
     private String mediaVideoId;
     private String mediaTitle;
     private Double latitude;
     private Double longitude;
     private String locationLabel;
+    private Boolean groupPhoto;
+    private Integer facesDetected;
+    private String playbackUrl;
 }

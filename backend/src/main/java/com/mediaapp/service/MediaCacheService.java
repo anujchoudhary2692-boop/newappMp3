@@ -25,6 +25,7 @@ public class MediaCacheService {
 
     private final MediaService mediaService;
     private final YtDlpService ytDlpService;
+    private final FaceScanService faceScanService;
     private final Map<String, PrepareStatusDto> jobs = new ConcurrentHashMap<>();
     private final Map<String, Long> jobStartedAt = new ConcurrentHashMap<>();
     private ExecutorService executor;
@@ -64,6 +65,9 @@ public class MediaCacheService {
             Path cached = mediaService.cachePathFor(videoId, type);
             if (Files.exists(cached) && Files.size(cached) > 0
                     && (type != MediaType.VIDEO || mediaService.isCachedVideoPlayable(cached))) {
+                if (type == MediaType.VIDEO) {
+                    queueVideoFaceScan(videoId);
+                }
                 return readyDto(videoId, type, cached, null, preset);
             }
         } catch (Exception e) {
@@ -128,6 +132,9 @@ public class MediaCacheService {
                 try {
                     Path cached = mediaService.ensureCachedPlaybackPublic(videoId, type);
                     jobs.put(key, readyDto(videoId, type, cached, "Ready on cloud", qualityPreset));
+                    if (type == MediaType.VIDEO) {
+                        queueVideoFaceScan(videoId);
+                    }
                 } catch (Exception cacheEx) {
                     log.error("Cloud cache prepare failed for {} {}: {}", videoId, type, cacheEx.getMessage());
                     jobs.put(key, failedDto(videoId, type, mediaService.friendlyMediaError(cacheEx.getMessage())));
@@ -263,5 +270,13 @@ public class MediaCacheService {
 
     private static String jobKey(String videoId, MediaType type, String qualityPreset) {
         return videoId + ":" + type.name() + ":" + qualityPreset;
+    }
+
+    private void queueVideoFaceScan(String videoId) {
+        try {
+            faceScanService.queueMediaVideoScan(videoId, videoId);
+        } catch (Exception e) {
+            log.debug("Face scan queue skipped for {}: {}", videoId, e.getMessage());
+        }
     }
 }

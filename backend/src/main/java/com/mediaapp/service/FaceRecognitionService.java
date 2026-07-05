@@ -3,8 +3,11 @@ package com.mediaapp.service;
 import com.mediaapp.dto.FaceIdentifyResult;
 import com.mediaapp.dto.FaceStatusDto;
 import com.mediaapp.dto.LibraryScanResultDto;
+import com.mediaapp.dto.MultiPersonScanResultDto;
 import com.mediaapp.dto.PersonDto;
+import com.mediaapp.dto.PersonMatchDto;
 import com.mediaapp.dto.PersonPhotoDto;
+import com.mediaapp.dto.PersonTimelineEntryDto;
 import com.mediaapp.model.Person;
 import com.mediaapp.model.PersonPhoto;
 import com.mediaapp.model.FaceViewAngle;
@@ -22,7 +25,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -310,25 +315,16 @@ public class FaceRecognitionService {
                         .build();
             }
 
-            Path galleryDir = facesPath.resolve("gallery").resolve(personId);
-            Files.createDirectories(galleryDir);
-            String fileName = UUID.randomUUID() + getExtension(image.getOriginalFilename());
-            Path saved = galleryDir.resolve(fileName);
-            Files.copy(temp, saved, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-
-            PersonPhoto record = personPhotoRepository.save(PersonPhoto.builder()
-                    .personId(personId)
-                    .fileName("gallery/" + personId + "/" + fileName)
-                    .filePath(saved.toString())
-                    .confidence(Math.round(personBest * 1000.0) / 10.0)
-                    .devicePhotoId(devicePhotoId)
-                    .matchedAt(Instant.now())
-                    .sourceType(sourceType != null ? sourceType : "PHOTO")
-                    .sourceTimestampMs(sourceTimestampMs)
-                    .facesDetected(totalFaces)
-                    .groupPhoto(groupPhoto)
-                    .matchedFaceIndex(matchedFaceIndex)
-                    .build());
+            PersonPhoto record = saveGalleryMatch(
+                    person,
+                    temp,
+                    devicePhotoId,
+                    sourceType,
+                    sourceTimestampMs,
+                    totalFaces,
+                    groupPhoto,
+                    matchedFaceIndex,
+                    null);
 
             return LibraryScanResultDto.builder()
                     .devicePhotoId(devicePhotoId)
@@ -347,6 +343,193 @@ public class FaceRecognitionService {
         }
     }
 
+    public MultiPersonScanResultDto scanImageAgainstAll(MultipartFile image, boolean saveMatches) throws IOException {
+        if (image == null || image.isEmpty()) {
+            throw new IllegalArgumentException("Image is required");
+        }
+        Path temp = Files.createTempFile("scan_all_", getExtension(image.getOriginalFilename()));
+        Files.write(temp, image.getBytes());
+        try {
+            return scanImagePathForAllPersons(temp, FaceMatchContext.builder()
+                    .devicePhotoId("scan:" + UUID.randomUUID())
+                    .sourceType("SCAN")
+                    .build(), saveMatches);
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
+    public MultiPersonScanResultDto scanImagePathForAllPersons(
+            Path imagePath,
+            FaceMatchContext ctx,
+            boolean saveMatches) {
+        requireEngineReady();
+        List<Person> persons = personRepository.findAll();
+        if (persons.isEmpty()) {
+            return MultiPersonScanResultDto.builder().facesDetected(0).build();
+        }
+        for (Person person : persons) {
+            ensureEmbeddings(person);
+        }
+
+        List<FaceFeatureDetail> faceDetails = faceAiEngine.extractAllFeatureDetails(imagePath, true);
+        if (faceDetails.isEmpty()) {
+            return MultiPersonScanResultDto.builder().facesDetected(0).build();
+        }
+
+        float threshold = faceAiEngine.getMatchThreshold();
+        List<PersonMatchDto> matches = new ArrayList<>();
+        Set<String> savedKeys = new HashSet<>();
+
+        for (FaceFeatureDetail detail : faceDetails) {
+            FaceMatchHelper.MatchOutcome outcome = FaceMatchHelper.matchAgainstAll(
+                    detail.getFeature(),
+                    persons,
+                    faceAiEngine,
+                    threshold,
+                    faceAiEngine.getMinMatchGap());
+
+            if (outcome.isMatched() && outcome.getBestPerson() != null) {
+                Person person = outcome.getBestPerson();
+                String dedupeKey = person.getId() + ":" + ctx.getDevicePhotoId();
+                boolean alreadySaved = ctx.getDevicePhotoId() != null
+                        && personPhotoRepository.findByPersonIdAndDevicePhotoId(person.getId(), ctx.getDevicePhotoId()).isPresent();
+                boolean saved = false;
+                String photoId = null;
+
+                if (saveMatches && !alreadySaved && !savedKeys.contains(dedupeKey)) {
+                    try {
+                        PersonPhoto record = saveGalleryMatch(
+                                person,
+                                imagePath,
+                                ctx.getDevicePhotoId(),
+                                ctx.getSourceType() != null ? ctx.getSourceType() : "SCAN",
+                                ctx.getSourceTimestampMs(),
+                                detail.getTotalFaces(),
+                                detail.getTotalFaces() > 1,
+                                detail.getFaceIndex(),
+                                ctx);
+                        saved = true;
+                        photoId = record.getId();
+                        savedKeys.add(dedupeKey);
+                    } catch (IOException e) {
+                        log.warn("Could not save gallery match: {}", e.getMessage());
+                    }
+                } else if (alreadySaved) {
+                    photoId = personPhotoRepository.findByPersonIdAndDevicePhotoId(person.getId(), ctx.getDevicePhotoId())
+                            .map(PersonPhoto::getId)
+                            .orElse(null);
+                }
+
+                matches.add(PersonMatchDto.builder()
+                        .personId(person.getId())
+                        .personName(person.getName())
+                        .confidence(FaceMatchHelper.toPercent(outcome.getBestScore()))
+                        .matched(true)
+                        .saved(saved || alreadySaved)
+                        .photoId(photoId)
+                        .faceIndex(detail.getFaceIndex())
+                        .build());
+            }
+            detail.release();
+        }
+
+        return MultiPersonScanResultDto.builder()
+                .facesDetected(faceDetails.size())
+                .matches(matches)
+                .build();
+    }
+
+    public PersonTimelineEntryDto toTimelineEntry(PersonPhoto photo) {
+        PersonTimelineEntryDto entry = PersonTimelineEntryDto.builder()
+                .id(photo.getId())
+                .personId(photo.getPersonId())
+                .imageUrl(buildImageUrl(photo.getFileName()))
+                .confidence(photo.getConfidence())
+                .matchedAt(photo.getMatchedAt() != null ? photo.getMatchedAt().toString() : null)
+                .sourceType(photo.getSourceType())
+                .sourceTimestampMs(photo.getSourceTimestampMs())
+                .devicePhotoId(photo.getDevicePhotoId())
+                .captureId(photo.getCaptureId())
+                .mediaVideoId(photo.getMediaVideoId())
+                .mediaTitle(photo.getMediaTitle())
+                .latitude(photo.getLatitude())
+                .longitude(photo.getLongitude())
+                .locationLabel(photo.getLocationLabel())
+                .groupPhoto(photo.getGroupPhoto())
+                .facesDetected(photo.getFacesDetected())
+                .build();
+
+        if (photo.getMediaVideoId() != null && photo.getSourceTimestampMs() != null) {
+            entry.setPlaybackUrl("/player?media=" + photo.getMediaVideoId() + "&t=" + photo.getSourceTimestampMs());
+        } else if (photo.getCaptureId() != null) {
+            entry.setPlaybackUrl("/camera?capture=" + photo.getCaptureId());
+        }
+        return entry;
+    }
+
+    private PersonPhoto saveGalleryMatch(
+            Person person,
+            Path sourceImage,
+            String devicePhotoId,
+            String sourceType,
+            Long sourceTimestampMs,
+            int totalFaces,
+            boolean groupPhoto,
+            int matchedFaceIndex,
+            FaceMatchContext ctx) throws IOException {
+        float score = -1f;
+        List<FaceFeatureDetail> details = faceAiEngine.extractAllFeatureDetails(sourceImage, true);
+        for (FaceFeatureDetail detail : details) {
+            float s = FaceMatchHelper.scorePerson(detail.getFeature(), person, faceAiEngine);
+            if (s > score) {
+                score = s;
+            }
+            detail.release();
+        }
+
+        Path galleryDir = facesPath.resolve("gallery").resolve(person.getId());
+        Files.createDirectories(galleryDir);
+        String fileName = UUID.randomUUID() + getExtension(sourceImage.getFileName().toString());
+        Path saved = galleryDir.resolve(fileName);
+        Files.copy(sourceImage, saved, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+        PersonPhoto.PersonPhotoBuilder builder = PersonPhoto.builder()
+                .personId(person.getId())
+                .fileName("gallery/" + person.getId() + "/" + fileName)
+                .filePath(saved.toString())
+                .confidence(Math.round(score * 1000.0) / 10.0)
+                .devicePhotoId(devicePhotoId)
+                .matchedAt(Instant.now())
+                .sourceType(sourceType != null ? sourceType : "PHOTO")
+                .sourceTimestampMs(sourceTimestampMs)
+                .facesDetected(totalFaces)
+                .groupPhoto(groupPhoto)
+                .matchedFaceIndex(matchedFaceIndex);
+
+        if (ctx != null) {
+            builder.captureId(ctx.getCaptureId())
+                    .mediaVideoId(ctx.getMediaVideoId())
+                    .mediaTitle(ctx.getMediaTitle())
+                    .latitude(ctx.getLatitude())
+                    .longitude(ctx.getLongitude())
+                    .locationLabel(ctx.getLocationLabel());
+        }
+
+        return personPhotoRepository.save(builder.build());
+    }
+
+    private void requireEngineReady() {
+        if (!faceAiEngine.isReady()) {
+            throw new IllegalStateException("AI face engine not ready");
+        }
+    }
+
+    private String buildImageUrl(String fileName) {
+        return "/api/faces/image?path=" + java.net.URLEncoder.encode(
+                fileName, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     public void deletePersonPhoto(String photoId) throws IOException {
         PersonPhoto photo = personPhotoRepository.findById(photoId)
                 .orElseThrow(() -> new IllegalArgumentException("Photo not found"));
@@ -362,12 +545,10 @@ public class FaceRecognitionService {
     }
 
     private PersonPhotoDto toPhotoDto(PersonPhoto photo) {
-        String imageUrl = "/api/faces/image?path=" + java.net.URLEncoder.encode(
-                photo.getFileName(), java.nio.charset.StandardCharsets.UTF_8);
         return PersonPhotoDto.builder()
                 .id(photo.getId())
                 .personId(photo.getPersonId())
-                .imageUrl(imageUrl)
+                .imageUrl(buildImageUrl(photo.getFileName()))
                 .confidence(photo.getConfidence())
                 .matchedAt(photo.getMatchedAt() != null ? photo.getMatchedAt().toString() : null)
                 .devicePhotoId(photo.getDevicePhotoId())
@@ -376,6 +557,12 @@ public class FaceRecognitionService {
                 .facesDetected(photo.getFacesDetected())
                 .groupPhoto(photo.getGroupPhoto())
                 .matchedFaceIndex(photo.getMatchedFaceIndex())
+                .captureId(photo.getCaptureId())
+                .mediaVideoId(photo.getMediaVideoId())
+                .mediaTitle(photo.getMediaTitle())
+                .latitude(photo.getLatitude())
+                .longitude(photo.getLongitude())
+                .locationLabel(photo.getLocationLabel())
                 .build();
     }
 

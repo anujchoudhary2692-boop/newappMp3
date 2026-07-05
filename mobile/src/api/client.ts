@@ -28,6 +28,7 @@ export type {
   FaceCandidate,
   FaceIdentifyResult,
 } from '../features/face/domain/types';
+export type {PersonTimelineEntry} from '../features/face/domain/types';
 export type {CaptureItem} from '../features/camera/domain/types';
 export type {HealthResponse} from '../core/api/types/common';
 
@@ -58,6 +59,10 @@ export const api = {
   getPersonPhotos: faceApi.getPersonPhotos,
   scanLibraryPhoto: faceApi.scanLibraryPhoto,
   deletePersonPhoto: faceApi.deletePersonPhoto,
+  getPersonTimeline: faceApi.getPersonTimeline,
+  getRecentAlerts: faceApi.getRecentAlerts,
+  scanCapture: faceApi.scanCapture,
+  scanMediaVideo: faceApi.scanMediaVideo,
 
   getCaptures: captureApi.list,
   getCapture: captureApi.get,

@@ -14,6 +14,8 @@ export type FaceStackParamList = {
   RegisterFace: undefined;
   IdentifyFace: undefined;
   PersonPhotos: {personId: string; personName: string};
+  PersonTimeline: {personId: string; personName: string};
+  AlertsFeed: undefined;
 };
 
 export type CameraStackParamList = {

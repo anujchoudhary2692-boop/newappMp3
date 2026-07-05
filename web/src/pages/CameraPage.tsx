@@ -84,7 +84,7 @@ export function CameraPage() {
     if (durationMs) form.append('durationMs', String(durationMs));
     try {
       await api.uploadCapture(form);
-      setStatus('Saved to cloud');
+      setStatus('Saved to cloud — face trace scan running automatically');
       setMode('gallery');
       void load();
     } catch (e) {

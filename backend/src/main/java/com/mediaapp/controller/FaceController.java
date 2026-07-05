@@ -1,12 +1,16 @@
 package com.mediaapp.controller;
 
 import com.mediaapp.dto.ApiResponse;
+import com.mediaapp.dto.CaptureScanStatusDto;
+import com.mediaapp.dto.MultiPersonScanResultDto;
+import com.mediaapp.dto.PersonTimelineEntryDto;
 import com.mediaapp.dto.FaceIdentifyResult;
 import com.mediaapp.dto.LibraryScanResultDto;
 import com.mediaapp.dto.PersonDto;
 import com.mediaapp.dto.PersonPhotoDto;
 import com.mediaapp.dto.UpdatePersonRequest;
 import com.mediaapp.service.FaceRecognitionService;
+import com.mediaapp.service.FaceScanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -22,6 +26,7 @@ import java.util.List;
 public class FaceController {
 
     private final FaceRecognitionService faceRecognitionService;
+    private final FaceScanService faceScanService;
 
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<com.mediaapp.dto.FaceStatusDto>> status() {
@@ -118,6 +123,66 @@ public class FaceController {
         try {
             faceRecognitionService.deletePerson(id);
             return ResponseEntity.ok(ApiResponse.ok("Deleted", null));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/person/{personId}/timeline")
+    public ResponseEntity<ApiResponse<List<PersonTimelineEntryDto>>> timeline(
+            @PathVariable String personId,
+            @RequestParam(defaultValue = "200") int limit) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceScanService.getPersonTimeline(personId, limit)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/alerts/recent")
+    public ResponseEntity<ApiResponse<List<PersonTimelineEntryDto>>> recentAlerts(
+            @RequestParam(defaultValue = "50") int limit) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceScanService.getRecentAlerts(limit)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "/scan-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<MultiPersonScanResultDto>> scanImage(
+            @RequestParam("image") MultipartFile image,
+            @RequestParam(defaultValue = "true") boolean save) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceRecognitionService.scanImageAgainstAll(image, save)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/scan-capture/{captureId}")
+    public ResponseEntity<ApiResponse<CaptureScanStatusDto>> scanCapture(@PathVariable String captureId) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceScanService.scanCapture(captureId)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/capture/{captureId}/scan-status")
+    public ResponseEntity<ApiResponse<CaptureScanStatusDto>> captureScanStatus(@PathVariable String captureId) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceScanService.getCaptureScanStatus(captureId)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/scan-media/{videoId}")
+    public ResponseEntity<ApiResponse<String>> scanMedia(@PathVariable String videoId) {
+        try {
+            faceScanService.queueMediaVideoScan(videoId, videoId);
+            return ResponseEntity.ok(ApiResponse.ok("Media face scan queued", videoId));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

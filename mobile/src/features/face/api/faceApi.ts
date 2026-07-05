@@ -86,4 +86,23 @@ export const faceApi = {
 
   deletePersonPhoto: (photoId: string) =>
     httpRequest<void>(`/api/faces/photos/${photoId}`, {method: 'DELETE'}),
+
+  getPersonTimeline: (personId: string, limit = 200) =>
+    httpRequest<import('../domain/types').PersonTimelineEntry[]>(
+      `/api/faces/person/${personId}/timeline?limit=${limit}`,
+    ),
+
+  getRecentAlerts: (limit = 50) =>
+    httpRequest<import('../domain/types').PersonTimelineEntry[]>(
+      `/api/faces/alerts/recent?limit=${limit}`,
+    ),
+
+  scanCapture: (captureId: string) =>
+    httpRequest<{captureId: string; scanStatus: string; matchCount: number; message?: string}>(
+      `/api/faces/scan-capture/${captureId}`,
+      {method: 'POST'},
+    ),
+
+  scanMediaVideo: (videoId: string) =>
+    httpRequest<string>(`/api/faces/scan-media/${videoId}`, {method: 'POST'}),
 };
