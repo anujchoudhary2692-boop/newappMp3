@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactNativeBlobUtil from 'react-native-blob-util';
-import {warmMediaServer} from './mediaPrefetch';
+import {warmMediaServer, getPinnedServerBase} from './mediaPrefetch';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaItem, MediaSearchResult} from '../features/media/domain/types';
 import {getApiBaseUrl, getApiKey} from '../config';
@@ -180,6 +180,7 @@ export interface DownloadProgress {
   received: number;
   total: number;
   percent: number;
+  message?: string;
 }
 
 export async function downloadMediaToDevice(
@@ -214,6 +215,8 @@ export async function downloadMediaToDevice(
     }
   }
 
+  onProgress?.({received: 0, total: 0, percent: 0, message: 'Preparing on cloud server…'});
+
   let response;
   try {
     response = await mediaApi.download({
@@ -233,7 +236,8 @@ export async function downloadMediaToDevice(
   }
 
   const serverItem = response.data;
-  const remoteUrl = resolveStreamUrl(serverItem.streamUrl);
+  const serverBase = getPinnedServerBase();
+  const remoteUrl = resolveStreamUrl(serverItem.streamUrl, serverBase);
   const ext = serverItem.fileName.includes('.')
     ? serverItem.fileName.split('.').pop() || (payload.type === 'AUDIO' ? 'm4a' : 'mp4')
     : payload.type === 'AUDIO'
@@ -247,6 +251,8 @@ export async function downloadMediaToDevice(
   if (apiKey) {
     headers['X-API-Key'] = apiKey;
   }
+
+  onProgress?.({received: 0, total: 0, percent: 0, message: 'Saving to your phone…'});
 
   const task = ReactNativeBlobUtil.config({
     path: localPath,

@@ -14,6 +14,7 @@ import {
 import {resolveStreamUrl} from './mediaPlayback';
 import {
   getPrefetchedStream,
+  getPinnedServerBase,
   prefetchMediaPrepare,
   putPrefetchedStream,
   warmMediaServer,
@@ -119,15 +120,12 @@ function mediaServerHint(): string {
 }
 
 async function pinPlaybackServer(): Promise<string> {
-  if (pinnedPlaybackBase) {
-    return pinnedPlaybackBase;
-  }
   pinnedPlaybackBase = await warmMediaServer();
   return pinnedPlaybackBase;
 }
 
 function resolvePlaybackStreamUrl(streamPath: string): string {
-  return resolveStreamUrl(streamPath, pinnedPlaybackBase ?? getApiBaseUrl());
+  return resolveStreamUrl(streamPath, pinnedPlaybackBase ?? getPinnedServerBase());
 }
 
 async function assertPlaybackCapable(): Promise<void> {
@@ -214,7 +212,7 @@ async function pollPrepareUntilReady(
       }
 
       if (data.status === 'PREPARING') {
-        onStatus?.(data.message || 'Buffering…');
+        onStatus?.(data.message || 'Buffering on cloud… first play can take 1–2 min');
       }
 
       if (data.status === 'READY' && data.streamUrl && isPlayablePath(data.streamUrl)) {

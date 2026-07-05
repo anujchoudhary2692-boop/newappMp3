@@ -1,5 +1,5 @@
 import {ensureMediaServer} from '../core/api/httpClient';
-import {isProductionMode} from '../config';
+import {getApiBaseUrl, isProductionMode} from '../config';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaSearchResult} from '../features/media/domain/types';
 import {defaultQuality} from '../features/media/domain/qualityPresets';
@@ -14,6 +14,11 @@ const readyCache = new Map<
 >();
 
 let mediaServerWarm: Promise<string> | null = null;
+let pinnedServerBase: string | null = null;
+
+export function getPinnedServerBase(): string {
+  return pinnedServerBase ?? getApiBaseUrl();
+}
 
 function jobKey(videoId: string, type: 'AUDIO' | 'VIDEO', quality?: MediaQuality): string {
   const preset = quality || defaultQuality(type);
@@ -73,16 +78,22 @@ export function warmMediaServer(force = false): Promise<string> {
     mediaServerWarm = null;
   }
   if (!mediaServerWarm) {
-    mediaServerWarm = ensureMediaServer().catch(error => {
-      mediaServerWarm = null;
-      throw error;
-    });
+    mediaServerWarm = ensureMediaServer()
+      .then(base => {
+        pinnedServerBase = base;
+        return base;
+      })
+      .catch(error => {
+        mediaServerWarm = null;
+        throw error;
+      });
   }
   return mediaServerWarm;
 }
 
 export function invalidateMediaServerWarm(): void {
   mediaServerWarm = null;
+  pinnedServerBase = null;
 }
 
 async function pollPrepareUntilReady(

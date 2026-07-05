@@ -125,8 +125,13 @@ public class MediaCacheService {
     private void runPrepare(String key, String videoId, MediaType type, String qualityPreset) {
         try {
             if (renderHost && ytDlpService.hasCookies()) {
-                mediaService.warmCacheAsync(videoId, type);
-                jobs.put(key, readyProxyDto(videoId, type, qualityPreset));
+                try {
+                    Path cached = mediaService.ensureCachedPlaybackPublic(videoId, type);
+                    jobs.put(key, readyDto(videoId, type, cached, "Ready on cloud", qualityPreset));
+                } catch (Exception cacheEx) {
+                    log.error("Cloud cache prepare failed for {} {}: {}", videoId, type, cacheEx.getMessage());
+                    jobs.put(key, failedDto(videoId, type, mediaService.friendlyMediaError(cacheEx.getMessage())));
+                }
                 return;
             }
 
