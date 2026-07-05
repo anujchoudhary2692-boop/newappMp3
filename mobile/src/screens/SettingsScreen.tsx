@@ -3,8 +3,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
@@ -23,6 +25,12 @@ import {
   isFaceAlertsEnabled,
   setFaceAlertsEnabled,
 } from '../utils/faceAlerts';
+import {
+  isOfflineFacePreScanEnabled,
+  setOfflineFacePreScanEnabled,
+} from '../utils/localFaceDetect';
+import {getAuthUser, clearAuthSession, setAuthSession, StoredAuthUser} from '../utils/authStorage';
+import {httpRequest} from '../core/api/httpClient';
 
 export function SettingsScreen() {
   const layout = useLayoutMetrics(false);
@@ -35,6 +43,10 @@ export function SettingsScreen() {
   const {flags: featureFlags, loaded: featuresLoaded} = useFeatureFlags();
   const [retrying, setRetrying] = useState(false);
   const [faceAlerts, setFaceAlerts] = useState(true);
+  const [offlineScan, setOfflineScan] = useState(true);
+  const [authUser, setAuthUser] = useState<StoredAuthUser | null>(null);
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
 
   const featureLabels: Record<string, string> = {
     mediaSearch: 'Media search',
@@ -87,6 +99,8 @@ export function SettingsScreen() {
     useCallback(() => {
       refreshServer();
       void isFaceAlertsEnabled().then(setFaceAlerts);
+      void isOfflineFacePreScanEnabled().then(setOfflineScan);
+      void getAuthUser().then(setAuthUser);
     }, [refreshServer]),
   );
 
@@ -228,6 +242,79 @@ export function SettingsScreen() {
             {faceAlerts ? 'On' : 'Off'}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toggleRow, {borderColor: colors.border}]}
+          onPress={() => {
+            const next = !offlineScan;
+            setOfflineScan(next);
+            void setOfflineFacePreScanEnabled(next);
+          }}>
+          <Text style={{color: colors.text, flex: 1}}>Offline face pre-scan (ML Kit)</Text>
+          <Text style={{color: offlineScan ? colors.face : colors.textMuted, fontWeight: '700'}}>
+            {offlineScan ? 'On' : 'Off'}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={[styles.sectionTitle, {color: colors.text, marginTop: SPACING.lg}]}>Enterprise auth</Text>
+        {authUser ? (
+          <View style={[styles.toggleRow, {borderColor: colors.border}]}>
+            <Text style={{color: colors.text, flex: 1}}>
+              {authUser.username} ({authUser.role})
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                void clearAuthSession();
+                setAuthUser(null);
+              }}>
+              <Text style={{color: colors.primary, fontWeight: '700'}}>Sign out</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={{gap: 8}}>
+            <TextInput
+              value={loginUser}
+              onChangeText={setLoginUser}
+              placeholder="Username"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              style={[styles.input, {borderColor: colors.border, color: colors.text}]}
+            />
+            <TextInput
+              value={loginPass}
+              onChangeText={setLoginPass}
+              placeholder="Password"
+              placeholderTextColor={colors.textMuted}
+              secureTextEntry
+              style={[styles.input, {borderColor: colors.border, color: colors.text}]}
+            />
+            <TouchableOpacity
+              style={[styles.primaryBtn, {backgroundColor: colors.primary}]}
+              onPress={() => {
+                void (async () => {
+                  try {
+                    const res = await httpRequest<{token: string; user: StoredAuthUser}>(
+                      '/api/auth/login',
+                      {
+                        method: 'POST',
+                        body: JSON.stringify({username: loginUser, password: loginPass}),
+                      },
+                    );
+                    if (!res.success || !res.data) {
+                      Alert.alert('Login failed', res.message || 'Invalid credentials');
+                      return;
+                    }
+                    await setAuthSession(res.data.token, res.data.user);
+                    setAuthUser(res.data.user);
+                    setLoginPass('');
+                  } catch (e) {
+                    Alert.alert('Login failed', e instanceof Error ? e.message : 'Error');
+                  }
+                })();
+              }}>
+              <Text style={{color: '#fff', fontWeight: '700', textAlign: 'center'}}>Sign in</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Shortcuts */}
         <Text style={[styles.sectionTitle, {color: colors.text, marginTop: SPACING.lg}]}>Shortcuts</Text>
@@ -401,5 +488,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: ENTERPRISE.cardBg,
     marginBottom: SPACING.sm,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: ENTERPRISE.radius.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10,
+    backgroundColor: ENTERPRISE.cardBg,
+  },
+  primaryBtn: {
+    paddingVertical: 12,
+    borderRadius: ENTERPRISE.radius.md,
   },
 });

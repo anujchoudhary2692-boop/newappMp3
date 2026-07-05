@@ -11,6 +11,9 @@ export interface MediaSearchResult {
   videoFormat?: string;
   source?: string;
   hasVideo?: boolean;
+  artist?: string;
+  album?: string;
+  catalogSource?: string;
 }
 
 export interface PlayableMedia {

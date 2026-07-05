@@ -40,11 +40,11 @@ export async function notifyPersonSighted(
   console.info(`[Face alert] ${personName}: ${body}`);
 }
 
-export function traceExportUrl(personId: string, format: 'csv' | 'json' | 'geojson'): string {
+export function traceExportUrl(personId: string, format: 'csv' | 'json' | 'geojson' | 'pdf'): string {
   return `/api/faces/person/${personId}/timeline/export?format=${format}&limit=500`;
 }
 
-export function downloadTraceExport(personId: string, format: 'csv' | 'json' | 'geojson'): void {
+export function downloadTraceExport(personId: string, format: 'csv' | 'json' | 'geojson' | 'pdf'): void {
   const a = document.createElement('a');
   a.href = traceExportUrl(personId, format);
   a.download = `trace.${format === 'geojson' ? 'geojson' : format}`;

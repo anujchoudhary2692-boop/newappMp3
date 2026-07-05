@@ -30,6 +30,8 @@ public class FaceAlertService {
 
     private final FaceMatchEventRepository eventRepository;
     private final ObjectMapper objectMapper;
+    private final PushNotificationService pushNotificationService;
+    private final AuditService auditService;
     private ExecutorService executor;
     private HttpClient httpClient;
 
@@ -65,6 +67,18 @@ public class FaceAlertService {
                 .sourceTimestampMs(photo.getSourceTimestampMs())
                 .matchedAt(photo.getMatchedAt() != null ? photo.getMatchedAt() : Instant.now())
                 .build());
+
+        pushNotificationService.notifyMatch(event);
+        auditService.record(
+                "FACE_MATCH",
+                null,
+                "system",
+                null,
+                "PERSON",
+                person.getId(),
+                person.getName() + " matched (" + Math.round(photo.getConfidence()) + "%)",
+                null,
+                null);
 
         if (webhookUrl != null && !webhookUrl.isBlank()) {
             executor.submit(() -> postWebhook(event));

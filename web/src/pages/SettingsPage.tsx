@@ -7,6 +7,7 @@ import {
   requestNotificationPermission,
   setFaceAlertsEnabled,
 } from '../utils/faceAlerts';
+import {clearAuthSession, getAuthUser, setAuthSession} from '../utils/auth';
 
 const API_KEY = 'mediaface:apiKey';
 const API_URL = 'mediaface:apiUrl';
@@ -18,10 +19,16 @@ export function SettingsPage() {
   const [customUrl, setCustomUrl] = useState(localStorage.getItem(API_URL) || '');
   const [customKey, setCustomKey] = useState(localStorage.getItem(API_KEY) || '');
   const [alertsOn, setAlertsOn] = useState(isFaceAlertsEnabled());
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authUser, setAuthUser] = useState(getAuthUser());
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
 
   const refresh = useCallback(async () => {
     setHealth('checking…');
     try {
+      const auth = await api.authStatus();
+      setAuthRequired(Boolean(auth.data.authRequired));
       const h = await api.health();
       setHealth(h.data.status);
       setMedia(h.data.media ?? null);
@@ -124,6 +131,62 @@ export function SettingsPage() {
       </section>
 
       <section style={{marginBottom: 24}}>
+        <h2 className="section-title">Enterprise auth</h2>
+        <p style={{fontSize: 13, color: 'var(--muted)', marginBottom: 8}}>
+          {authRequired ? 'Login required for API access.' : 'Auth optional — enable REQUIRE_AUTH on server for roles.'}
+        </p>
+        {authUser ? (
+          <div style={{fontSize: 14, marginBottom: 8}}>
+            Signed in as <strong>{authUser.username}</strong> ({authUser.role})
+            <button
+              className="btn btn-ghost"
+              style={{marginLeft: 8}}
+              onClick={() => {
+                clearAuthSession();
+                setAuthUser(null);
+              }}>
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <div style={{display: 'grid', gap: 8, maxWidth: 360}}>
+            <input
+              value={loginUser}
+              onChange={e => setLoginUser(e.target.value)}
+              placeholder="Username"
+              style={{padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)'}}
+            />
+            <input
+              type="password"
+              value={loginPass}
+              onChange={e => setLoginPass(e.target.value)}
+              placeholder="Password"
+              style={{padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)'}}
+            />
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const res = await api.login(loginUser, loginPass);
+                    setAuthSession(res.data.token, res.data.user);
+                    setAuthUser(res.data.user);
+                    setLoginPass('');
+                  } catch (e) {
+                    alert(e instanceof Error ? e.message : 'Login failed');
+                  }
+                })();
+              }}>
+              Sign in
+            </button>
+          </div>
+        )}
+        <p style={{fontSize: 12, color: 'var(--muted)', marginTop: 8}}>
+          Roles: ADMIN (manage users), OPERATOR (register/scan), VIEWER (read-only). Set ADMIN_USERNAME + ADMIN_PASSWORD on Render to seed admin.
+        </p>
+      </section>
+
+      <section style={{marginBottom: 24}}>
         <h2 className="section-title">Face tracing</h2>
         <label style={{display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, marginBottom: 8}}>
           <input
@@ -140,6 +203,7 @@ export function SettingsPage() {
         </label>
         <p style={{fontSize: 13, color: 'var(--muted)'}}>
           Server webhook: set FACE_ALERT_WEBHOOK_URL on Render for Slack/Discord alerts.
+          Native push: set FCM_PROJECT_ID + FCM_SERVICE_ACCOUNT_JSON and register device tokens from mobile.
         </p>
       </section>
 

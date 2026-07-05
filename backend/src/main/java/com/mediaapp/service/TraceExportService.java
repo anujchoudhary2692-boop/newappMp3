@@ -3,11 +3,24 @@ package com.mediaapp.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.lowagie.text.Document;
+import com.lowagie.text.Element;
+import com.lowagie.text.Font;
+import com.lowagie.text.FontFactory;
+import com.lowagie.text.PageSize;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
 import com.mediaapp.dto.PersonTimelineEntryDto;
 import com.mediaapp.repository.PersonRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -76,6 +89,59 @@ public class TraceExportService {
             features.add(feature);
         }
         return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(fc);
+    }
+
+    public byte[] exportPersonPdf(String personId, int limit) throws Exception {
+        String personName = personRepository.findById(personId).map(p -> p.getName()).orElse("unknown");
+        List<PersonTimelineEntryDto> entries = faceScanService.getPersonTimeline(personId, limit);
+        Document document = new Document(PageSize.A4.rotate(), 36, 36, 48, 36);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PdfWriter.getInstance(document, out);
+        document.open();
+
+        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
+        Font metaFont = FontFactory.getFont(FontFactory.HELVETICA, 10);
+        document.add(new Paragraph("Person Trace Report", titleFont));
+        document.add(new Paragraph("Person: " + personName + "  ·  ID: " + personId, metaFont));
+        document.add(new Paragraph("Generated: " + DateTimeFormatter.ISO_INSTANT.format(Instant.now()), metaFont));
+        document.add(new Paragraph("Total sightings: " + entries.size(), metaFont));
+        document.add(new Paragraph(" "));
+
+        PdfPTable table = new PdfPTable(7);
+        table.setWidthPercentage(100);
+        table.setWidths(new float[]{2.2f, 1.2f, 1f, 1.6f, 1.2f, 1.2f, 1.6f});
+        addHeader(table, "Matched At");
+        addHeader(table, "Source");
+        addHeader(table, "Confidence");
+        addHeader(table, "Location");
+        addHeader(table, "Latitude");
+        addHeader(table, "Longitude");
+        addHeader(table, "Media");
+
+        Font cellFont = FontFactory.getFont(FontFactory.HELVETICA, 8);
+        for (PersonTimelineEntryDto e : entries) {
+            table.addCell(new PdfPCell(new Phrase(safe(e.getMatchedAt()), cellFont)));
+            table.addCell(new PdfPCell(new Phrase(safe(e.getSourceType()), cellFont)));
+            table.addCell(new PdfPCell(new Phrase(String.valueOf(Math.round(e.getConfidence())), cellFont)));
+            table.addCell(new PdfPCell(new Phrase(safe(e.getLocationLabel()), cellFont)));
+            table.addCell(new PdfPCell(new Phrase(e.getLatitude() != null ? e.getLatitude().toString() : "", cellFont)));
+            table.addCell(new PdfPCell(new Phrase(e.getLongitude() != null ? e.getLongitude().toString() : "", cellFont)));
+            table.addCell(new PdfPCell(new Phrase(safe(e.getMediaTitle()), cellFont)));
+        }
+        document.add(table);
+        document.close();
+        return out.toByteArray();
+    }
+
+    private static void addHeader(PdfPTable table, String text) {
+        Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9);
+        PdfPCell cell = new PdfPCell(new Phrase(text, headerFont));
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        table.addCell(cell);
+    }
+
+    private static String safe(String value) {
+        return value != null ? value : "";
     }
 
     private static String csv(String value) {

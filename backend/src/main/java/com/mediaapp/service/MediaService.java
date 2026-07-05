@@ -54,6 +54,7 @@ public class MediaService {
     private final SearchCacheService searchCacheService;
     private final WebSearchService webSearchService;
     private final MediaSourceRegistry mediaSourceRegistry;
+    private final MusicCatalogService musicCatalogService;
 
     private final Map<String, Object> downloadLocks = new ConcurrentHashMap<>();
     private final Map<String, DirectUrlEntry> directUrlCache = new ConcurrentHashMap<>();
@@ -100,6 +101,7 @@ public class MediaService {
             List<MediaSearchResultDto> results = new ArrayList<>();
             Set<String> seenUrls = new LinkedHashSet<>();
 
+            mergeSearchResults(results, seenUrls, musicCatalogService.searchCatalog(query, cappedLimit));
             mergeSearchResults(results, seenUrls, searchWithPrefix("scsearch", query, cappedLimit));
             if (results.size() < cappedLimit) {
                 mergeSearchResults(

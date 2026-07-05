@@ -214,6 +214,10 @@ public class FaceController {
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeName + "_trace.geojson\"")
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(traceExportService.exportPersonGeoJson(personId, limit).getBytes());
+                case "pdf" -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeName + "_trace.pdf\"")
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .body(traceExportService.exportPersonPdf(personId, limit));
                 default -> ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeName + "_trace.csv\"")
                         .contentType(new MediaType("text", "csv"))

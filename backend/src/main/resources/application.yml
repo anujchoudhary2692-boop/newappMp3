@@ -18,14 +18,27 @@ app:
     captures-dir: ./storage/captures
   face:
     models-dir: ./storage/models
+    engine: ${FACE_ENGINE:opencv}
     match-threshold: 0.34
     min-match-gap: 0.025
+    insightface-match-threshold: 0.42
     det-score-threshold: 0.55
     det-score-sensitive: 0.32
     min-face-size-register: 64
     min-face-size-identify: 36
     min-face-size-side: 48
     alert-webhook-url: ${FACE_ALERT_WEBHOOK_URL:}
+  push:
+    fcm-project-id: ${FCM_PROJECT_ID:}
+    fcm-service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}
+  auth:
+    require-auth: ${REQUIRE_AUTH:false}
+    admin-username: ${ADMIN_USERNAME:}
+    admin-password: ${ADMIN_PASSWORD:}
+    session-hours: ${AUTH_SESSION_HOURS:168}
+  catalog:
+    musicbrainz-enabled: ${CATALOG_MUSICBRAINZ:true}
+    archive-enabled: ${CATALOG_ARCHIVE:true}
   media:
     yt-dlp-path: ${YT_DLP_PATH:yt-dlp}
     youtube-cookies-file: ${YOUTUBE_COOKIES_FILE:}

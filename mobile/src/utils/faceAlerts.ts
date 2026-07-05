@@ -51,12 +51,12 @@ export async function notifyPersonSighted(
   );
 }
 
-export function traceExportUrl(personId: string, format: 'csv' | 'json' | 'geojson'): string {
+export function traceExportUrl(personId: string, format: 'csv' | 'json' | 'geojson' | 'pdf'): string {
   const base = getApiBaseUrl().replace(/\/$/, '');
   return `${base}/api/faces/person/${personId}/timeline/export?format=${format}&limit=500`;
 }
 
-export async function openTraceExport(personId: string, format: 'csv' | 'json' | 'geojson'): Promise<void> {
+export async function openTraceExport(personId: string, format: 'csv' | 'json' | 'geojson' | 'pdf'): Promise<void> {
   const url = traceExportUrl(personId, format);
   await Linking.openURL(url);
 }

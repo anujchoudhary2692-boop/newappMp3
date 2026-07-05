@@ -61,6 +61,10 @@ async function scanOneImage(
   sourceTimestampMs?: number,
   onMatch?: ScanOptions['onMatch'],
 ): Promise<{saved: boolean; groupPhoto?: boolean}> {
+  const {imageLikelyHasFace} = await import('./localFaceDetect');
+  if (!(await imageLikelyHasFace(uri))) {
+    return {saved: false};
+  }
   const response = await api.scanLibraryPhoto(
     personId,
     uri,

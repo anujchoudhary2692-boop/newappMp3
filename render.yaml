@@ -29,3 +29,15 @@ services:
         value: "2"
       - key: YOUTUBE_COOKIES_BASE64
         sync: false
+      - key: FACE_ENGINE
+        value: opencv
+      - key: FCM_PROJECT_ID
+        sync: false
+      - key: FCM_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: REQUIRE_AUTH
+        value: "false"

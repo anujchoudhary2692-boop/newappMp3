@@ -24,4 +24,8 @@ public class MediaSearchResultDto {
     private String source;
     /** False for audio-only sources (e.g. SoundCloud tracks). */
     private Boolean hasVideo;
+    private String artist;
+    private String album;
+    /** musicbrainz, archive, ytdlp, web */
+    private String catalogSource;
 }

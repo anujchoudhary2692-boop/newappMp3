@@ -9,8 +9,11 @@ import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.objdetect.FaceDetectorYN;
 import org.opencv.objdetect.FaceRecognizerSF;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 import com.mediaapp.model.FaceViewAngle;
 
@@ -65,6 +68,12 @@ public class FaceAiEngine {
     @Value("${app.features.face-ai:true}")
     private boolean faceAiEnabled;
 
+    @Value("${app.face.engine:opencv}")
+    private String engineType;
+
+    @Autowired(required = false)
+    private List<OptionalFaceEngine> optionalEngines;
+
     private FaceDetectorYN standardDetector;
     private FaceDetectorYN sensitiveDetector;
     private FaceRecognizerSF recognizer;
@@ -104,10 +113,14 @@ public class FaceAiEngine {
             recognizer = FaceRecognizerSF.create(sface.toString(), "");
 
             ready = standardDetector != null && sensitiveDetector != null && recognizer != null;
-            statusMessage = ready
-                    ? "AI ready — front, side & partial face views"
-                    : "AI models failed to load";
-            log.info("Face AI engine ready: {}", ready);
+            if (useInsightFace() && activeOptionalEngine() != null) {
+                statusMessage = "InsightFace ONNX ready — high-accuracy 512-d embeddings";
+            } else {
+                statusMessage = ready
+                        ? "AI ready — front, side & partial face views (OpenCV SFace)"
+                        : "AI models failed to load";
+            }
+            log.info("Face AI engine ready: {} (engine={})", ready, getEngineType());
         } catch (Exception e) {
             ready = false;
             statusMessage = "AI face engine failed: " + e.getMessage();
@@ -123,7 +136,22 @@ public class FaceAiEngine {
         return statusMessage;
     }
 
+    public String getEngineType() {
+        if (useInsightFace() && activeOptionalEngine() != null) {
+            return "insightface";
+        }
+        return "opencv";
+    }
+
+    public boolean useInsightFace() {
+        return "insightface".equalsIgnoreCase(engineType);
+    }
+
     public float getMatchThreshold() {
+        OptionalFaceEngine engine = activeOptionalEngine();
+        if (useInsightFace() && engine != null) {
+            return engine.getMatchThreshold();
+        }
         return matchThreshold;
     }
 
@@ -312,6 +340,14 @@ public class FaceAiEngine {
     }
 
     public float matchFeatures(Mat query, Mat reference) {
+        if (query.cols() != reference.cols()) {
+            return 0f;
+        }
+        if (useInsightFace() && activeOptionalEngine() != null) {
+            float[] a = matToFloatArray(query);
+            float[] b = matToFloatArray(reference);
+            return activeOptionalEngine().match(a, b);
+        }
         return (float) recognizer.match(query, reference, FaceRecognizerSF.FR_COSINE);
     }
 
@@ -339,10 +375,38 @@ public class FaceAiEngine {
     private Mat featureFromFace(Mat image, Mat faceRow) {
         Mat aligned = new Mat();
         recognizer.alignCrop(image, faceRow, aligned);
+        OptionalFaceEngine engine = useInsightFace() ? activeOptionalEngine() : null;
+        if (engine != null) {
+            Mat resized = new Mat();
+            org.opencv.imgproc.Imgproc.resize(aligned, resized, new Size(112, 112));
+            aligned.release();
+            float[] embedding = engine.embedAlignedFace(resized);
+            resized.release();
+            if (embedding == null) {
+                return new Mat();
+            }
+            Mat feature = new Mat(1, embedding.length, CvType.CV_32F);
+            feature.put(0, 0, embedding);
+            return feature;
+        }
         Mat feature = new Mat();
         recognizer.feature(aligned, feature);
         aligned.release();
         return feature;
+    }
+
+    private OptionalFaceEngine activeOptionalEngine() {
+        if (optionalEngines == null) {
+            return null;
+        }
+        return optionalEngines.stream().filter(OptionalFaceEngine::isActive).findFirst().orElse(null);
+    }
+
+    private static float[] matToFloatArray(Mat mat) {
+        int dims = (int) (mat.total() * mat.channels());
+        float[] data = new float[dims];
+        mat.get(0, 0, data);
+        return data;
     }
 
     private List<DetectedFace> detectAllFaces(Mat image, boolean includeSensitivePass, int minFaceSize) {

@@ -53,6 +53,7 @@ export interface FaceStatus {
   engineReady: boolean;
   registeredCount: number;
   message: string;
+  engineType?: string;
 }
 
 export interface FaceCandidate {

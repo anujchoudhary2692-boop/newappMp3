@@ -1,4 +1,5 @@
 import {getApiBase, getApiKey} from '../config';
+import {getAuthToken} from '../utils/auth';
 import type {
   CaptureItem,
   MediaDiagnostics,
@@ -22,6 +23,7 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 1200
     Accept: 'application/json',
     ...(init.body instanceof FormData ? {} : {'Content-Type': 'application/json'}),
     ...(getApiKey() ? {'X-API-Key': getApiKey()} : {}),
+    ...(getAuthToken() ? {Authorization: `Bearer ${getAuthToken()}`} : {}),
     ...(init.headers as Record<string, string>),
   };
 
@@ -116,4 +118,17 @@ export const api = {
     request<CaptureItem>('/api/captures', {method: 'POST', body: form}, 120000),
   deleteCapture: (id: string) => request<void>(`/api/captures/${id}`, {method: 'DELETE'}),
   captureFileUrl: (id: string) => resolveUrl(`/api/captures/${id}/file`),
+
+  authStatus: () =>
+    request<{authRequired: boolean; roles: string[]}>('/api/auth/status', {}, 10000),
+  login: (username: string, password: string) =>
+    request<{token: string; user: {id: string; username: string; role: string; orgId?: string}}>(
+      '/api/auth/login',
+      {method: 'POST', body: JSON.stringify({username, password})},
+      15000,
+    ),
+  authAudit: (limit = 100) =>
+    request<Array<{id: string; action: string; actorUsername?: string; details?: string; createdAt?: string}>>(
+      `/api/auth/audit?limit=${limit}`,
+    ),
 };

@@ -52,6 +52,7 @@ public class FaceRecognitionService {
                 .engineReady(faceAiEngine.isReady())
                 .registeredCount((int) count)
                 .message(faceAiEngine.getStatusMessage())
+                .engineType(faceAiEngine.getEngineType())
                 .build();
     }
 
@@ -90,11 +91,16 @@ public class FaceRecognitionService {
                 .orElse(Person.builder()
                         .name(name.trim())
                         .notes(notes)
+                        .embeddingEngine(faceAiEngine.getEngineType())
                         .createdAt(Instant.now())
                         .imagePaths(new ArrayList<>())
                         .faceEmbeddings(new ArrayList<>())
                         .faceViewAngles(new ArrayList<>())
                         .build());
+
+        if (person.getEmbeddingEngine() == null || person.getEmbeddingEngine().isBlank()) {
+            person.setEmbeddingEngine(faceAiEngine.getEngineType());
+        }
 
         if (person.getImagePaths() == null) {
             person.setImagePaths(new ArrayList<>());
@@ -517,9 +523,9 @@ public class FaceRecognitionService {
                     .locationLabel(ctx.getLocationLabel());
         }
 
-        PersonPhoto saved = personPhotoRepository.save(builder.build());
-        faceAlertService.recordMatch(person, saved);
-        return saved;
+        PersonPhoto photo = personPhotoRepository.save(builder.build());
+        faceAlertService.recordMatch(person, photo);
+        return photo;
     }
 
     private void requireEngineReady() {

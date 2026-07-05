@@ -9,9 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FaceStatusDto {
-    private boolean engineReady;
-    private int registeredCount;
-    private String message;
-    private String engineType;
+public class LoginResponse {
+    private String token;
+    private AuthUserDto user;
 }

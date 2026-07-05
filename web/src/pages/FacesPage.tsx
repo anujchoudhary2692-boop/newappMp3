@@ -351,6 +351,9 @@ export function FacesPage() {
             <button className="btn btn-ghost" onClick={() => downloadTraceExport(tracePerson.id, 'geojson')}>
               Export map (GeoJSON)
             </button>
+            <button className="btn btn-ghost" onClick={() => downloadTraceExport(tracePerson.id, 'pdf')}>
+              Export PDF
+            </button>
           </div>
           {Object.keys(groupedTimeline).length === 0 ? (
             <p className="empty">No sightings yet. Use camera or scan library from the mobile app.</p>

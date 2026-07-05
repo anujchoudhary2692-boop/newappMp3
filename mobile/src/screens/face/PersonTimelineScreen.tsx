@@ -99,6 +99,9 @@ export function PersonTimelineScreen({route, navigation}: Props) {
         <TouchableOpacity style={styles.exportBtn} onPress={() => void openTraceExport(personId, 'geojson')}>
           <Text style={styles.exportText}>Map</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.exportBtn} onPress={() => void openTraceExport(personId, 'pdf')}>
+          <Text style={styles.exportText}>PDF</Text>
+        </TouchableOpacity>
       </View>
       {loading ? (
         <ActivityIndicator color={COLORS.face} style={{marginTop: 32}} />

@@ -1,4 +1,5 @@
 import {getApiBaseUrl, getApiKey, getServerCandidates, isProductionMode, setApiBaseUrl} from '../../config';
+import {getAuthToken} from '../../utils/authStorage';
 import {PRODUCTION_API_URL} from '../../production.config';
 import {
   clearCachedApiUrl,
@@ -52,6 +53,7 @@ async function executeHttpRequest<T>(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const base = getApiBaseUrl();
   const apiKey = getApiKey();
+  const authToken = await getAuthToken();
 
   try {
     const response = await fetch(`${base}${path}`, {
@@ -60,6 +62,7 @@ async function executeHttpRequest<T>(
       headers: {
         Accept: 'application/json',
         ...(apiKey ? {'X-API-Key': apiKey} : {}),
+        ...(authToken ? {Authorization: `Bearer ${authToken}`} : {}),
         ...(options.body instanceof FormData
           ? {}
           : {'Content-Type': 'application/json'}),

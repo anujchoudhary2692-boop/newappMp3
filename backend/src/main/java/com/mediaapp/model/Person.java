@@ -31,6 +31,10 @@ public class Person {
     @Builder.Default
     private List<List<Float>> faceEmbeddings = new ArrayList<>();
 
+    /** Engine used for embeddings: opencv or insightface. */
+    @Builder.Default
+    private String embeddingEngine = "opencv";
+
     /** View angle per registered photo (FRONT, LEFT, RIGHT, PARTIAL, etc.). */
     @Builder.Default
     private List<String> faceViewAngles = new ArrayList<>();
