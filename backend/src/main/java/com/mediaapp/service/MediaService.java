@@ -68,6 +68,9 @@ public class MediaService {
     @Value("${app.media.direct-url-timeout-seconds:45}")
     private int directUrlTimeoutSeconds;
 
+    @Value("${app.media.search-timeout-seconds:45}")
+    private int searchTimeoutSeconds;
+
     @Value("${RENDER:false}")
     private boolean renderHost;
 
@@ -94,7 +97,7 @@ public class MediaService {
                     "--skip-download",
                     "--flat-playlist"
             ));
-            YtDlpService.RunResult result = ytDlpService.runSearch(cmd, 45);
+            YtDlpService.RunResult result = ytDlpService.runSearch(cmd, searchTimeoutSeconds);
 
             List<MediaSearchResultDto> results = new ArrayList<>();
             for (String line : result.output().split("\n")) {

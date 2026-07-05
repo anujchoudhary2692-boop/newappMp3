@@ -8,10 +8,11 @@ import React, {
   useState,
 } from 'react';
 import Video, {OnLoadData, OnProgressData, VideoRef} from 'react-native-video';
-import {StyleSheet, View} from 'react-native';
+import {Alert, StyleSheet, View} from 'react-native';
 import {PlayableMedia} from '../api/client';
 import {isPlayerScreenOpen, openPlayerScreen} from '../navigation/navigationRef';
 import {buildMediaSource} from '../utils/mediaPlayback';
+import {connectionErrorHint} from '../utils/serverConnection';
 import {pushRecentMedia} from '../utils/recentMedia';
 import {
   bindNowPlayingHandlers,
@@ -505,10 +506,10 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
             onProgress={onProgress}
             onBuffer={({isBuffering}) => setBuffering(isBuffering)}
             onEnd={onTrackEnd}
-            onError={e => {
+            onError={() => {
               setBuffering(false);
               setPaused(true);
-              console.warn('Playback engine error', e);
+              Alert.alert('Playback failed', connectionErrorHint());
             }}
             onAudioBecomingNoisy={() => setPaused(true)}
           />

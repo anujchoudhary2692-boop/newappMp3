@@ -31,6 +31,7 @@ app:
     youtube-cookies-base64: ${YOUTUBE_COOKIES_BASE64:}
     yt-dlp-timeout-seconds: ${YT_DLP_TIMEOUT_SECONDS:600}
     direct-url-timeout-seconds: ${DIRECT_URL_TIMEOUT_SECONDS:45}
+    search-timeout-seconds: ${SEARCH_TIMEOUT_SECONDS:45}
     prepare-timeout-seconds: ${PREPARE_TIMEOUT_SECONDS:180}
     prepare-max-concurrent: ${PREPARE_MAX_CONCURRENT:4}
   cors:

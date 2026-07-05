@@ -10,6 +10,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import {AppLogo} from './AppLogo';
 import {ensureApiServer, wakeCloudServer} from '../core/api/httpClient';
+import {probeServerCapabilities} from '../core/api/serverDiscovery';
 import {
   COLORS,
   getApiBaseUrl,
@@ -45,6 +46,18 @@ export function BackendGate({children}: {children: React.ReactNode}) {
         found = await ensureApiServer();
       }
       if (found) {
+        if (production) {
+          const probe = await probeServerCapabilities(found, 30000);
+          if (probe?.playDownload === 'LIMITED') {
+            setTriedUrls([found]);
+            setStatus('fail');
+            setError(
+              'Cloud server is up but YouTube playback is blocked.\n\n' +
+                'Set YOUTUBE_COOKIES_BASE64 on Render, or use Mac backend on same Wi‑Fi.',
+            );
+            return;
+          }
+        }
         setTriedUrls([found]);
         setStatus('ok');
         return;

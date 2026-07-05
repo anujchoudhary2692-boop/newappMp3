@@ -7,7 +7,7 @@ export const MEDIA_STREAM_HEADERS: Record<string, string> = {
   Accept: '*/*',
 };
 
-export function resolveStreamUrl(streamPath: string): string {
+export function resolveStreamUrl(streamPath: string, baseOverride?: string): string {
   const trimmed = streamPath.trim();
   if (
     trimmed.startsWith('http://') ||
@@ -16,30 +16,30 @@ export function resolveStreamUrl(streamPath: string): string {
   ) {
     return trimmed;
   }
-  const base = getApiBaseUrl().replace(/\/$/, '');
+  const base = (baseOverride || getApiBaseUrl()).replace(/\/$/, '');
   return `${base}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`;
 }
 
-export function mediaStreamHeaders(streamUrl: string): Record<string, string> {
+export function mediaStreamHeaders(streamUrl: string, baseOverride?: string): Record<string, string> {
   const apiKey = getApiKey();
   const headers = {...MEDIA_STREAM_HEADERS};
-  if (apiKey && streamUrl.includes(getApiBaseUrl().replace(/\/$/, ''))) {
+  const base = (baseOverride || getApiBaseUrl()).replace(/\/$/, '');
+  if (apiKey && streamUrl.includes(base)) {
     headers['X-API-Key'] = apiKey;
   }
   return headers;
 }
 
-export function buildMediaSource(streamUrl: string, _type: 'AUDIO' | 'VIDEO') {
+export function buildMediaSource(streamUrl: string, _type: 'AUDIO' | 'VIDEO', baseOverride?: string) {
   if (streamUrl.startsWith('file://')) {
     return {
       uri: streamUrl,
       type: 'mp4' as const,
     };
   }
-  // M4A audio uses MP4 container — AVPlayer on iOS prefers type mp4 for both.
   return {
     uri: streamUrl,
     type: 'mp4' as const,
-    headers: mediaStreamHeaders(streamUrl),
+    headers: mediaStreamHeaders(streamUrl, baseOverride),
   };
 }

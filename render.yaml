@@ -23,6 +23,8 @@ services:
         value: "true"
       - key: DIRECT_URL_TIMEOUT_SECONDS
         value: "90"
+      - key: SEARCH_TIMEOUT_SECONDS
+        value: "120"
       - key: PREPARE_MAX_CONCURRENT
         value: "2"
       - key: YOUTUBE_COOKIES_BASE64

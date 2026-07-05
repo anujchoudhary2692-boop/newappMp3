@@ -1,4 +1,5 @@
 import {getApiBaseUrl, getApiKey, getServerCandidates, isProductionMode, setApiBaseUrl} from '../../config';
+import {PRODUCTION_API_URL} from '../../production.config';
 import {
   clearCachedApiUrl,
   connectionErrorHint,
@@ -13,6 +14,7 @@ import {
   type ServerOrderMode,
 } from '../../utils/serverConnection';
 import {
+  invalidateStickyMediaServer,
   mediaServerUnavailableMessage,
   pickBestApiServer,
   pickBestMediaServer,
@@ -115,7 +117,9 @@ export async function httpRequest<T>(
       throw error;
     }
     await clearCachedApiUrl();
+    invalidateStickyMediaServer();
     if (isProductionMode()) {
+      setApiBaseUrl(PRODUCTION_API_URL.replace(/\/$/, ''));
       await wakeCloudServer(120000);
     } else {
       await discoverServer(getServerCandidates());

@@ -18,6 +18,7 @@ import {
   putPrefetchedStream,
   warmMediaServer,
 } from './mediaPrefetch';
+import {isRecoverableRequestError} from './serverConnection';
 
 function isLanBackend(base = getApiBaseUrl()): boolean {
   return base.startsWith('http://') && !base.includes('onrender.com');
@@ -30,10 +31,13 @@ function isYoutubeBlockedMessage(message: string): boolean {
 }
 
 const SESSION_STREAM_TTL_MS = 30 * 60 * 1000;
+const PREPARE_POLL_DEADLINE_MS = 240_000;
 const sessionStreamCache = new Map<
   string,
   {streamPath: string; quality?: string; expiresAt: number}
 >();
+
+let pinnedPlaybackBase: string | null = null;
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -114,6 +118,18 @@ function mediaServerHint(): string {
   );
 }
 
+async function pinPlaybackServer(): Promise<string> {
+  if (pinnedPlaybackBase) {
+    return pinnedPlaybackBase;
+  }
+  pinnedPlaybackBase = await warmMediaServer();
+  return pinnedPlaybackBase;
+}
+
+function resolvePlaybackStreamUrl(streamPath: string): string {
+  return resolveStreamUrl(streamPath, pinnedPlaybackBase ?? getApiBaseUrl());
+}
+
 async function assertPlaybackCapable(): Promise<void> {
   let status;
   try {
@@ -181,28 +197,41 @@ async function pollPrepareUntilReady(
   quality?: MediaQuality,
 ): Promise<{streamPath: string; quality?: string}> {
   const preset = normalizeQuality(type, quality);
-  for (let attempt = 0; attempt < 90; attempt += 1) {
-    const status = await mediaApi.prepare(videoId, type, preset);
-    if (!status.success || !status.data) {
-      throw new Error(status.message || 'Could not prepare media');
-    }
+  const deadline = Date.now() + PREPARE_POLL_DEADLINE_MS;
+  let attempt = 0;
 
-    const {data} = status;
-    if (data.status === 'FAILED') {
-      const msg = data.message || 'Media prepare failed on server';
-      throw new Error(isYoutubeBlockedMessage(msg) ? `${msg}\n\n${mediaServerHint()}` : msg);
-    }
+  while (Date.now() < deadline) {
+    try {
+      const status = await mediaApi.prepare(videoId, type, preset);
+      if (!status.success || !status.data) {
+        throw new Error(status.message || 'Could not prepare media');
+      }
 
-    if (data.status === 'PREPARING') {
-      onStatus?.(data.message || 'Buffering…');
-    }
+      const {data} = status;
+      if (data.status === 'FAILED') {
+        const msg = data.message || 'Media prepare failed on server';
+        throw new Error(isYoutubeBlockedMessage(msg) ? `${msg}\n\n${mediaServerHint()}` : msg);
+      }
 
-    if (data.status === 'READY' && data.streamUrl && isPlayablePath(data.streamUrl)) {
-      putSessionStream(videoId, type, data.streamUrl, preset, data.quality);
-      return {streamPath: data.streamUrl, quality: data.quality};
+      if (data.status === 'PREPARING') {
+        onStatus?.(data.message || 'Buffering…');
+      }
+
+      if (data.status === 'READY' && data.streamUrl && isPlayablePath(data.streamUrl)) {
+        putSessionStream(videoId, type, data.streamUrl, preset, data.quality);
+        return {streamPath: data.streamUrl, quality: data.quality};
+      }
+    } catch (error) {
+      if (!isRecoverableRequestError(error)) {
+        throw error;
+      }
+      onStatus?.('Server waking up… retrying');
+      await sleep(2000);
+      continue;
     }
 
     await sleep(pollDelay(attempt));
+    attempt += 1;
   }
 
   throw new Error(`Stream took too long to start.\n\n${mediaServerHint()}`);
@@ -234,7 +263,7 @@ export async function prepareAndStartPlayback(
   prefetchMediaPrepare(item.videoId, type, preset);
 
   try {
-    await warmMediaServer();
+    await pinPlaybackServer();
     if (!isLanBackend()) {
       await assertPlaybackCapable();
     }
@@ -245,7 +274,7 @@ export async function prepareAndStartPlayback(
 
   const instant = resolveReadyStream(item.videoId, type, preset);
   if (instant) {
-    const streamUrl = resolveStreamUrl(instant.streamPath);
+    const streamUrl = resolvePlaybackStreamUrl(instant.streamPath);
     const media: PlayableMedia = {
       ...mediaBase,
       streamUrl,
@@ -269,7 +298,7 @@ export async function prepareAndStartPlayback(
       item,
       preset,
     );
-    const streamUrl = resolveStreamUrl(streamPath);
+    const streamUrl = resolvePlaybackStreamUrl(streamPath);
     const media: PlayableMedia = {
       ...mediaBase,
       streamUrl,

@@ -15,7 +15,7 @@ export const mediaApi = {
     httpRequest<MediaSearchResult[]>(
       `/api/media/search?q=${encodeURIComponent(q)}&limit=15`,
       signal ? {signal} : {},
-      isProductionMode() ? 120000 : 30000,
+      isProductionMode() ? 180000 : 30000,
     ),
 
   status: () => httpRequest<MediaDiagnostics>('/api/media/status'),

@@ -7,7 +7,9 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 
 import java.io.BufferedReader;
+import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -211,8 +213,23 @@ public class YtDlpService {
             Thread drain = new Thread(() -> readOutput(process, errOut));
             drain.start();
 
+            long[] bytesWritten = {0};
+            OutputStream guarded = new FilterOutputStream(outputStream) {
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    bytesWritten[0] += len;
+                    super.write(b, off, len);
+                }
+
+                @Override
+                public void write(int b) throws IOException {
+                    bytesWritten[0] += 1;
+                    super.write(b);
+                }
+            };
+
             try (var in = process.getInputStream()) {
-                in.transferTo(outputStream);
+                in.transferTo(guarded);
             }
 
             if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
@@ -225,6 +242,10 @@ public class YtDlpService {
                 return;
             }
             lastOutput = errOut.toString();
+            if (bytesWritten[0] > 0) {
+                throw new IllegalStateException(
+                        friendlyError(lastOutput.isBlank() ? "Stream failed after partial output" : lastOutput));
+            }
             if (isBotBlock(lastOutput)) {
                 log.debug("Pipe bot block with profile {}", profile);
                 continue;

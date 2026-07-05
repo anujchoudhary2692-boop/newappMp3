@@ -60,10 +60,6 @@ public class MediaCacheService {
         String preset = MediaQualityPresets.normalize(type, quality);
         String key = jobKey(videoId, type, preset);
 
-        if (renderHost && !ytDlpService.hasCookies()) {
-            return failedDto(videoId, type, cloudCookiesRequiredMessage());
-        }
-
         try {
             Path cached = mediaService.cachePathFor(videoId, type);
             if (Files.exists(cached) && Files.size(cached) > 0
@@ -72,6 +68,10 @@ public class MediaCacheService {
             }
         } catch (Exception e) {
             log.debug("Cache check failed for {} {}: {}", videoId, type, e.getMessage());
+        }
+
+        if (renderHost && !ytDlpService.hasCookies()) {
+            return failedDto(videoId, type, cloudCookiesRequiredMessage());
         }
 
         PrepareStatusDto existing = jobs.get(key);
@@ -124,6 +124,12 @@ public class MediaCacheService {
 
     private void runPrepare(String key, String videoId, MediaType type, String qualityPreset) {
         try {
+            if (renderHost && ytDlpService.hasCookies()) {
+                mediaService.warmCacheAsync(videoId, type);
+                jobs.put(key, readyProxyDto(videoId, type, qualityPreset));
+                return;
+            }
+
             try {
                 String directUrl = mediaService.resolveDirectUrlFastForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);

@@ -62,7 +62,10 @@ public final class MediaQualityPresets {
             case "1080" -> 1080;
             default -> 720;
         };
-        return "18/best[height<=" + height + "][ext=mp4][vcodec^=avc1]/best[height<="
+        if (height <= 360) {
+            return "18/best[height<=360][ext=mp4][vcodec^=avc1]/best[height<=360][ext=mp4]/best[ext=mp4]/best";
+        }
+        return "best[height<=" + height + "][ext=mp4][vcodec^=avc1]/best[height<="
                 + height + "][ext=mp4]/best[ext=mp4]/best";
     }
 
