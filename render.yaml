@@ -19,5 +19,11 @@ services:
         value: "false"
       - key: JAVA_OPTS
         value: "-Xmx512m -XX:+UseG1GC"
+      - key: RENDER
+        value: "true"
+      - key: DIRECT_URL_TIMEOUT_SECONDS
+        value: "90"
+      - key: PREPARE_MAX_CONCURRENT
+        value: "2"
       - key: YOUTUBE_COOKIES_BASE64
         sync: false

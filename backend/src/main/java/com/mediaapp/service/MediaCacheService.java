@@ -3,6 +3,8 @@ package com.mediaapp.service;
 import com.mediaapp.dto.PrepareStatusDto;
 import com.mediaapp.model.MediaType;
 import com.mediaapp.util.MediaQualityPresets;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,15 +25,32 @@ public class MediaCacheService {
 
     private final MediaService mediaService;
     private final YtDlpService ytDlpService;
-    private final ExecutorService executor = Executors.newCachedThreadPool();
     private final Map<String, PrepareStatusDto> jobs = new ConcurrentHashMap<>();
     private final Map<String, Long> jobStartedAt = new ConcurrentHashMap<>();
+    private ExecutorService executor;
 
     @Value("${app.media.prepare-timeout-seconds:180}")
     private long prepareTimeoutSeconds;
 
+    @Value("${app.media.prepare-max-concurrent:4}")
+    private int prepareMaxConcurrent;
+
     @Value("${RENDER:false}")
     private boolean renderHost;
+
+    @PostConstruct
+    void initExecutor() {
+        int threads = Math.max(1, prepareMaxConcurrent);
+        executor = Executors.newFixedThreadPool(threads);
+        log.info("Prepare executor: {} concurrent job(s)", threads);
+    }
+
+    @PreDestroy
+    void shutdownExecutor() {
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+    }
 
     public PrepareStatusDto prepare(String videoId, MediaType type) {
         return prepare(videoId, type, null);

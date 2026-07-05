@@ -62,6 +62,9 @@ public class FaceAiEngine {
     @Value("${app.face.min-face-size-side:48}")
     private int minFaceSizeSide;
 
+    @Value("${app.features.face-ai:true}")
+    private boolean faceAiEnabled;
+
     private FaceDetectorYN standardDetector;
     private FaceDetectorYN sensitiveDetector;
     private FaceRecognizerSF recognizer;
@@ -74,6 +77,12 @@ public class FaceAiEngine {
 
     @PostConstruct
     public void init() {
+        if (!faceAiEnabled) {
+            ready = false;
+            statusMessage = "Face AI disabled on this server";
+            log.info("Face AI engine skipped (app.features.face-ai=false)");
+            return;
+        }
         try {
             OpenCV.loadLocally();
             Files.createDirectories(modelsDir);

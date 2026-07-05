@@ -1,4 +1,5 @@
 import {ensureMediaServer} from '../core/api/httpClient';
+import {isProductionMode} from '../config';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaSearchResult} from '../features/media/domain/types';
 import {defaultQuality} from '../features/media/domain/qualityPresets';
@@ -147,7 +148,7 @@ export function prefetchMediaPrepare(
 /** Warm server and prefetch top search hits while the list is visible. */
 export function prefetchSearchResults(
   items: MediaSearchResult[],
-  limit = 8,
+  limit = isProductionMode() ? 2 : 8,
 ): void {
   if (items.length === 0) {
     return;

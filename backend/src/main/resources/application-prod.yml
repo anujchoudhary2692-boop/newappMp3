@@ -18,6 +18,15 @@ app:
   security:
     api-key: ${API_KEY:}
     require-api-key: ${REQUIRE_API_KEY:false}
+  features:
+    face-ai: false
+    face-library-scan: false
+    camera-capture: false
+    camera-geotag: false
+  discovery:
+    bonjour-enabled: false
   media:
     prepare-timeout-seconds: ${PREPARE_TIMEOUT_SECONDS:240}
     yt-dlp-timeout-seconds: ${YT_DLP_TIMEOUT_SECONDS:480}
+    direct-url-timeout-seconds: ${DIRECT_URL_TIMEOUT_SECONDS:90}
+    prepare-max-concurrent: ${PREPARE_MAX_CONCURRENT:2}

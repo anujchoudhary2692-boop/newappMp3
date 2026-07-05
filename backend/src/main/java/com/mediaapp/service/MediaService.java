@@ -273,7 +273,9 @@ public class MediaService {
                     ? YtDlpService.MediaTypeArg.AUDIO
                     : YtDlpService.MediaTypeArg.VIDEO;
             int timeout = fast
-                    ? Math.min(directUrlTimeoutSeconds, 20)
+                    ? (renderHost
+                            ? Math.min(directUrlTimeoutSeconds, 35)
+                            : Math.min(directUrlTimeoutSeconds, 20))
                     : directUrlTimeoutSeconds;
             String format = type == MediaType.AUDIO
                     ? MediaQualityPresets.ytDlpAudioFormat(qualityPreset)
