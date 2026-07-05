@@ -1,10 +1,21 @@
-# Render.com deploy — builds Spring Boot backend from ./backend
+# Stage 1 — React web app (same-origin API via relative /api paths)
+FROM node:20-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json* ./
+RUN npm install
+COPY web/ .
+ENV VITE_API_URL=
+RUN npm run build
+
+# Stage 2 — Spring Boot backend + embedded SPA
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /build
 COPY backend/pom.xml .
 COPY backend/src ./src
+COPY --from=web /web/dist ./src/main/resources/static/
 RUN mvn -q package -DskipTests
 
+# Stage 3 — runtime
 FROM eclipse-temurin:17-jre-jammy
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg python3 ca-certificates curl \

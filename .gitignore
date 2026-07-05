@@ -17,6 +17,11 @@ cookies.b64.txt
 # Backend
 backend/target/
 backend/storage/
+backend/src/main/resources/static/
+
+# Web
+web/node_modules/
+web/dist/
 
 # Mobile
 mobile/node_modules/
@@ -30,3 +35,4 @@ mobile/android/app/*.keystore
 *.jks
 backend.log
 .backend.pid
+web/tsconfig.tsbuildinfo

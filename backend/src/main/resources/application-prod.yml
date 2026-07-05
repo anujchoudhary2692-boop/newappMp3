@@ -2,6 +2,9 @@ server:
   port: ${PORT:8080}
 
 spring:
+  web:
+    resources:
+      add-mappings: false
   data:
     mongodb:
       uri: ${MONGODB_URI}
