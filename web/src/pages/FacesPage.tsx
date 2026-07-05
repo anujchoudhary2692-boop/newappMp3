@@ -2,6 +2,13 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {Link} from 'react-router-dom';
 import {api, resolveUrl} from '../api/client';
 import type {Person, PersonTimelineEntry} from '../types/media';
+import {
+  downloadTraceExport,
+  isFaceAlertsEnabled,
+  notifyPersonSighted,
+  requestNotificationPermission,
+  setFaceAlertsEnabled,
+} from '../utils/faceAlerts';
 
 type Tab = 'people' | 'register' | 'identify' | 'alerts' | 'trace';
 
@@ -35,6 +42,7 @@ export function FacesPage() {
   const [timeline, setTimeline] = useState<PersonTimelineEntry[]>([]);
   const [liveActive, setLiveActive] = useState(false);
   const [liveResult, setLiveResult] = useState('');
+  const [alertsOn, setAlertsOn] = useState(isFaceAlertsEnabled());
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const liveTimerRef = useRef<number | null>(null);
@@ -111,6 +119,7 @@ export function FacesPage() {
         const conf = d.confidence ?? 0;
         const text = `${d.personName} (${Math.round(conf <= 1 ? conf * 100 : conf)}%)`;
         setResult(text);
+        void notifyPersonSighted(d.personName, conf <= 1 ? conf * 100 : conf);
         alert(`Match found: ${text}`);
       } else if (d.personName) {
         setResult(`${d.personName} (${Math.round(d.confidence ?? 0)}%)`);
@@ -155,8 +164,10 @@ export function FacesPage() {
           try {
             const res = await api.identifyFace(form);
             if (res.data.matched && res.data.personName) {
-              const text = `${res.data.personName} · ${Math.round(res.data.confidence ?? 0)}%`;
+              const conf = res.data.confidence ?? 0;
+              const text = `${res.data.personName} · ${Math.round(conf)}%`;
               setLiveResult(text);
+              void notifyPersonSighted(res.data.personName, conf);
             }
           } catch {
             // ignore
@@ -203,6 +214,22 @@ export function FacesPage() {
       <p style={{color: 'var(--muted)', fontSize: 14, marginBottom: 16}}>
         Find people across camera, videos, and your database.
       </p>
+
+      <div style={{display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap'}}>
+        <label style={{display: 'flex', gap: 8, alignItems: 'center', fontSize: 14}}>
+          <input
+            type="checkbox"
+            checked={alertsOn}
+            onChange={e => {
+              const on = e.target.checked;
+              setAlertsOn(on);
+              setFaceAlertsEnabled(on);
+              if (on) void requestNotificationPermission();
+            }}
+          />
+          Sighting alerts
+        </label>
+      </div>
 
       {ready === false && (
         <p style={{color: 'var(--danger)', marginBottom: 16}}>{msg || 'Face AI unavailable.'}</p>
@@ -314,6 +341,17 @@ export function FacesPage() {
       {tab === 'trace' && tracePerson && (
         <>
           <h2 style={{fontSize: 18, marginBottom: 12}}>{tracePerson.name} — timeline</h2>
+          <div style={{display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap'}}>
+            <button className="btn btn-ghost" onClick={() => downloadTraceExport(tracePerson.id, 'csv')}>
+              Export CSV
+            </button>
+            <button className="btn btn-ghost" onClick={() => downloadTraceExport(tracePerson.id, 'json')}>
+              Export JSON
+            </button>
+            <button className="btn btn-ghost" onClick={() => downloadTraceExport(tracePerson.id, 'geojson')}>
+              Export map (GeoJSON)
+            </button>
+          </div>
           {Object.keys(groupedTimeline).length === 0 ? (
             <p className="empty">No sightings yet. Use camera or scan library from the mobile app.</p>
           ) : (

@@ -39,6 +39,7 @@ public class FaceRecognitionService {
     private final PersonPhotoRepository personPhotoRepository;
     private final Path facesPath;
     private final FaceAiEngine faceAiEngine;
+    private final FaceAlertService faceAlertService;
 
     public FaceStatusDto getStatus() {
         long count = 0;
@@ -516,7 +517,9 @@ public class FaceRecognitionService {
                     .locationLabel(ctx.getLocationLabel());
         }
 
-        return personPhotoRepository.save(builder.build());
+        PersonPhoto saved = personPhotoRepository.save(builder.build());
+        faceAlertService.recordMatch(person, saved);
+        return saved;
     }
 
     private void requireEngineReady() {

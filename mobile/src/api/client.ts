@@ -63,6 +63,7 @@ export const api = {
   getRecentAlerts: faceApi.getRecentAlerts,
   scanCapture: faceApi.scanCapture,
   scanMediaVideo: faceApi.scanMediaVideo,
+  getAuditLog: faceApi.getAuditLog,
 
   getCaptures: captureApi.list,
   getCapture: captureApi.get,

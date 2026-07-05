@@ -22,6 +22,7 @@ import {FaceStackParamList} from '../../navigation/types';
 import {ScanMode, ScanProgress, scanPersonLibrary} from '../../utils/libraryScanner';
 import {formatVideoTimestamp} from '../../utils/videoFrames';
 import {useLayoutMetrics} from '../../utils/layout';
+import {notifyPersonSighted} from '../../utils/faceAlerts';
 
 type Props = NativeStackScreenProps<FaceStackParamList, 'PersonPhotos'>;
 
@@ -110,7 +111,7 @@ export function PersonPhotosScreen({route}: Props) {
         knownDeviceIds: knownIdsRef.current,
         onProgress: setScanProgress,
         onMatch: match => {
-          Alert.alert('Match found', `${personName} detected (${Math.round(match.confidence)}%)`);
+          void notifyPersonSighted(personName, match.confidence);
         },
       });
 

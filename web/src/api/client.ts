@@ -100,6 +100,8 @@ export const api = {
     request<PersonTimelineEntry[]>(`/api/faces/person/${personId}/timeline?limit=${limit}`),
   recentFaceAlerts: (limit = 50) =>
     request<PersonTimelineEntry[]>(`/api/faces/alerts/recent?limit=${limit}`),
+  auditLog: (limit = 100) =>
+    request<PersonTimelineEntry[]>(`/api/faces/audit/recent?limit=${limit}`),
   scanCaptureFaces: (captureId: string) =>
     request<{captureId: string; scanStatus: string; matchCount: number; message?: string}>(
       `/api/faces/scan-capture/${captureId}`,

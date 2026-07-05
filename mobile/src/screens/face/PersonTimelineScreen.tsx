@@ -1,15 +1,5 @@
 import React, {useCallback, useMemo, useState} from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Linking,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import {ActivityIndicator, Alert, FlatList, Image, Linking, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useFocusEffect} from '@react-navigation/native';
@@ -20,6 +10,7 @@ import {FaceStackParamList} from '../../navigation/types';
 import {formatVideoTimestamp} from '../../utils/videoFrames';
 import {useLayoutMetrics} from '../../utils/layout';
 import {getApiBaseUrl} from '../../config';
+import {clearUnreadAlerts, openTraceExport} from '../../utils/faceAlerts';
 
 type Props = NativeStackScreenProps<FaceStackParamList, 'PersonTimeline'>;
 
@@ -68,6 +59,7 @@ export function PersonTimelineScreen({route, navigation}: Props) {
   useFocusEffect(
     useCallback(() => {
       void load();
+      void clearUnreadAlerts();
     }, [load]),
   );
 
@@ -97,6 +89,17 @@ export function PersonTimelineScreen({route, navigation}: Props) {
         showBack
         accentColor={COLORS.face}
       />
+      <View style={{flexDirection: 'row', paddingHorizontal: layout.hPad, gap: 8, marginBottom: 8}}>
+        <TouchableOpacity style={styles.exportBtn} onPress={() => void openTraceExport(personId, 'csv')}>
+          <Text style={styles.exportText}>Export CSV</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.exportBtn} onPress={() => void openTraceExport(personId, 'json')}>
+          <Text style={styles.exportText}>JSON</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.exportBtn} onPress={() => void openTraceExport(personId, 'geojson')}>
+          <Text style={styles.exportText}>Map</Text>
+        </TouchableOpacity>
+      </View>
       {loading ? (
         <ActivityIndicator color={COLORS.face} style={{marginTop: 32}} />
       ) : (
@@ -174,4 +177,12 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   fabText: {color: '#fff', fontWeight: '700'},
+  exportBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface2,
+    alignItems: 'center',
+  },
+  exportText: {color: COLORS.face, fontWeight: '700', fontSize: 12},
 });

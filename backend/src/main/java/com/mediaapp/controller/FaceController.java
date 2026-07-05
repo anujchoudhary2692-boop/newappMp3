@@ -11,6 +11,8 @@ import com.mediaapp.dto.PersonPhotoDto;
 import com.mediaapp.dto.UpdatePersonRequest;
 import com.mediaapp.service.FaceRecognitionService;
 import com.mediaapp.service.FaceScanService;
+import com.mediaapp.service.FaceAlertService;
+import com.mediaapp.service.TraceExportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/faces")
@@ -27,6 +30,8 @@ public class FaceController {
 
     private final FaceRecognitionService faceRecognitionService;
     private final FaceScanService faceScanService;
+    private final FaceAlertService faceAlertService;
+    private final TraceExportService traceExportService;
 
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<com.mediaapp.dto.FaceStatusDto>> status() {
@@ -183,6 +188,47 @@ public class FaceController {
         try {
             faceScanService.queueMediaVideoScan(videoId, videoId);
             return ResponseEntity.ok(ApiResponse.ok("Media face scan queued", videoId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/person/{personId}/timeline/export")
+    public ResponseEntity<byte[]> exportTimeline(
+            @PathVariable String personId,
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam(defaultValue = "500") int limit) {
+        try {
+            String personName = faceRecognitionService.listPersons().stream()
+                    .filter(p -> personId.equals(p.getId()))
+                    .map(PersonDto::getName)
+                    .findFirst()
+                    .orElse("person");
+            String safeName = personName.replaceAll("[^a-zA-Z0-9._-]", "_");
+            return switch (format.toLowerCase(Locale.ROOT)) {
+                case "json" -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeName + "_trace.json\"")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(traceExportService.exportPersonJson(personId, limit).getBytes());
+                case "geojson" -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeName + "_trace.geojson\"")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(traceExportService.exportPersonGeoJson(personId, limit).getBytes());
+                default -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeName + "_trace.csv\"")
+                        .contentType(new MediaType("text", "csv"))
+                        .body(traceExportService.exportPersonCsv(personId, limit).getBytes());
+            };
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage().getBytes());
+        }
+    }
+
+    @GetMapping("/audit/recent")
+    public ResponseEntity<ApiResponse<List<PersonTimelineEntryDto>>> auditRecent(
+            @RequestParam(defaultValue = "100") int limit) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceAlertService.recentAudit(limit)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

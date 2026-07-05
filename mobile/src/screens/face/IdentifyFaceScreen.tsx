@@ -24,6 +24,7 @@ import {COLORS, SPACING} from '../../config';
 import {FaceStackParamList} from '../../navigation/types';
 import {useLayoutMetrics} from '../../utils/layout';
 import {connectionErrorHint} from '../../utils/serverConnection';
+import {notifyPersonSighted} from '../../utils/faceAlerts';
 
 type Nav = NativeStackNavigationProp<FaceStackParamList>;
 
@@ -52,6 +53,7 @@ export function IdentifyFaceScreen() {
       if (response.success) {
         setResult(response.data);
         if (response.data.matched && response.data.personName) {
+          void notifyPersonSighted(response.data.personName, response.data.confidence);
           Alert.alert(
             'Match found',
             `${response.data.personName} (${Math.round(response.data.confidence)}% confidence)`,

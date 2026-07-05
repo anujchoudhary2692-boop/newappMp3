@@ -19,6 +19,10 @@ import {openGuide, goToCameraTab, goToFacesTab, goToMediaTab} from '../navigatio
 import {useLayoutMetrics} from '../utils/layout';
 import {useFeatureFlags} from '../core/features/FeatureFlagsProvider';
 import {formatBytes, getLocalStorageStats} from '../utils/localMediaStore';
+import {
+  isFaceAlertsEnabled,
+  setFaceAlertsEnabled,
+} from '../utils/faceAlerts';
 
 export function SettingsScreen() {
   const layout = useLayoutMetrics(false);
@@ -30,6 +34,7 @@ export function SettingsScreen() {
   const [deviceStorage, setDeviceStorage] = useState<{fileCount: number; totalBytes: number} | null>(null);
   const {flags: featureFlags, loaded: featuresLoaded} = useFeatureFlags();
   const [retrying, setRetrying] = useState(false);
+  const [faceAlerts, setFaceAlerts] = useState(true);
 
   const featureLabels: Record<string, string> = {
     mediaSearch: 'Media search',
@@ -81,6 +86,7 @@ export function SettingsScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshServer();
+      void isFaceAlertsEnabled().then(setFaceAlerts);
     }, [refreshServer]),
   );
 
@@ -207,6 +213,21 @@ export function SettingsScreen() {
             </View>
           </>
         ) : null}
+
+        {/* Face tracing */}
+        <Text style={[styles.sectionTitle, {color: colors.text, marginTop: SPACING.lg}]}>Face tracing</Text>
+        <TouchableOpacity
+          style={[styles.toggleRow, {borderColor: colors.border}]}
+          onPress={() => {
+            const next = !faceAlerts;
+            setFaceAlerts(next);
+            void setFaceAlertsEnabled(next);
+          }}>
+          <Text style={{color: colors.text, flex: 1}}>Sighting alerts (vibrate + popup)</Text>
+          <Text style={{color: faceAlerts ? colors.face : colors.textMuted, fontWeight: '700'}}>
+            {faceAlerts ? 'On' : 'Off'}
+          </Text>
+        </TouchableOpacity>
 
         {/* Shortcuts */}
         <Text style={[styles.sectionTitle, {color: colors.text, marginTop: SPACING.lg}]}>Shortcuts</Text>
@@ -372,4 +393,13 @@ const styles = StyleSheet.create({
   themeName: {flex: 1, fontWeight: '700'},
   dots: {flexDirection: 'row', gap: 6},
   dot: {width: 10, height: 10, borderRadius: 5},
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.md,
+    borderRadius: ENTERPRISE.radius.md,
+    borderWidth: 1,
+    backgroundColor: ENTERPRISE.cardBg,
+    marginBottom: SPACING.sm,
+  },
 });

@@ -105,4 +105,7 @@ export const faceApi = {
 
   scanMediaVideo: (videoId: string) =>
     httpRequest<string>(`/api/faces/scan-media/${videoId}`, {method: 'POST'}),
+
+  getAuditLog: (limit = 100) =>
+    httpRequest<import('../domain/types').PersonTimelineEntry[]>(`/api/faces/audit/recent?limit=${limit}`),
 };

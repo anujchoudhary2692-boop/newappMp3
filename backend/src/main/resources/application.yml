@@ -25,6 +25,7 @@ app:
     min-face-size-register: 64
     min-face-size-identify: 36
     min-face-size-side: 48
+    alert-webhook-url: ${FACE_ALERT_WEBHOOK_URL:}
   media:
     yt-dlp-path: ${YT_DLP_PATH:yt-dlp}
     youtube-cookies-file: ${YOUTUBE_COOKIES_FILE:}

@@ -41,6 +41,7 @@ import {
   GeoLocation,
   resolveCaptureLocation,
 } from '../../utils/location';
+import {notifyPersonSighted} from '../../utils/faceAlerts';
 
 type Nav = NativeStackNavigationProp<CameraStackParamList>;
 type CaptureMode = 'photo' | 'video';
@@ -156,10 +157,7 @@ export function CameraScreen() {
           const res = await api.identifyFace(uri);
           if (res.success && res.data.matched && res.data.personName) {
             setLiveMatch({name: res.data.personName, confidence: res.data.confidence});
-            Alert.alert(
-              'Person detected',
-              `${res.data.personName} (${Math.round(res.data.confidence)}% confidence)`,
-            );
+            void notifyPersonSighted(res.data.personName, res.data.confidence, address?.shortLabel);
           }
         } catch {
           // ignore background scan errors
@@ -289,7 +287,7 @@ export function CameraScreen() {
       try {
         const res = await api.identifyFace(`file://${path}`);
         if (res.success && res.data.matched && res.data.personName) {
-          Alert.alert('Face match', `${res.data.personName} detected — saved to cloud trace`);
+          void notifyPersonSighted(res.data.personName, res.data.confidence, address?.shortLabel);
         }
       } catch {
         // face scan optional

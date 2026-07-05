@@ -2,6 +2,11 @@ import {useCallback, useEffect, useState} from 'react';
 import {getApiBaseLabel} from '../config';
 import {api} from '../api/client';
 import type {MediaDiagnostics} from '../types/media';
+import {
+  isFaceAlertsEnabled,
+  requestNotificationPermission,
+  setFaceAlertsEnabled,
+} from '../utils/faceAlerts';
 
 const API_KEY = 'mediaface:apiKey';
 const API_URL = 'mediaface:apiUrl';
@@ -12,6 +17,7 @@ export function SettingsPage() {
   const [features, setFeatures] = useState<Record<string, boolean> | null>(null);
   const [customUrl, setCustomUrl] = useState(localStorage.getItem(API_URL) || '');
   const [customKey, setCustomKey] = useState(localStorage.getItem(API_KEY) || '');
+  const [alertsOn, setAlertsOn] = useState(isFaceAlertsEnabled());
 
   const refresh = useCallback(async () => {
     setHealth('checking…');
@@ -115,6 +121,26 @@ export function SettingsPage() {
         <button className="btn btn-primary" onClick={saveConnection}>
           Save & reload
         </button>
+      </section>
+
+      <section style={{marginBottom: 24}}>
+        <h2 className="section-title">Face tracing</h2>
+        <label style={{display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, marginBottom: 8}}>
+          <input
+            type="checkbox"
+            checked={alertsOn}
+            onChange={e => {
+              const on = e.target.checked;
+              setAlertsOn(on);
+              setFaceAlertsEnabled(on);
+              if (on) void requestNotificationPermission();
+            }}
+          />
+          Browser notifications when a registered person is sighted
+        </label>
+        <p style={{fontSize: 13, color: 'var(--muted)'}}>
+          Server webhook: set FACE_ALERT_WEBHOOK_URL on Render for Slack/Discord alerts.
+        </p>
       </section>
 
       <section>

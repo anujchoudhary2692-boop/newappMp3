@@ -8,6 +8,7 @@ import {COLORS, SPACING} from '../../config';
 import {FaceStackParamList} from '../../navigation/types';
 import {useLayoutMetrics} from '../../utils/layout';
 import {getApiBaseUrl} from '../../config';
+import {clearUnreadAlerts} from '../../utils/faceAlerts';
 
 type Nav = NativeStackNavigationProp<FaceStackParamList>;
 
@@ -34,6 +35,7 @@ export function AlertsFeedScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
+      void clearUnreadAlerts();
     }, [load]),
   );
 
