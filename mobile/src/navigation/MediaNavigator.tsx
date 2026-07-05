@@ -7,6 +7,8 @@ import {EnterpriseHeader} from '../components/enterprise/EnterpriseHeader';
 import {SearchScreen} from '../screens/media/SearchScreen';
 import {LibraryScreen} from '../screens/media/LibraryScreen';
 import {DownloadsScreen} from '../screens/media/DownloadsScreen';
+import {PlaylistsScreen} from '../screens/media/PlaylistsScreen';
+import {FavoritesScreen} from '../screens/media/FavoritesScreen';
 import {PlayerScreen} from '../screens/media/PlayerScreen';
 import {MediaStackParamList} from './types';
 import {openGuide} from './navigationRef';
@@ -41,6 +43,8 @@ function MediaTabs() {
       }}>
       <TopTabs.Screen name="SearchTab" component={SearchScreen} options={{title: 'Search'}} />
       <TopTabs.Screen name="DownloadsTab" component={DownloadsScreen} options={{title: 'Downloads'}} />
+      <TopTabs.Screen name="PlaylistsTab" component={PlaylistsScreen} options={{title: 'Playlists'}} />
+      <TopTabs.Screen name="FavoritesTab" component={FavoritesScreen} options={{title: 'Favorites'}} />
       <TopTabs.Screen name="AudioTab" options={{title: 'Music'}}>
         {() => <LibraryScreen type="AUDIO" />}
       </TopTabs.Screen>

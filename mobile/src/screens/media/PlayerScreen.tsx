@@ -304,11 +304,22 @@ export function PlayerScreen({route, navigation}: Props) {
         return undefined;
       }
       const pb = playbackRef.current;
+      const isAudioTrack = mediaRef.current.type === 'AUDIO';
       pb.syncFromRoute(mediaRef.current, streamUrlRef.current);
       const handoffTime =
         pb.streamUrl === streamUrlRef.current && pb.engineActive
           ? pb.currentTime
           : 0;
+
+      if (isAudioTrack) {
+        if (!pb.engineActive) {
+          pb.activateEngine(handoffTime);
+        } else if (handoffTime > 0) {
+          pb.seekTo(handoffTime);
+        }
+        return undefined;
+      }
+
       resumeAtRef.current = handoffTime;
       pb.deactivateEngine();
       setPaused(false);
@@ -324,6 +335,16 @@ export function PlayerScreen({route, navigation}: Props) {
 
   useEffect(() => {
     if (!playable || !effectiveStreamUrl) {
+      return;
+    }
+
+    if (playable.type === 'AUDIO') {
+      if (routeStreamUrl.length > 0) {
+        playbackRef.current.syncFromRoute(toPlayableMedia(), effectiveStreamUrl);
+        if (!playbackRef.current.engineActive) {
+          playbackRef.current.activateEngine(0);
+        }
+      }
       return;
     }
 
@@ -355,7 +376,8 @@ export function PlayerScreen({route, navigation}: Props) {
 
   useEffect(() => {
     const isVideoTrack = playable?.type === 'VIDEO';
-    if (!playing || isVideoTrack) {
+    const shouldPulse = !isVideoTrack && !playback.paused;
+    if (!shouldPulse) {
       pulseAnim.setValue(1);
       return;
     }
@@ -367,7 +389,7 @@ export function PlayerScreen({route, navigation}: Props) {
     );
     loop.start();
     return () => loop.stop();
-  }, [playing, playable?.type, pulseAnim]);
+  }, [playable?.type, playback.paused, pulseAnim]);
 
   useEffect(() => {
     if (!isFullscreen && playing) {
@@ -494,6 +516,10 @@ export function PlayerScreen({route, navigation}: Props) {
   const isSearch = !!media;
   const isLandscape = layout.isLandscape;
   const accent = isVideo ? COLORS.video : COLORS.audio;
+  const uiPaused = isVideo ? paused : playback.paused;
+  const uiCurrentTime = isVideo ? currentTime : playback.currentTime;
+  const uiDuration = isVideo ? duration : playback.duration;
+  const uiBuffering = isVideo ? buffering : playback.buffering;
   const queueActive = playback.queueLength > 1;
   const queueLabel =
     queueActive
@@ -533,7 +559,7 @@ export function PlayerScreen({route, navigation}: Props) {
           onPress={playback.toggleRepeatQueue}
         />
       ) : null}
-      <FeatureChip icon="refresh" label="Restart" accent={accent} onPress={() => seekTo(0)} />
+      <FeatureChip icon="refresh" label="Restart" accent={accent} onPress={() => (isVideo ? seekTo(0) : playback.seekTo(0))} />
       {queueActive ? (
         <FeatureChip
           icon="list"
@@ -688,41 +714,20 @@ export function PlayerScreen({route, navigation}: Props) {
                   <Text style={styles.chipOutlineText}>{playable.quality}</Text>
                 </View>
               ) : null}
-              {buffering ? (
+              {uiBuffering ? (
                 <ActivityIndicator size="small" color={accent} />
               ) : (
-                <Text style={styles.playingHint}>{paused ? 'Paused' : 'Playing'}</Text>
+                <Text style={styles.playingHint}>{uiPaused ? 'Paused' : 'Playing'}</Text>
               )}
             </View>
             <View style={styles.glassCard}>
-              {streamReady && videoSource ? (
-              <Video
-                ref={videoRef}
-                key={streamKey}
-                source={videoSource}
-                style={styles.hiddenVideo}
-                paused={paused}
-                rate={playback.playbackRate}
-                controls={false}
-                {...videoProps}
-                onLoad={onLoad}
-                onProgress={onProgress}
-                onBuffer={({isBuffering}) => setBuffering(isBuffering)}
-                onError={e => {
-                  setError(true);
-                  setBuffering(false);
-                  console.warn('Player stream error', e);
-                }}
-                onEnd={handleTrackEnd}
-              />
-              ) : null}
               <PlayerControls
-                currentTime={currentTime}
-                duration={duration}
-                paused={paused}
-                onSeek={seekBy}
-                onSeekTo={seekTo}
-                onTogglePause={() => setPaused(p => !p)}
+                currentTime={uiCurrentTime}
+                duration={uiDuration}
+                paused={uiPaused}
+                onSeek={isVideo ? seekBy : playback.seekBy}
+                onSeekTo={isVideo ? seekTo : playback.seekTo}
+                onTogglePause={isVideo ? () => setPaused(p => !p) : playback.togglePause}
                 compact
                 embedded
                 accentColor={accent}

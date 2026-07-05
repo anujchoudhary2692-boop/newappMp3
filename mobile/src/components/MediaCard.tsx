@@ -26,6 +26,9 @@ interface MediaCardProps {
   onDelete?: () => void;
   onPress?: () => void;
   onPressIn?: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
+  onAddToPlaylist?: () => void;
   downloading?: 'AUDIO' | 'VIDEO' | null;
   downloadProgress?: number | null;
   playing?: 'AUDIO' | 'VIDEO' | null;
@@ -57,6 +60,9 @@ export function MediaCard({
   onDelete,
   onPress,
   onPressIn,
+  isFavorite,
+  onToggleFavorite,
+  onAddToPlaylist,
   downloading,
   downloadProgress,
   playing,
@@ -83,6 +89,20 @@ export function MediaCard({
             source={{uri: thumbnailUrl}}
             style={[styles.thumbnail, {width: layout.thumbSize, height: layout.thumbSize}]}
           />
+          {mode === 'search' && onToggleFavorite ? (
+            <TouchableOpacity style={styles.favBtn} onPress={onToggleFavorite} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+              <Icon
+                name={isFavorite ? 'heart' : 'heart-outline'}
+                size={18}
+                color={isFavorite ? COLORS.danger : '#fff'}
+              />
+            </TouchableOpacity>
+          ) : null}
+          {mode === 'search' && onAddToPlaylist ? (
+            <TouchableOpacity style={styles.plBtn} onPress={onAddToPlaylist} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+              <Icon name="add-circle-outline" size={18} color="#fff" />
+            </TouchableOpacity>
+          ) : null}
           {mode === 'library' && (
             <View style={[styles.typeDot, {backgroundColor: accent}]}>
               <Icon name={type === 'VIDEO' ? 'videocam' : 'musical-notes'} size={10} color={COLORS.text} />
@@ -262,6 +282,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: COLORS.surface,
+  },
+  favBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plBtn: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   info: {
     flex: 1,

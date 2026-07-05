@@ -2,6 +2,7 @@ import React, {useCallback, useState} from 'react';
 import {
   Alert,
   FlatList,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -28,6 +29,13 @@ import {prepareAndStartPlayback, showDownloadError} from '../../features/media/s
 import {downloadSearchItemToDevice} from '../../utils/localMediaStore';
 import {prefetchMediaPrepare, warmMediaServer} from '../../utils/mediaPrefetch';
 import {consumePendingSearchQuery} from '../../utils/searchIntent';
+import {listFavorites, toggleFavorite} from '../../utils/favoritesStore';
+import {
+  addTrackToPlaylist,
+  createPlaylist,
+  listPlaylists,
+  type Playlist,
+} from '../../utils/playlistStore';
 import {useLayoutMetrics} from '../../utils/layout';
 import {enterpriseStyles} from '../../theme/enterprise';
 
@@ -52,6 +60,14 @@ export function SearchScreen() {
   const [pickerItem, setPickerItem] = useState<MediaSearchResult | null>(null);
   const [pickerType, setPickerType] = useState<'AUDIO' | 'VIDEO'>('AUDIO');
   const [pickerAction, setPickerAction] = useState<QualityAction>('play');
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [playlistTarget, setPlaylistTarget] = useState<MediaSearchResult | null>(null);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+
+  const loadFavorites = useCallback(async () => {
+    const favs = await listFavorites();
+    setFavoriteIds(new Set(favs.map(f => f.id)));
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -59,7 +75,8 @@ export function SearchScreen() {
       if (pending) {
         setQuery(pending);
       }
-    }, [setQuery]),
+      loadFavorites();
+    }, [setQuery, loadFavorites]),
   );
 
   const openPicker = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', action: QualityAction) => {
@@ -139,6 +156,56 @@ export function SearchScreen() {
     }
   };
 
+  const handleToggleFavorite = async (item: MediaSearchResult) => {
+    const added = await toggleFavorite(item, 'AUDIO');
+    setFavoriteIds(prev => {
+      const next = new Set(prev);
+      const id = `AUDIO:${item.videoId}`;
+      if (added) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const openPlaylistPicker = async (item: MediaSearchResult) => {
+    setPlaylists(await listPlaylists());
+    setPlaylistTarget(item);
+  };
+
+  const addSearchToPlaylist = async (playlistId: string) => {
+    if (!playlistTarget) {
+      return;
+    }
+    await addTrackToPlaylist(playlistId, {
+      title: playlistTarget.title,
+      type: 'AUDIO',
+      thumbnailUrl: playlistTarget.thumbnailUrl,
+      sourceUrl: playlistTarget.sourceUrl,
+      videoId: playlistTarget.videoId,
+    });
+    setPlaylistTarget(null);
+    Alert.alert('Added', 'Saved to playlist');
+  };
+
+  const createPlaylistAndAdd = async () => {
+    if (!playlistTarget) {
+      return;
+    }
+    const pl = await createPlaylist(`Mix ${new Date().toLocaleDateString()}`);
+    await addTrackToPlaylist(pl.id, {
+      title: playlistTarget.title,
+      type: 'AUDIO',
+      thumbnailUrl: playlistTarget.thumbnailUrl,
+      sourceUrl: playlistTarget.sourceUrl,
+      videoId: playlistTarget.videoId,
+    });
+    setPlaylistTarget(null);
+    Alert.alert('Added', 'Saved to new playlist');
+  };
+
   return (
     <View style={enterpriseStyles.page}>
       <SearchBar
@@ -207,6 +274,9 @@ export function SearchScreen() {
             onPlayVideo={() => openPicker(item, 'VIDEO', 'play')}
             onDownloadAudio={() => openPicker(item, 'AUDIO', 'download')}
             onDownloadVideo={() => openPicker(item, 'VIDEO', 'download')}
+            isFavorite={favoriteIds.has(`AUDIO:${item.videoId}`)}
+            onToggleFavorite={() => handleToggleFavorite(item)}
+            onAddToPlaylist={() => openPlaylistPicker(item)}
           />
         )}
         contentContainerStyle={
@@ -224,6 +294,31 @@ export function SearchScreen() {
         onClose={() => setPickerItem(null)}
         onConfirm={handlePickerConfirm}
       />
+
+      <Modal visible={playlistTarget != null} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Add to playlist</Text>
+            <TouchableOpacity style={styles.newPlRow} onPress={createPlaylistAndAdd}>
+              <Icon name="add" size={20} color={COLORS.primary} />
+              <Text style={styles.newPlText}>Create new playlist</Text>
+            </TouchableOpacity>
+            <FlatList
+              data={playlists}
+              keyExtractor={p => p.id}
+              renderItem={({item: pl}) => (
+                <TouchableOpacity style={styles.plRow} onPress={() => addSearchToPlaylist(pl.id)}>
+                  <Text style={styles.plName}>{pl.name}</Text>
+                  <Text style={styles.plCount}>{pl.items.length} tracks</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity onPress={() => setPlaylistTarget(null)} style={styles.cancelBtn}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -246,4 +341,24 @@ const styles = StyleSheet.create({
   chipText: {color: '#E3E6E6', fontWeight: '700', fontSize: 13},
   list: {},
   emptyList: {flexGrow: 1},
+  modalBackdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end'},
+  modalSheet: {
+    backgroundColor: ENTERPRISE.cardBg,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    padding: SPACING.lg,
+    maxHeight: '60%',
+  },
+  modalTitle: {color: COLORS.text, fontSize: 18, fontWeight: '800', marginBottom: SPACING.md},
+  newPlRow: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: SPACING.md},
+  newPlText: {color: COLORS.primary, fontWeight: '700'},
+  plRow: {
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: ENTERPRISE.divider,
+  },
+  plName: {color: COLORS.text, fontWeight: '700'},
+  plCount: {color: COLORS.textMuted, fontSize: 12},
+  cancelBtn: {alignItems: 'center', paddingVertical: SPACING.md},
+  cancelText: {color: COLORS.textMuted, fontWeight: '700'},
 });

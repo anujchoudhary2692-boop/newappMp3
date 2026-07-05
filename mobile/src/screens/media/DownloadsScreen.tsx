@@ -26,6 +26,7 @@ import {
   localRecordToMediaItem,
 } from '../../utils/localMediaStore';
 import {shareLocalMediaFile} from '../../utils/shareMediaFile';
+import {importMediaFromFiles} from '../../utils/importMediaFile';
 import type {MediaItem} from '../../features/media/domain/types';
 import {useLayoutMetrics} from '../../utils/layout';
 
@@ -41,6 +42,7 @@ export function DownloadsScreen() {
   const [sort, setSort] = useState<Sort>('newest');
   const [query, setQuery] = useState('');
   const [stats, setStats] = useState({fileCount: 0, totalBytes: 0, audioCount: 0, videoCount: 0});
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,6 +118,21 @@ export function DownloadsScreen() {
     }
   };
 
+  const handleImport = async () => {
+    setImporting(true);
+    try {
+      const imported = await importMediaFromFiles();
+      if (imported.length > 0) {
+        Alert.alert('Imported', `${imported.length} file(s) added from Files`);
+        load();
+      }
+    } catch {
+      Alert.alert('Import failed', 'Could not import the selected files.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const filters: {id: Filter; label: string; count: number}[] = [
     {id: 'ALL', label: 'All', count: stats.fileCount},
     {id: 'AUDIO', label: 'Audio', count: stats.audioCount},
@@ -125,10 +142,18 @@ export function DownloadsScreen() {
   return (
     <View style={enterpriseStyles.page}>
       <View style={[styles.header, {paddingHorizontal: layout.hPad}]}>
-        <Text style={styles.headerTitle}>My Downloads</Text>
-        <Text style={styles.headerSub}>
-          {stats.fileCount} files · {formatBytes(stats.totalBytes)} · offline on this device
-        </Text>
+        <View style={styles.headerTopRow}>
+          <View style={styles.headerTitles}>
+            <Text style={styles.headerTitle}>My Downloads</Text>
+            <Text style={styles.headerSub}>
+              {stats.fileCount} files · {formatBytes(stats.totalBytes)} · offline on this device
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.importBtn} onPress={handleImport} disabled={importing}>
+            <Icon name="folder-open-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.importBtnText}>{importing ? '…' : 'Import'}</Text>
+          </TouchableOpacity>
+        </View>
         <TextInput
           style={styles.searchInput}
           placeholder="Search your files..."
@@ -166,7 +191,7 @@ export function DownloadsScreen() {
             <EmptyState
               icon="folder-open-outline"
               title="No downloads yet"
-              subtitle="Search any song or video, pick quality, and save to your phone"
+              subtitle="Search any song or video, pick quality, save to your phone, or import from Files"
               accentColor={COLORS.primary}
             />
           ) : null
@@ -204,6 +229,26 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: ENTERPRISE.divider,
   },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  headerTitles: {flex: 1},
+  importBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: 'rgba(255,153,0,0.1)',
+  },
+  importBtnText: {color: COLORS.primary, fontWeight: '800', fontSize: 12},
   headerTitle: {color: COLORS.text, fontSize: 22, fontWeight: '800'},
   headerSub: {color: COLORS.textMuted, fontSize: 13, marginTop: 4, marginBottom: SPACING.sm},
   searchInput: {
