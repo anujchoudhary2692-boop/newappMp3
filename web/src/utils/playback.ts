@@ -13,12 +13,13 @@ export async function pollPrepare(
   type: MediaType,
   quality: MediaQuality,
   onStatus?: (msg: string) => void,
+  sourceUrl?: string,
 ): Promise<string> {
   const deadline = Date.now() + 240000;
   let attempt = 0;
   while (Date.now() < deadline) {
     try {
-      const res = await api.prepare(videoId, type, quality);
+      const res = await api.prepare(videoId, type, quality, sourceUrl);
       const d = res.data;
       if (d.status === 'FAILED') throw new Error(d.message || 'Prepare failed');
       if (d.status === 'READY' && d.streamUrl) return d.streamUrl;
@@ -30,7 +31,7 @@ export async function pollPrepare(
     await sleep(attempt < 20 ? 250 : attempt < 35 ? 500 : 1000);
     attempt++;
   }
-  throw new Error('Stream took too long. Cloud may need fresh YouTube cookies on Render.');
+  throw new Error('Stream took too long. Try a SoundCloud/Web result or paste a direct link.');
 }
 
 export async function startPlayback(
@@ -40,8 +41,8 @@ export async function startPlayback(
   onStatus?: (msg: string) => void,
 ): Promise<{media: PlayableMedia; streamUrl: string}> {
   const preset = quality || defaultQuality(type);
-  void api.prepare(item.videoId, type, preset).catch(() => undefined);
-  const streamPath = await pollPrepare(item.videoId, type, preset, onStatus);
+  void api.prepare(item.videoId, type, preset, item.sourceUrl).catch(() => undefined);
+  const streamPath = await pollPrepare(item.videoId, type, preset, onStatus, item.sourceUrl);
   const streamUrl = resolveUrl(streamPath);
   const media: PlayableMedia = {
     title: item.title,

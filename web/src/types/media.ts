@@ -9,6 +9,7 @@ export interface MediaSearchResult {
   sourceUrl: string;
   audioFormat?: string;
   videoFormat?: string;
+  source?: string;
 }
 
 export interface PlayableMedia {

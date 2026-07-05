@@ -154,10 +154,11 @@ export async function waitForMediaReady(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
   onStatus?: (message?: string) => void,
-  _searchItem?: Pick<MediaSearchResult, 'audioStreamUrl' | 'videoStreamUrl'>,
+  _searchItem?: Pick<MediaSearchResult, 'audioStreamUrl' | 'videoStreamUrl' | 'sourceUrl'>,
   quality?: MediaQuality,
 ): Promise<{streamPath: string; quality?: string}> {
   const preset = normalizeQuality(type, quality);
+  const sourceUrl = _searchItem?.sourceUrl;
 
   const cachedSession = getSessionStream(videoId, type, preset);
   if (cachedSession) {
@@ -184,8 +185,8 @@ export async function waitForMediaReady(
   }
 
   onStatus?.('Starting stream…');
-  void mediaApi.prepare(videoId, type, preset).catch(() => undefined);
-  return pollPrepareUntilReady(videoId, type, onStatus, preset);
+  void mediaApi.prepare(videoId, type, preset, sourceUrl).catch(() => undefined);
+  return pollPrepareUntilReady(videoId, type, onStatus, preset, sourceUrl);
 }
 
 async function pollPrepareUntilReady(
@@ -193,6 +194,7 @@ async function pollPrepareUntilReady(
   type: 'AUDIO' | 'VIDEO',
   onStatus?: (message?: string) => void,
   quality?: MediaQuality,
+  sourceUrl?: string,
 ): Promise<{streamPath: string; quality?: string}> {
   const preset = normalizeQuality(type, quality);
   const deadline = Date.now() + PREPARE_POLL_DEADLINE_MS;
@@ -200,7 +202,7 @@ async function pollPrepareUntilReady(
 
   while (Date.now() < deadline) {
     try {
-      const status = await mediaApi.prepare(videoId, type, preset);
+      const status = await mediaApi.prepare(videoId, type, preset, sourceUrl);
       if (!status.success || !status.data) {
         throw new Error(status.message || 'Could not prepare media');
       }

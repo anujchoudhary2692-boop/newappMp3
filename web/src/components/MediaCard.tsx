@@ -28,7 +28,7 @@ export function MediaCard({
       <div className="card-body">
         <div className="card-title">{item.title}</div>
         <div className="card-sub">
-          {item.channel}
+          {item.source ? `${item.source} · ` : ''}{item.channel}
           {item.durationSeconds ? ` · ${formatDuration(item.durationSeconds)}` : ''}
         </div>
       </div>

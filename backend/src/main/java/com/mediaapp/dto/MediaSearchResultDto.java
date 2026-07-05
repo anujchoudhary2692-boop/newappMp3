@@ -20,4 +20,6 @@ public class MediaSearchResultDto {
     private String videoFormat;
     private String audioStreamUrl;
     private String videoStreamUrl;
+    /** e.g. Soundcloud, Web, Youtube */
+    private String source;
 }

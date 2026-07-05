@@ -24,9 +24,12 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -49,6 +52,8 @@ public class MediaService {
     private final Path downloadsPath;
     private final YtDlpService ytDlpService;
     private final SearchCacheService searchCacheService;
+    private final WebSearchService webSearchService;
+    private final MediaSourceRegistry mediaSourceRegistry;
 
     private final Map<String, Object> downloadLocks = new ConcurrentHashMap<>();
     private final Map<String, DirectUrlEntry> directUrlCache = new ConcurrentHashMap<>();
@@ -86,31 +91,33 @@ public class MediaService {
         int cappedLimit = Math.min(Math.max(limit, 1), 20);
         Optional<List<MediaSearchResultDto>> cached = searchCacheService.get(query, cappedLimit);
         if (cached.isPresent()) {
+            cached.get().forEach(r -> mediaSourceRegistry.registerIfAbsent(
+                    r.getVideoId(), r.getSourceUrl(), r.getSource() != null ? r.getSource() : "Web"));
             return cached.get();
         }
 
         try {
-            List<String> cmd = new ArrayList<>(List.of(
-                    ytDlpPath,
-                    "ytsearch" + cappedLimit + ":" + query.trim(),
-                    "--dump-json",
-                    "--skip-download",
-                    "--flat-playlist"
-            ));
-            YtDlpService.RunResult result = ytDlpService.runSearch(cmd, searchTimeoutSeconds);
-
             List<MediaSearchResultDto> results = new ArrayList<>();
-            for (String line : result.output().split("\n")) {
-                if (!line.isBlank()) {
-                    parseSearchLine(line).ifPresent(results::add);
-                }
+            Set<String> seenUrls = new LinkedHashSet<>();
+
+            mergeSearchResults(results, seenUrls, searchWithPrefix("scsearch", query, cappedLimit));
+            if (results.size() < cappedLimit) {
+                mergeSearchResults(
+                        results,
+                        seenUrls,
+                        webSearchService.searchMedia(query, cappedLimit - results.size()));
+            }
+            if (results.size() < cappedLimit && (!renderHost || ytDlpService.hasCookies())) {
+                mergeSearchResults(
+                        results,
+                        seenUrls,
+                        searchWithPrefix("ytsearch", query, cappedLimit - results.size()));
             }
 
-            if (result.exitCode() != 0 && results.isEmpty()) {
+            if (results.isEmpty()) {
                 throw new IllegalStateException(
-                        friendlyMediaError(result.tail(200).isBlank()
-                                ? "Search failed. Check yt-dlp and network."
-                                : result.tail(200)));
+                        "No playable results. Web/SoundCloud search returned nothing. "
+                                + "YouTube is blocked on cloud without cookies.");
             }
 
             List<MediaSearchResultDto> finalResults = results.stream()
@@ -119,6 +126,8 @@ public class MediaService {
                     .collect(Collectors.toList());
             searchCacheService.put(query, cappedLimit, finalResults);
             return finalResults;
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Search interrupted");
@@ -126,6 +135,51 @@ public class MediaService {
             log.error("Search failed", e);
             throw new IllegalStateException("Search failed. Install yt-dlp: brew install yt-dlp");
         }
+    }
+
+    private void mergeSearchResults(
+            List<MediaSearchResultDto> target,
+            Set<String> seenUrls,
+            List<MediaSearchResultDto> incoming) {
+        for (MediaSearchResultDto item : incoming) {
+            if (item.getSourceUrl() == null || seenUrls.add(item.getSourceUrl().toLowerCase(Locale.ROOT))) {
+                target.add(item);
+            }
+        }
+    }
+
+    private List<MediaSearchResultDto> searchWithPrefix(String prefix, String query, int limit)
+            throws IOException, InterruptedException {
+        if (limit <= 0) {
+            return List.of();
+        }
+        List<String> cmd = new ArrayList<>(List.of(
+                ytDlpPath,
+                prefix + limit + ":" + query.trim(),
+                "--dump-json",
+                "--skip-download",
+                "--flat-playlist"
+        ));
+        YtDlpService.RunResult result = ytDlpService.runSearch(cmd, searchTimeoutSeconds);
+
+        List<MediaSearchResultDto> results = new ArrayList<>();
+        for (String line : result.output().split("\n")) {
+            if (!line.isBlank()) {
+                parseSearchLine(line).ifPresent(results::add);
+            }
+        }
+
+        if (result.exitCode() != 0 && results.isEmpty()) {
+            log.debug("{} search returned no results for {}", prefix, query);
+        }
+        return results.stream().limit(limit).collect(Collectors.toList());
+    }
+
+    public void registerSource(String mediaId, String sourceUrl) {
+        if (mediaId == null || sourceUrl == null) {
+            return;
+        }
+        mediaSourceRegistry.registerIfAbsent(mediaId, sourceUrl, guessExtractor(sourceUrl));
     }
 
     private MediaSearchResultDto enrichWithStreamUrls(MediaSearchResultDto result) {
@@ -173,8 +227,8 @@ public class MediaService {
 
     public void writeStreamPipe(String videoId, MediaType type, java.io.OutputStream outputStream, String qualityPreset)
             throws IOException, InterruptedException {
-        requireCloudPlaybackAllowed();
-        pipeFromYtDlp(buildSourceUrl(videoId), type, outputStream, qualityPreset);
+        requireCloudPlaybackAllowed(resolveSourceUrl(videoId));
+        pipeFromYtDlp(resolveSourceUrl(videoId), type, outputStream, qualityPreset);
         warmCacheAsync(videoId, type);
     }
 
@@ -284,8 +338,8 @@ public class MediaService {
                     ? MediaQualityPresets.ytDlpAudioFormat(qualityPreset)
                     : MediaQualityPresets.ytDlpVideoFormat(qualityPreset);
             String url = fast
-                    ? ytDlpService.resolveDirectUrlFast(buildSourceUrl(videoId), arg, timeout, format)
-                    : ytDlpService.resolveDirectUrl(buildSourceUrl(videoId), arg, timeout, format);
+                    ? ytDlpService.resolveDirectUrlFast(resolveSourceUrl(videoId), arg, timeout, format)
+                    : ytDlpService.resolveDirectUrl(resolveSourceUrl(videoId), arg, timeout, format);
 
             directUrlCache.put(key, new DirectUrlEntry(url, Instant.now().plus(Duration.ofMinutes(45))));
             return url;
@@ -417,7 +471,7 @@ public class MediaService {
                     return cached;
                 }
             }
-            downloadToFile(buildSourceUrl(videoId), type, cached, true);
+            downloadToFile(resolveSourceUrl(videoId), type, cached, true);
             return cached;
         }
     }
@@ -426,10 +480,14 @@ public class MediaService {
         YtDlpService.RunResult result = ytDlpService.runWithFallbacks(
                 sourceUrl, List.of("-J"), 45);
         JsonNode node = objectMapper.readTree(result.output());
-        String videoId = node.path("id").asText();
+        String id = node.path("id").asText();
+        String extractor = node.path("extractor_key").asText("Web");
+        String mediaId = formatMediaId(extractor, id);
+        String webpageUrl = node.path("webpage_url").asText(sourceUrl);
+        mediaSourceRegistry.register(mediaId, webpageUrl, extractor);
 
         return StreamInfoDto.builder()
-                .videoId(videoId)
+                .videoId(mediaId)
                 .title(node.path("title").asText("Unknown"))
                 .sourceUrl(sourceUrl)
                 .audioFormat("M4A / MP3")
@@ -450,7 +508,11 @@ public class MediaService {
     }
 
     public MediaItem download(String videoId, String title, String sourceUrl, MediaType type, String qualityPreset) {
-        requireCloudPlaybackAllowed();
+        String effectiveSource = sourceUrl != null && !sourceUrl.isBlank()
+                ? sourceUrl
+                : resolveSourceUrl(videoId);
+        registerSource(videoId, effectiveSource);
+        requireCloudPlaybackAllowed(effectiveSource);
         String preset = MediaQualityPresets.normalize(type, qualityPreset);
         String lockKey = "dl:" + videoId + ":" + type + ":" + preset;
         Object lock = downloadLocks.computeIfAbsent(lockKey, k -> new Object());
@@ -463,11 +525,11 @@ public class MediaService {
                 Path targetDir = downloadsPath.resolve(type == MediaType.AUDIO ? "audio" : "video");
                 Files.createDirectories(targetDir);
                 String safeTitle = sanitize(title);
-                Path outputPath = downloadLibraryFile(sourceUrl, type, targetDir, safeTitle, videoId, preset);
+                Path outputPath = downloadLibraryFile(effectiveSource, type, targetDir, safeTitle, videoId, preset);
 
                 MediaItem item = MediaItem.builder()
                         .title(title)
-                        .sourceUrl(sourceUrl)
+                        .sourceUrl(effectiveSource)
                         .sourceId(videoId)
                         .type(type)
                         .fileName(outputPath.getFileName().toString())
@@ -654,14 +716,53 @@ public class MediaService {
         ytDlpService.runWithFallbacks(sourceUrl, new ArrayList<>(trailing), ytDlpTimeoutSeconds);
     }
 
-    private void requireCloudPlaybackAllowed() {
-        if (renderHost && !ytDlpService.hasCookies()) {
+    private void requireCloudPlaybackAllowed(String sourceUrl) {
+        if (renderHost && !ytDlpService.hasCookies() && isYouTubeUrl(sourceUrl)) {
             throw new IllegalStateException(
-                    "YouTube blocked cloud playback. Set YOUTUBE_COOKIES_BASE64 on Render, or use Mac backend on same Wi‑Fi.");
+                    "YouTube blocked on cloud. Use web/SoundCloud results, set YOUTUBE_COOKIES_BASE64, "
+                            + "or use Mac backend on same Wi‑Fi.");
         }
     }
 
-    private String buildSourceUrl(String videoId) {
+    public boolean isYouTubeMedia(String videoId) {
+        return isYouTubeUrl(resolveSourceUrl(videoId));
+    }
+
+    public boolean isYouTubeMedia(String videoId) {
+        return isYouTubeUrl(resolveSourceUrl(videoId));
+    }
+
+    private boolean isYouTubeUrl(String url) {
+        if (url == null) {
+            return true;
+        }
+        String lower = url.toLowerCase(Locale.ROOT);
+        return lower.contains("youtube.com") || lower.contains("youtu.be");
+    }
+
+    public String resolveSourceUrl(String videoId) {
+        return mediaSourceRegistry.getSourceUrl(videoId)
+                .orElseGet(() -> "https://www.youtube.com/watch?v=" + videoId);
+    }
+
+    private String guessExtractor(String sourceUrl) {
+        String lower = sourceUrl.toLowerCase(Locale.ROOT);
+        if (lower.contains("soundcloud.com")) {
+            return "Soundcloud";
+        }
+        if (lower.contains("archive.org")) {
+            return "Archive";
+        }
+        if (lower.contains("bandcamp.com")) {
+            return "Bandcamp";
+        }
+        if (isYouTubeUrl(sourceUrl)) {
+            return "Youtube";
+        }
+        return "Web";
+    }
+
+    private String buildYouTubeUrl(String videoId) {
         return "https://www.youtube.com/watch?v=" + videoId;
     }
 
@@ -672,13 +773,22 @@ public class MediaService {
             if (id == null || id.isBlank()) {
                 return Optional.empty();
             }
+            String extractor = node.path("extractor_key").asText("Youtube");
+            String webpageUrl = node.path("webpage_url").asText(null);
+            String sourceUrl = webpageUrl != null && !webpageUrl.isBlank()
+                    ? webpageUrl
+                    : buildYouTubeUrl(id);
+            String mediaId = "Youtube".equalsIgnoreCase(extractor) ? id : formatMediaId(extractor, id);
+            mediaSourceRegistry.register(mediaId, sourceUrl, extractor);
+
             return Optional.of(MediaSearchResultDto.builder()
-                    .videoId(id)
+                    .videoId(mediaId)
                     .title(node.path("title").asText("Unknown"))
                     .thumbnailUrl(resolveThumbnail(node))
                     .channel(node.path("uploader").asText(node.path("channel").asText("Unknown")))
                     .durationSeconds(node.path("duration").isNumber() ? node.path("duration").asInt() : null)
-                    .sourceUrl(buildSourceUrl(id))
+                    .sourceUrl(sourceUrl)
+                    .source(formatSourceLabel(extractor))
                     .build());
         } catch (Exception e) {
             return Optional.empty();
@@ -693,7 +803,28 @@ public class MediaService {
             return node.path("thumbnails").get(node.path("thumbnails").size() - 1).path("url").asText();
         }
         String id = node.path("id").asText("");
-        return "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg";
+        if (!id.isBlank() && node.path("thumbnail").asText("").isBlank()) {
+            return "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg";
+        }
+        return "";
+    }
+
+    private String formatMediaId(String extractor, String id) {
+        if ("Youtube".equalsIgnoreCase(extractor)) {
+            return id;
+        }
+        String prefix = extractor.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        if (prefix.isBlank()) {
+            prefix = "web";
+        }
+        return prefix + "_" + id;
+    }
+
+    private String formatSourceLabel(String extractor) {
+        if (extractor == null || extractor.isBlank()) {
+            return "Web";
+        }
+        return extractor.replace('_', ' ');
     }
 
     public List<MediaItem> listByType(MediaType type) {

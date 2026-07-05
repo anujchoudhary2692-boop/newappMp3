@@ -70,7 +70,7 @@ public class MediaCacheService {
             log.debug("Cache check failed for {} {}: {}", videoId, type, e.getMessage());
         }
 
-        if (renderHost && !ytDlpService.hasCookies()) {
+        if (renderHost && !ytDlpService.hasCookies() && mediaService.isYouTubeMedia(videoId)) {
             return failedDto(videoId, type, cloudCookiesRequiredMessage());
         }
 
@@ -124,7 +124,7 @@ public class MediaCacheService {
 
     private void runPrepare(String key, String videoId, MediaType type, String qualityPreset) {
         try {
-            if (renderHost && ytDlpService.hasCookies()) {
+            if (renderHost) {
                 try {
                     Path cached = mediaService.ensureCachedPlaybackPublic(videoId, type);
                     jobs.put(key, readyDto(videoId, type, cached, "Ready on cloud", qualityPreset));
@@ -153,7 +153,7 @@ public class MediaCacheService {
                 log.info("Direct URL unavailable for {} {}: {}", videoId, type, directEx.getMessage());
             }
 
-            if (renderHost && !ytDlpService.hasCookies()) {
+            if (renderHost && !ytDlpService.hasCookies() && mediaService.isYouTubeMedia(videoId)) {
                 jobs.put(key, failedDto(
                         videoId,
                         type,
@@ -228,7 +228,8 @@ public class MediaCacheService {
     }
 
     private String cloudCookiesRequiredMessage() {
-        return "YouTube blocked cloud playback. Set YOUTUBE_COOKIES_BASE64 on Render, or use Mac backend on same Wi‑Fi.";
+        return "YouTube is blocked on cloud. Pick SoundCloud/Web results, paste a direct link, "
+                + "or set YOUTUBE_COOKIES_BASE64 on Render.";
     }
 
     private PrepareStatusDto failedDto(String videoId, MediaType type, String message) {

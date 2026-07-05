@@ -11,6 +11,7 @@ export interface MediaSearchResult {
   videoFormat?: string;
   audioStreamUrl?: string;
   videoStreamUrl?: string;
+  source?: string;
 }
 
 export interface PlayableMedia {

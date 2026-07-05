@@ -125,8 +125,8 @@ public class YtDlpService {
         }
         String lower = raw.toLowerCase();
         if (lower.contains("not a bot") || lower.contains("sign in to confirm")) {
-            return "YouTube blocked this server. Set YOUTUBE_COOKIES_BASE64 on Render, "
-                    + "or use your Mac backend on the same Wi‑Fi.";
+            return "YouTube blocked this server. Try SoundCloud/Web search results instead, "
+                    + "or set YOUTUBE_COOKIES_BASE64 on Render.";
         }
         if (lower.contains("timed out") || lower.contains("timeout")) {
             return "Media timed out. Retry, or use Mac backend on same Wi‑Fi.";

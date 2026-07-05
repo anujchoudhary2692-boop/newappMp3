@@ -5,7 +5,7 @@ import {usePlayback} from '../context/PlaybackContext';
 import {listRecent} from '../stores/recent';
 import type {MediaItem} from '../types/media';
 import {formatBytes} from '../utils/format';
-const TRENDING = ['Bollywood hits', 'Lo-fi beats', 'Pop music 2024', 'Cocomelon nursery rhymes'];
+const TRENDING = ['Bollywood hits', 'Lo-fi beats', 'Hindi songs', 'Punjabi music'];
 
 export function HomePage() {
   const nav = useNavigate();
@@ -46,7 +46,7 @@ export function HomePage() {
     <div className="page">
       <div className="hero">
         <h1>MediaFace</h1>
-        <p>Search, stream, and download music & videos — powered by your cloud backend.</p>
+        <p>Search, stream, and download music from SoundCloud & the open web.</p>
         <div className="search-bar">
           <Link to="/search" className="btn btn-primary" style={{flex: 1, textAlign: 'center'}}>
             🔍 Search YouTube

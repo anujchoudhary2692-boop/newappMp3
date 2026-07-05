@@ -68,8 +68,12 @@ public class MediaController {
     public ResponseEntity<ApiResponse<PrepareStatusDto>> prepare(
             @PathVariable String videoId,
             @RequestParam MediaType type,
-            @RequestParam(required = false) String quality) {
+            @RequestParam(required = false) String quality,
+            @RequestParam(required = false) String sourceUrl) {
         try {
+            if (sourceUrl != null && !sourceUrl.isBlank()) {
+                mediaService.registerSource(videoId, sourceUrl);
+            }
             return ResponseEntity.ok(ApiResponse.ok(mediaCacheService.prepare(videoId, type, quality)));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));

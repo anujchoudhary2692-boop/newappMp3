@@ -65,15 +65,35 @@ export function SearchPage() {
 
   const pasteLink = async () => {
     try {
-      const text = await navigator.clipboard.readText();
-      const m = text.match(/(?:v=|youtu\.be\/)([\w-]{11})/);
-      if (m) {
-        setQuery(m[1]);
-        setParams({q: m[1]});
-        void search(m[1]);
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text) return;
+      const yt = text.match(/(?:v=|youtu\.be\/)([\w-]{11})/);
+      if (yt) {
+        setQuery(yt[1]);
+        setParams({q: yt[1]});
+        void search(yt[1]);
+        return;
       }
+      if (/^https?:\/\//i.test(text)) {
+        setStatus('Loading link…');
+        const info = await api.streamInfo(text);
+        const item: MediaSearchResult = {
+          videoId: info.data.videoId,
+          title: info.data.title,
+          thumbnailUrl: '',
+          channel: 'Direct link',
+          sourceUrl: text,
+          source: 'Web',
+        };
+        setResults([item]);
+        setStatus('');
+        return;
+      }
+      setQuery(text);
+      setParams({q: text});
+      void search(text);
     } catch {
-      setError('Could not read clipboard');
+      setError('Could not read clipboard or load link');
     }
   };
 
@@ -119,12 +139,15 @@ export function SearchPage() {
 
   return (
     <div className="page">
-      <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 16}}>Browse</h1>
+      <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 8}}>Browse the web</h1>
+      <p style={{color: 'var(--muted)', fontSize: 14, marginBottom: 16}}>
+        Searches SoundCloud and open web (not YouTube) so cloud playback works without cookies.
+      </p>
       <form className="search-bar" onSubmit={submit}>
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search songs, artists, videos…"
+          placeholder="Search songs, artists… (SoundCloud & web)"
         />
         <button type="submit" className="btn btn-primary" disabled={loading}>
           Search

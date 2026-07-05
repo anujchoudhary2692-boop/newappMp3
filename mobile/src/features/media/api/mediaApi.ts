@@ -33,9 +33,11 @@ export const mediaApi = {
       5000,
     ),
 
-  prepare: (videoId: string, type: 'AUDIO' | 'VIDEO', quality?: string) =>
+  prepare: (videoId: string, type: 'AUDIO' | 'VIDEO', quality?: string, sourceUrl?: string) =>
     httpRequest<PrepareStatusResponse>(
-      `/api/media/prepare/${videoId}?type=${type}${quality ? `&quality=${encodeURIComponent(quality)}` : ''}`,
+      `/api/media/prepare/${videoId}?type=${type}${quality ? `&quality=${encodeURIComponent(quality)}` : ''}${
+        sourceUrl ? `&sourceUrl=${encodeURIComponent(sourceUrl)}` : ''
+      }`,
       {},
       15000,
     ),

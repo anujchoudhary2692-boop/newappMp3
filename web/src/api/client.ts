@@ -63,12 +63,21 @@ export const api = {
   features: () => request<Record<string, boolean>>('/api/features', {}, 10000),
   mediaStatus: () => request<MediaDiagnostics>('/api/media/status'),
 
+  streamInfo: (sourceUrl: string) =>
+    request<{videoId: string; title: string; sourceUrl: string}>(
+      `/api/media/stream-info?sourceUrl=${encodeURIComponent(sourceUrl)}`,
+      {},
+      60000,
+    ),
+
   search: (q: string, limit = 15) =>
     request<MediaSearchResult[]>(`/api/media/search?q=${encodeURIComponent(q)}&limit=${limit}`, {}, 180000),
 
-  prepare: (videoId: string, type: string, quality?: string) =>
+  prepare: (videoId: string, type: string, quality?: string, sourceUrl?: string) =>
     request<PrepareStatus>(
-      `/api/media/prepare/${videoId}?type=${type}${quality ? `&quality=${quality}` : ''}`,
+      `/api/media/prepare/${videoId}?type=${type}${quality ? `&quality=${quality}` : ''}${
+        sourceUrl ? `&sourceUrl=${encodeURIComponent(sourceUrl)}` : ''
+      }`,
       {},
       30000,
     ),
