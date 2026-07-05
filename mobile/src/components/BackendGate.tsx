@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {AppLogo} from './AppLogo';
-import {ensureApiServer} from '../core/api/httpClient';
+import {ensureApiServer, wakeCloudServer} from '../core/api/httpClient';
 import {
   COLORS,
   getApiBaseUrl,
@@ -17,6 +17,7 @@ import {
   RADIUS,
   SPACING,
 } from '../config';
+import {PRODUCTION_API_URL} from '../production.config';
 
 import {useLayoutMetrics} from '../utils/layout';
 
@@ -32,10 +33,17 @@ export function BackendGate({children}: {children: React.ReactNode}) {
   const check = useCallback(async () => {
     setStatus('checking');
     setError('');
-    setTriedUrls([getApiBaseUrl()]);
+    const cloudUrl = PRODUCTION_API_URL.replace(/\/$/, '');
+    setTriedUrls(production ? [cloudUrl] : [getApiBaseUrl()]);
 
     try {
-      const found = await ensureApiServer();
+      let found: string | null = null;
+      if (production) {
+        const woke = await wakeCloudServer(180000);
+        found = woke ? getApiBaseUrl() : null;
+      } else {
+        found = await ensureApiServer();
+      }
       if (found) {
         setTriedUrls([found]);
         setStatus('ok');
@@ -76,7 +84,7 @@ export function BackendGate({children}: {children: React.ReactNode}) {
         />
         <Text style={[styles.tagline, {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW}]}>
           {production
-            ? 'Getting things ready…'
+            ? 'Waking cloud server… first open can take up to 3 minutes.'
             : 'Connecting to your library…'}
         </Text>
         <ActivityIndicator color="#FF9900" style={styles.spinner} />

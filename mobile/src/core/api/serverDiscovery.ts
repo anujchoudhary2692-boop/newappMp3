@@ -97,6 +97,14 @@ export function scanBonjourServers(timeoutMs = 4500): Promise<string[]> {
   });
 }
 
+function isGatewayStatus(status: number): boolean {
+  return status === 502 || status === 503 || status === 504;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function probeServerCapabilities(
   base: string,
   timeoutMs = 8000,
@@ -114,6 +122,10 @@ export async function probeServerCapabilities(
       headers,
     });
     clearTimeout(timer);
+
+    if (isGatewayStatus(response.status)) {
+      return null;
+    }
 
     if (!response.ok || response.status >= 500) {
       return null;
@@ -134,6 +146,26 @@ export async function probeServerCapabilities(
   } catch {
     return null;
   }
+}
+
+/** Poll cloud health through Render 502/503 wake-up (free tier cold start). */
+export async function probeCloudServerWithWake(
+  base: string,
+  maxWaitMs = 180000,
+): Promise<ServerProbeResult | null> {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now();
+    const probe = await probeServerCapabilities(base, Math.min(20000, remaining));
+    if (probe) {
+      return probe;
+    }
+    if (Date.now() >= deadline) {
+      break;
+    }
+    await sleep(2500);
+  }
+  return null;
 }
 
 export async function collectServerCandidates(
@@ -209,7 +241,10 @@ export async function pickBestApiServer(): Promise<ServerProbeResult | null> {
   ];
 
   for (const candidate of cloudFirst) {
-    const probe = await probeServerCapabilities(candidate.base, candidate.source === 'cloud' ? 90000 : 5000);
+    const probe =
+      candidate.source === 'cloud'
+        ? await probeCloudServerWithWake(candidate.base, 180000)
+        : await probeServerCapabilities(candidate.base, 5000);
     if (probe) {
       probe.source = candidate.source === 'manual' ? 'manual' : probe.source;
       return probe;
@@ -244,9 +279,13 @@ export async function pickBestMediaServer(): Promise<ServerProbeResult | null> {
   const probes = (
     await Promise.all(
       ordered.map(async candidate => {
-        const timeout =
-          candidate.source === 'cloud' ? 20000 : candidate.source === 'bonjour' ? 5000 : 4000;
-        const probe = await probeServerCapabilities(candidate.base, timeout);
+        const probe =
+          candidate.source === 'cloud'
+            ? await probeCloudServerWithWake(candidate.base, 90000)
+            : await probeServerCapabilities(
+                candidate.base,
+                candidate.source === 'bonjour' ? 5000 : 4000,
+              );
         if (!probe) {
           return null;
         }

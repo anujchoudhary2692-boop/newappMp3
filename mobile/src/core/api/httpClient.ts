@@ -16,6 +16,7 @@ import {
   mediaServerUnavailableMessage,
   pickBestApiServer,
   pickBestMediaServer,
+  probeCloudServerWithWake,
   probeServerCapabilities,
   scanBonjourServers,
 } from './serverDiscovery';
@@ -32,6 +33,10 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function probeServerHealth(base: string, timeoutMs = probeTimeoutFor(base)): Promise<boolean> {
+  if (base.startsWith('https://')) {
+    const probe = await probeCloudServerWithWake(base, timeoutMs);
+    return probe != null;
+  }
   const probe = await probeServerCapabilities(base, timeoutMs);
   return probe != null;
 }
@@ -110,7 +115,11 @@ export async function httpRequest<T>(
       throw error;
     }
     await clearCachedApiUrl();
-    await discoverServer(getServerCandidates());
+    if (isProductionMode()) {
+      await wakeCloudServer(120000);
+    } else {
+      await discoverServer(getServerCandidates());
+    }
     await sleep(1500);
     return executeHttpRequest<T>(path, options, timeoutMs);
   }
@@ -147,7 +156,7 @@ export async function discoverLanMediaServer(): Promise<string | null> {
 }
 
 /** Ensure a reachable API server — cloud or LAN, works on Wi‑Fi and mobile data. */
-export async function ensureApiServer(): Promise<string> {
+export async function ensureApiServer(): Promise<string | null> {
   const picked = await pickBestApiServer();
   if (picked) {
     setApiBaseUrl(picked.base);
@@ -156,7 +165,11 @@ export async function ensureApiServer(): Promise<string> {
   }
 
   const fallback = await discoverServer(getServerCandidates());
-  return fallback || getApiBaseUrl();
+  if (fallback) {
+    return fallback;
+  }
+
+  return null;
 }
 
 /** Ensure the best server for play/download — prefers full playback capability. */
@@ -179,16 +192,17 @@ export async function discoverMediaServer(): Promise<string | null> {
 }
 
 /** Wake Render free tier by polling health until UP or timeout. */
-export async function wakeCloudServer(timeoutMs = 120000): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const picked = await pickBestApiServer();
-    if (picked) {
-      setApiBaseUrl(picked.base);
-      await saveCachedApiUrl(picked.base);
-      return true;
-    }
-    await sleep(2500);
+export async function wakeCloudServer(timeoutMs = 180000): Promise<boolean> {
+  const cloud = getServerCandidates().find(c => c.startsWith('https://'));
+  if (!cloud) {
+    return false;
+  }
+
+  const probe = await probeCloudServerWithWake(cloud, timeoutMs);
+  if (probe) {
+    setApiBaseUrl(probe.base);
+    await saveCachedApiUrl(probe.base);
+    return true;
   }
   return false;
 }

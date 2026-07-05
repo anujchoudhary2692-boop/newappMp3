@@ -94,8 +94,8 @@ export function connectionErrorHint(): string {
   const base = getApiBaseUrl();
   if (isCloudBase(base)) {
     return (
-      'Cannot reach the cloud server. Check internet (Wi‑Fi or mobile data). ' +
-      'On Render free tier, wait up to 3 minutes and try again — your Mac does not need to be on.'
+      'Cloud server is waking up or temporarily unavailable (502). Check internet (Wi‑Fi or mobile data) ' +
+      'and wait up to 3 minutes — Render free tier sleeps when idle. Your Mac does not need to be on.'
     );
   }
   if (base.startsWith('http://192.168.') || base.startsWith('http://10.') || base.startsWith('http://172.')) {

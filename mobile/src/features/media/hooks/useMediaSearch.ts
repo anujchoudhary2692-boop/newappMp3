@@ -36,7 +36,10 @@ export function useMediaSearch() {
 
     setLoading(true);
     try {
-      await ensureApiServer();
+      const server = await ensureApiServer();
+      if (!server && isProductionMode()) {
+        await wakeCloudServer(120000);
+      }
       if (isProductionMode()) {
         void warmMediaServer().catch(() => undefined);
       }
