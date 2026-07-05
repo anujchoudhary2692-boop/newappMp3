@@ -3,6 +3,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -21,9 +22,12 @@ import {COLORS, GRADIENTS, RADIUS, SHADOW, SPACING} from '../../config';
 import {CameraStackParamList} from '../../navigation/types';
 import {formatDurationMs} from '../../utils/captureSave';
 import {useLayoutMetrics} from '../../utils/layout';
+import {GeoMapView} from '../../components/GeoMapView';
+import {getApiBaseUrl} from '../../config';
 
 type Nav = NativeStackNavigationProp<CameraStackParamList>;
 type FilterKey = 'all' | 'photo' | 'video' | 'geo';
+type ViewMode = 'grid' | 'list' | 'map';
 
 const FILTERS: {key: FilterKey; label: string; icon: string}[] = [
   {key: 'all', label: 'All', icon: 'apps'},
@@ -50,7 +54,7 @@ export function CapturesGalleryScreen() {
   const [items, setItems] = useState<CaptureItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,6 +84,26 @@ export function CapturesGalleryScreen() {
     videos: items.filter(i => i.type === 'VIDEO').length,
     geo: items.filter(i => i.latitude != null).length,
   }), [items]);
+
+  const mapPoints = useMemo(
+    () =>
+      filtered
+        .filter(i => i.latitude != null && i.longitude != null)
+        .map(i => ({
+          id: i.id,
+          latitude: i.latitude!,
+          longitude: i.longitude!,
+          title: i.locationLabel || i.type,
+          subtitle: formatWhen(i.capturedAt),
+          color: i.type === 'VIDEO' ? '#FF6B9D' : COLORS.camera,
+        })),
+    [filtered],
+  );
+
+  const exportGeoJson = () => {
+    const base = getApiBaseUrl().replace(/\/$/, '');
+    void Linking.openURL(`${base}/api/captures/export?format=geojson`);
+  };
 
   const tileW = layout.gridItemWidth;
   const tileH = tileW * 1.15;
@@ -197,9 +221,14 @@ export function CapturesGalleryScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-        <TouchableOpacity style={styles.viewBtn} onPress={() => setViewMode(v => (v === 'grid' ? 'list' : 'grid'))}>
-          <Icon name={viewMode === 'grid' ? 'list' : 'grid'} size={18} color={COLORS.textSecondary} />
+        <TouchableOpacity style={styles.viewBtn} onPress={() => setViewMode(v => (v === 'grid' ? 'list' : v === 'list' ? 'map' : 'grid'))}>
+          <Icon name={viewMode === 'grid' ? 'list' : viewMode === 'list' ? 'map' : 'grid'} size={18} color={COLORS.textSecondary} />
         </TouchableOpacity>
+        {mapPoints.length > 0 && (
+          <TouchableOpacity style={styles.viewBtn} onPress={exportGeoJson}>
+            <Icon name="download-outline" size={18} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
@@ -218,7 +247,7 @@ export function CapturesGalleryScreen() {
 
       <FlatList
         key={`${viewMode}-${layout.gridColumns}-${layout.width}`}
-        data={filtered}
+        data={viewMode === 'map' ? [] : filtered}
         keyExtractor={i => i.id}
         numColumns={viewMode === 'grid' ? layout.gridColumns : 1}
         columnWrapperStyle={
@@ -231,10 +260,22 @@ export function CapturesGalleryScreen() {
           styles.list,
           {paddingHorizontal: layout.hPad, paddingBottom: layout.tabBar + SPACING.lg},
         ]}
-        ListHeaderComponent={header}
+        ListHeaderComponent={
+          <>
+            {header}
+            {viewMode === 'map' && mapPoints.length > 0 ? (
+              <View style={{marginBottom: SPACING.md}}>
+                <GeoMapView points={mapPoints} height={layout.isTablet ? 420 : 320} />
+                <Text style={{color: COLORS.textMuted, fontSize: layout.font.sm, marginTop: 8, textAlign: 'center'}}>
+                  {mapPoints.length} geo-tagged capture{mapPoints.length === 1 ? '' : 's'} on map
+                </Text>
+              </View>
+            ) : null}
+          </>
+        }
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={COLORS.camera} />}
         ListEmptyComponent={
-          !loading ? (
+          !loading && viewMode !== 'map' ? (
             <View style={styles.empty}>
               <EmptyState
                 icon="camera-outline"
@@ -245,6 +286,15 @@ export function CapturesGalleryScreen() {
               <TouchableOpacity style={styles.emptyBtn} onPress={() => navigation.navigate('CameraHome')}>
                 <Text style={[styles.emptyBtnText, {fontSize: layout.font.md}]}>Open camera</Text>
               </TouchableOpacity>
+            </View>
+          ) : viewMode === 'map' && !loading && mapPoints.length === 0 ? (
+            <View style={styles.empty}>
+              <EmptyState
+                icon="map-outline"
+                title="No geo-tagged captures"
+                subtitle="Enable GPS when taking photos or videos."
+                accentColor={COLORS.camera}
+              />
             </View>
           ) : null
         }

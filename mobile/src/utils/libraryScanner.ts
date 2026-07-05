@@ -65,6 +65,20 @@ async function scanOneImage(
   if (!(await imageLikelyHasFace(uri))) {
     return {saved: false};
   }
+  const {readPhotoGps} = await import('./exifLocation');
+  const {reverseGeocode} = await import('./location');
+  const gps = await readPhotoGps(uri);
+  let geo: {latitude?: number; longitude?: number; address?: string; city?: string; country?: string} | undefined;
+  if (gps) {
+    const address = await reverseGeocode(gps.latitude, gps.longitude);
+    geo = {
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      address: address.displayName,
+      city: address.city,
+      country: address.country,
+    };
+  }
   const response = await api.scanLibraryPhoto(
     personId,
     uri,
@@ -72,6 +86,7 @@ async function scanOneImage(
     iosAssetId,
     sourceType,
     sourceTimestampMs,
+    geo,
   );
   if (response.success && response.data?.matched && response.data.saved) {
     onMatch?.({confidence: response.data.confidence, groupPhoto: response.data.groupPhoto});

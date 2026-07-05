@@ -249,7 +249,12 @@ public class FaceRecognitionService {
             MultipartFile image,
             String devicePhotoId,
             String sourceType,
-            Long sourceTimestampMs) throws IOException {
+            Long sourceTimestampMs,
+            Double latitude,
+            Double longitude,
+            String address,
+            String city,
+            String country) throws IOException {
         Person person = personRepository.findById(personId)
                 .orElseThrow(() -> new IllegalArgumentException("Person not found"));
         if (image == null || image.isEmpty()) {
@@ -331,7 +336,7 @@ public class FaceRecognitionService {
                     totalFaces,
                     groupPhoto,
                     matchedFaceIndex,
-                    null);
+                    buildLibraryMatchContext(latitude, longitude, address, city, country));
 
             return LibraryScanResultDto.builder()
                     .devicePhotoId(devicePhotoId)
@@ -532,6 +537,30 @@ public class FaceRecognitionService {
         if (!faceAiEngine.isReady()) {
             throw new IllegalStateException("AI face engine not ready");
         }
+    }
+
+    private FaceMatchContext buildLibraryMatchContext(
+            Double latitude,
+            Double longitude,
+            String address,
+            String city,
+            String country) {
+        if (latitude == null || longitude == null) {
+            return null;
+        }
+        String locationLabel = null;
+        if (city != null && country != null) {
+            locationLabel = city + ", " + country;
+        } else if (address != null && !address.isBlank()) {
+            locationLabel = address;
+        } else {
+            locationLabel = String.format("%.4f, %.4f", latitude, longitude);
+        }
+        return FaceMatchContext.builder()
+                .latitude(latitude)
+                .longitude(longitude)
+                .locationLabel(locationLabel)
+                .build();
     }
 
     private String buildImageUrl(String fileName) {

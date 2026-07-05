@@ -25,9 +25,13 @@ public class Capture {
     private Double latitude;
     private Double longitude;
     private Double altitude;
+    /** GPS accuracy in meters from device. */
+    private Double gpsAccuracy;
     private String address;
     private String city;
     private String country;
+    /** Client-side capture time (EXIF or device clock). */
+    private Instant clientCapturedAt;
     private Instant capturedAt;
     private Long durationMs;
     /** PENDING, SCANNING, DONE, SKIPPED, FAILED */

@@ -63,6 +63,13 @@ export const faceApi = {
     iosAssetId?: string,
     sourceType: 'PHOTO' | 'VIDEO' = 'PHOTO',
     sourceTimestampMs?: number,
+    geo?: {
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+      city?: string;
+      country?: string;
+    },
   ) => {
     const uri = await normalizeFaceImage(imageUri, iosAssetId);
     const form = new FormData();
@@ -78,6 +85,11 @@ export const faceApi = {
     if (sourceTimestampMs != null) {
       form.append('sourceTimestampMs', String(sourceTimestampMs));
     }
+    if (geo?.latitude != null) form.append('latitude', String(geo.latitude));
+    if (geo?.longitude != null) form.append('longitude', String(geo.longitude));
+    if (geo?.address) form.append('address', geo.address);
+    if (geo?.city) form.append('city', geo.city);
+    if (geo?.country) form.append('country', geo.country);
     return httpRequest<LibraryScanResult>(`/api/faces/person/${personId}/scan-library`, {
       method: 'POST',
       body: form,

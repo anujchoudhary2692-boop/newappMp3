@@ -22,4 +22,7 @@ public class CaptureDto {
     private String locationLabel;
     private String capturedAt;
     private Long durationMs;
+    private Double gpsAccuracy;
+    private String scanStatus;
+    private Integer matchCount;
 }

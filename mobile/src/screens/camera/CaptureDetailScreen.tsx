@@ -25,6 +25,7 @@ import {COLORS, GRADIENTS, RADIUS, SHADOW, SPACING} from '../../config';
 import {CameraStackParamList} from '../../navigation/types';
 import {formatDurationMs} from '../../utils/captureSave';
 import {useLayoutMetrics} from '../../utils/layout';
+import {GeoMapView} from '../../components/GeoMapView';
 
 type Route = RouteProp<CameraStackParamList, 'CaptureDetail'>;
 type Nav = NativeStackNavigationProp<CameraStackParamList>;
@@ -143,6 +144,20 @@ export function CaptureDetailScreen() {
           )}
         </View>
 
+        {hasCoords ? (
+          <GeoMapView
+            height={220}
+            points={[{
+              id: item.id,
+              latitude: item.latitude!,
+              longitude: item.longitude!,
+              title: item.locationLabel,
+              subtitle: item.type,
+              color: COLORS.camera,
+            }]}
+          />
+        ) : null}
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actions}>
           {hasCoords ? (
             <ActionPill icon="copy-outline" label="Copy GPS" onPress={handleCopy} layout={layout} />
@@ -167,6 +182,17 @@ export function CaptureDetailScreen() {
             <InfoRow icon="film-outline" label="Duration" value={formatDurationMs(item.durationMs)} layout={layout} />
           ) : null}
           <InfoRow icon="location" label="Place" value={item.locationLabel || 'No GPS tag'} layout={layout} />
+          {item.scanStatus ? (
+            <InfoRow
+              icon="scan-outline"
+              label="Face scan"
+              value={`${item.scanStatus}${item.matchCount != null ? ` · ${item.matchCount} match(es)` : ''}`}
+              layout={layout}
+            />
+          ) : null}
+          {item.gpsAccuracy != null ? (
+            <InfoRow icon="navigate-outline" label="GPS accuracy" value={`±${Math.round(item.gpsAccuracy)}m`} layout={layout} />
+          ) : null}
           {item.address ? (
             <Text style={[styles.address, {fontSize: layout.font.sm, marginLeft: 30}]}>{item.address}</Text>
           ) : null}

@@ -1,9 +1,11 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Link} from 'react-router-dom';
 import {api, resolveUrl} from '../api/client';
+import {GeoMap} from '../components/GeoMap';
 import type {CaptureItem} from '../types/media';
+import {reverseGeocode} from '../utils/geocode';
 
-type Mode = 'gallery' | 'camera';
+type Mode = 'gallery' | 'map' | 'camera';
 
 export function CameraPage() {
   const [mode, setMode] = useState<Mode>('gallery');
@@ -11,7 +13,8 @@ export function CameraPage() {
   const [loading, setLoading] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [recording, setRecording] = useState(false);
-  const [loc, setLoc] = useState<{lat: number; lng: number} | null>(null);
+  const [loc, setLoc] = useState<{lat: number; lng: number; accuracy?: number} | null>(null);
+  const [locLabel, setLocLabel] = useState('');
   const [status, setStatus] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -57,7 +60,10 @@ export function CameraPage() {
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        p => setLoc({lat: p.coords.latitude, lng: p.coords.longitude}),
+        p => {
+          setLoc({lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy});
+          void reverseGeocode(p.coords.latitude, p.coords.longitude).then(g => setLocLabel(g.shortLabel));
+        },
         () => undefined,
         {enableHighAccuracy: true, timeout: 10000},
       );
@@ -72,14 +78,35 @@ export function CameraPage() {
     return () => stream?.getTracks().forEach(t => t.stop());
   }, [stream]);
 
+  const mapPoints = useMemo(
+    () =>
+      captures
+        .filter(c => c.latitude != null && c.longitude != null)
+        .map(c => ({
+          id: c.id,
+          latitude: c.latitude!,
+          longitude: c.longitude!,
+          title: c.locationLabel || c.fileName,
+          subtitle: c.capturedAt ? new Date(c.capturedAt).toLocaleString() : c.type,
+          color: c.type === 'VIDEO' ? '#FF6B9D' : '#FF9900',
+        })),
+    [captures],
+  );
+
   const upload = async (blob: Blob, type: 'PHOTO' | 'VIDEO', fileName: string, durationMs?: number) => {
     setStatus('Uploading…');
     const form = new FormData();
     form.append('file', blob, fileName);
     form.append('type', type);
+    form.append('clientCapturedAt', new Date().toISOString());
     if (loc) {
       form.append('latitude', String(loc.lat));
       form.append('longitude', String(loc.lng));
+      if (loc.accuracy != null) form.append('gpsAccuracy', String(loc.accuracy));
+      const geo = await reverseGeocode(loc.lat, loc.lng);
+      if (geo.address) form.append('address', geo.address);
+      if (geo.city) form.append('city', geo.city);
+      if (geo.country) form.append('country', geo.country);
     }
     if (durationMs) form.append('durationMs', String(durationMs));
     try {
@@ -136,16 +163,23 @@ export function CameraPage() {
     void load();
   };
 
+  const openMaps = (lat: number, lng: number) => {
+    window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+  };
+
   return (
     <div className="page">
       <Link to="/" className="btn btn-ghost" style={{marginBottom: 12}}>
         ← Home
       </Link>
-      <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 16}}>Camera</h1>
+      <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 16}}>Geo Camera</h1>
 
       <div className="tabs">
         <button className={`tab ${mode === 'gallery' ? 'active' : ''}`} onClick={() => setMode('gallery')}>
           Gallery
+        </button>
+        <button className={`tab ${mode === 'map' ? 'active' : ''}`} onClick={() => setMode('map')}>
+          Map
         </button>
         <button className={`tab ${mode === 'camera' ? 'active' : ''}`} onClick={() => setMode('camera')}>
           Capture
@@ -155,7 +189,8 @@ export function CameraPage() {
       {status && <p style={{color: 'var(--primary)', marginBottom: 12}}>{status}</p>}
       {loc && mode === 'camera' && (
         <p style={{fontSize: 12, color: 'var(--muted)', marginBottom: 8}}>
-          GPS: {loc.lat.toFixed(5)}, {loc.lng.toFixed(5)}
+          GPS: {locLabel || `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`}
+          {loc.accuracy != null ? ` · ±${Math.round(loc.accuracy)}m` : ''}
         </p>
       )}
 
@@ -171,6 +206,24 @@ export function CameraPage() {
             </button>
           </div>
         </div>
+      ) : mode === 'map' ? (
+        loading ? (
+          <div className="spinner" style={{margin: '24px auto'}} />
+        ) : mapPoints.length === 0 ? (
+          <p className="empty">No geo-tagged captures yet.</p>
+        ) : (
+          <div>
+            <GeoMap points={mapPoints} height={420} />
+            <div style={{display: 'flex', gap: 8, marginTop: 12}}>
+              <a className="btn btn-ghost" href={resolveUrl('/api/captures/export?format=geojson')} download>
+                Export GeoJSON
+              </a>
+              <a className="btn btn-ghost" href={resolveUrl('/api/captures/export?format=gpx')} download>
+                Export GPX
+              </a>
+            </div>
+          </div>
+        )
       ) : loading ? (
         <div className="spinner" style={{margin: '24px auto'}} />
       ) : captures.length === 0 ? (
@@ -187,10 +240,21 @@ export function CameraPage() {
               <div className="card-body">
                 <div className="card-title">{c.fileName}</div>
                 <div className="card-sub">
-                  {[c.city, c.country].filter(Boolean).join(', ') || 'No location'}
+                  {c.locationLabel || [c.city, c.country].filter(Boolean).join(', ') || 'No location'}
                 </div>
+                {c.scanStatus && (
+                  <div className="card-sub" style={{fontSize: 11}}>
+                    Face scan: {c.scanStatus}
+                    {c.matchCount != null ? ` · ${c.matchCount} match(es)` : ''}
+                  </div>
+                )}
               </div>
               <div className="card-actions">
+                {c.latitude != null && c.longitude != null ? (
+                  <button className="btn btn-ghost" onClick={() => openMaps(c.latitude!, c.longitude!)}>
+                    📍
+                  </button>
+                ) : null}
                 <a className="btn btn-ghost" href={resolveUrl(`/api/captures/${c.id}/file`)} download={c.fileName}>
                   ⬇
                 </a>

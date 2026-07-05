@@ -23,6 +23,7 @@ public class CaptureService {
     private final CaptureRepository captureRepository;
     private final Path capturesPath;
     private final FaceScanService faceScanService;
+    private final GeocodeService geocodeService;
 
     public CaptureDto saveCapture(
             MultipartFile file,
@@ -30,10 +31,12 @@ public class CaptureService {
             Double latitude,
             Double longitude,
             Double altitude,
+            Double gpsAccuracy,
             String address,
             String city,
             String country,
-            Long durationMs) throws IOException {
+            Long durationMs,
+            String clientCapturedAt) throws IOException {
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Capture file is required");
@@ -51,6 +54,26 @@ public class CaptureService {
 
         file.transferTo(target.toFile());
 
+        Instant clientTime = parseInstant(clientCapturedAt);
+        String resolvedAddress = address;
+        String resolvedCity = city;
+        String resolvedCountry = country;
+        if (latitude != null && longitude != null
+                && (isBlank(resolvedCity) || isBlank(resolvedCountry))) {
+            var geocoded = geocodeService.reverseGeocode(latitude, longitude);
+            if (geocoded.isPresent()) {
+                if (isBlank(resolvedAddress)) {
+                    resolvedAddress = geocoded.get().address();
+                }
+                if (isBlank(resolvedCity)) {
+                    resolvedCity = geocoded.get().city();
+                }
+                if (isBlank(resolvedCountry)) {
+                    resolvedCountry = geocoded.get().country();
+                }
+            }
+        }
+
         Capture capture = Capture.builder()
                 .type(type)
                 .fileName(fileName)
@@ -58,10 +81,12 @@ public class CaptureService {
                 .latitude(latitude)
                 .longitude(longitude)
                 .altitude(altitude)
-                .address(address)
-                .city(city)
-                .country(country)
-                .capturedAt(Instant.now())
+                .gpsAccuracy(gpsAccuracy)
+                .address(resolvedAddress)
+                .city(resolvedCity)
+                .country(resolvedCountry)
+                .clientCapturedAt(clientTime)
+                .capturedAt(clientTime != null ? clientTime : Instant.now())
                 .durationMs(durationMs)
                 .scanStatus("PENDING")
                 .matchCount(0)
@@ -74,6 +99,13 @@ public class CaptureService {
 
     public List<CaptureDto> listCaptures() {
         return captureRepository.findAllByOrderByCapturedAtDesc().stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<CaptureDto> listGeoCaptures() {
+        return captureRepository.findAllByOrderByCapturedAtDesc().stream()
+                .filter(c -> c.getLatitude() != null && c.getLongitude() != null)
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -129,12 +161,15 @@ public class CaptureService {
                 .latitude(capture.getLatitude())
                 .longitude(capture.getLongitude())
                 .altitude(capture.getAltitude())
+                .gpsAccuracy(capture.getGpsAccuracy())
                 .address(capture.getAddress())
                 .city(capture.getCity())
                 .country(capture.getCountry())
                 .locationLabel(locationLabel)
                 .capturedAt(capture.getCapturedAt() != null ? capture.getCapturedAt().toString() : null)
                 .durationMs(capture.getDurationMs())
+                .scanStatus(capture.getScanStatus())
+                .matchCount(capture.getMatchCount())
                 .build();
     }
 
@@ -153,6 +188,21 @@ public class CaptureService {
             return String.format("%.4f, %.4f", capture.getLatitude(), capture.getLongitude());
         }
         return "No location";
+    }
+
+    private static Instant parseInstant(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private String resolveExtension(String originalName, CaptureType type) {

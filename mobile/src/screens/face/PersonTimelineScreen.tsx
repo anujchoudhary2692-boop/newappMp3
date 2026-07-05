@@ -11,6 +11,7 @@ import {formatVideoTimestamp} from '../../utils/videoFrames';
 import {useLayoutMetrics} from '../../utils/layout';
 import {getApiBaseUrl} from '../../config';
 import {clearUnreadAlerts, openTraceExport} from '../../utils/faceAlerts';
+import {GeoMapView} from '../../components/GeoMapView';
 
 type Props = NativeStackScreenProps<FaceStackParamList, 'PersonTimeline'>;
 
@@ -63,6 +64,21 @@ export function PersonTimelineScreen({route, navigation}: Props) {
     }, [load]),
   );
 
+  const mapPoints = useMemo(
+    () =>
+      entries
+        .filter(e => e.latitude != null && e.longitude != null)
+        .map(e => ({
+          id: e.id,
+          latitude: e.latitude!,
+          longitude: e.longitude!,
+          title: sourceLabel(e),
+          subtitle: e.locationLabel || `${Math.round(e.confidence)}% match`,
+          color: COLORS.face,
+        })),
+    [entries],
+  );
+
   const sections = useMemo(() => {
     const map = new Map<string, PersonTimelineEntry[]>();
     for (const entry of entries) {
@@ -103,6 +119,11 @@ export function PersonTimelineScreen({route, navigation}: Props) {
           <Text style={styles.exportText}>PDF</Text>
         </TouchableOpacity>
       </View>
+      {mapPoints.length > 0 ? (
+        <View style={{paddingHorizontal: layout.hPad, marginBottom: 8}}>
+          <GeoMapView points={mapPoints} height={220} />
+        </View>
+      ) : null}
       {loading ? (
         <ActivityIndicator color={COLORS.face} style={{marginTop: 32}} />
       ) : (

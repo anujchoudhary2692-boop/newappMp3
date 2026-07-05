@@ -91,10 +91,16 @@ public class FaceController {
             @RequestParam("image") MultipartFile image,
             @RequestParam(required = false) String devicePhotoId,
             @RequestParam(required = false, defaultValue = "PHOTO") String sourceType,
-            @RequestParam(required = false) Long sourceTimestampMs) {
+            @RequestParam(required = false) Long sourceTimestampMs,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false) String address,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String country) {
         try {
             LibraryScanResultDto result = faceRecognitionService.scanLibraryPhoto(
-                    personId, image, devicePhotoId, sourceType, sourceTimestampMs);
+                    personId, image, devicePhotoId, sourceType, sourceTimestampMs,
+                    latitude, longitude, address, city, country);
             return ResponseEntity.ok(ApiResponse.ok(result));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));

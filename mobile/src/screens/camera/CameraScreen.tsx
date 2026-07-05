@@ -42,6 +42,7 @@ import {
   resolveCaptureLocation,
 } from '../../utils/location';
 import {notifyPersonSighted} from '../../utils/faceAlerts';
+import {useFeatureFlag} from '../../core/features/FeatureFlagsProvider';
 
 type Nav = NativeStackNavigationProp<CameraStackParamList>;
 type CaptureMode = 'photo' | 'video';
@@ -69,6 +70,7 @@ export function CameraScreen() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {deactivateEngine} = usePlayback();
+  const geotagFeatureEnabled = useFeatureFlag('cameraGeotag');
 
   const [cameraPosition, setCameraPosition] = useState<'back' | 'front'>('back');
   const [mode, setMode] = useState<CaptureMode>('photo');
@@ -256,7 +258,8 @@ export function CameraScreen() {
     fileName: string,
     durationMs?: number,
   ) => {
-    const geo = locationEnabled ? await resolveCaptureLocation() : {};
+    const geoEnabled = geotagFeatureEnabled && locationEnabled;
+    const geo = geoEnabled ? await resolveCaptureLocation() : {};
     const loc = geo.location ?? location;
     const addr = geo.address ?? address;
     await api.uploadCapture({
@@ -267,10 +270,12 @@ export function CameraScreen() {
       latitude: loc?.latitude,
       longitude: loc?.longitude,
       altitude: loc?.altitude,
+      gpsAccuracy: loc?.accuracy,
       address: addr?.displayName,
       city: addr?.city,
       country: addr?.country,
       durationMs,
+      clientCapturedAt: new Date().toISOString(),
     });
   };
 
@@ -281,7 +286,8 @@ export function CameraScreen() {
       const path = await photo.saveToTemporaryFileAsync();
       photo.dispose();
       pulseFlash();
-      const geo = locationEnabled ? await resolveCaptureLocation() : {};
+      const geoEnabled = geotagFeatureEnabled && locationEnabled;
+      const geo = geoEnabled ? await resolveCaptureLocation() : {};
       await savePhotoToGallery(path, geo.location ?? location);
       await uploadCapture(path, 'PHOTO', 'image/jpeg', `photo_${Date.now()}.jpg`);
       try {
@@ -422,6 +428,10 @@ export function CameraScreen() {
   };
 
   const toggleLocation = async () => {
+    if (!geotagFeatureEnabled) {
+      showToast('Geotag disabled on server', 'location-outline');
+      return;
+    }
     if (locationEnabled) {
       setLocationEnabled(false);
       setLocation(undefined);
@@ -444,14 +454,16 @@ export function CameraScreen() {
     );
   }
 
-  const locationLabel = locationEnabled
-    ? address?.shortLabel ||
-      (location
-        ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
-        : locating
-          ? 'Getting GPS…'
-          : 'Tap to enable location')
-    : 'Location tagging off';
+  const locationLabel = !geotagFeatureEnabled
+    ? 'Geotag off (server)'
+    : locationEnabled
+      ? address?.shortLabel ||
+        (location
+          ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+          : locating
+            ? 'Getting GPS…'
+            : 'Tap to enable location')
+      : 'Location tagging off';
 
   const dockWidth = Math.min(layout.width - layout.hPad * 2, 420);
   const recordingInner = mode === 'video' && recording;

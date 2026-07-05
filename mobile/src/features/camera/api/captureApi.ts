@@ -34,6 +34,12 @@ export const captureApi = {
     if (payload.country) {
       form.append('country', payload.country);
     }
+    if (payload.gpsAccuracy != null) {
+      form.append('gpsAccuracy', String(payload.gpsAccuracy));
+    }
+    if (payload.clientCapturedAt) {
+      form.append('clientCapturedAt', payload.clientCapturedAt);
+    }
     if (payload.durationMs != null) {
       form.append('durationMs', String(payload.durationMs));
     }

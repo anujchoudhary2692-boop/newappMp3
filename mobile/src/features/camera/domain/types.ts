@@ -7,12 +7,15 @@ export interface CaptureItem {
   latitude?: number;
   longitude?: number;
   altitude?: number;
+  gpsAccuracy?: number;
   address?: string;
   city?: string;
   country?: string;
   locationLabel?: string;
   capturedAt?: string;
   durationMs?: number;
+  scanStatus?: string;
+  matchCount?: number;
 }
 
 export interface CaptureUploadPayload {
@@ -23,8 +26,10 @@ export interface CaptureUploadPayload {
   latitude?: number;
   longitude?: number;
   altitude?: number;
+  gpsAccuracy?: number;
   address?: string;
   city?: string;
   country?: string;
   durationMs?: number;
+  clientCapturedAt?: string;
 }

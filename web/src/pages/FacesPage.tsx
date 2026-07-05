@@ -9,6 +9,7 @@ import {
   requestNotificationPermission,
   setFaceAlertsEnabled,
 } from '../utils/faceAlerts';
+import {GeoMap} from '../components/GeoMap';
 
 type Tab = 'people' | 'register' | 'identify' | 'alerts' | 'trace';
 
@@ -355,6 +356,23 @@ export function FacesPage() {
               Export PDF
             </button>
           </div>
+          {timeline.some(e => e.latitude != null && e.longitude != null) ? (
+            <div style={{marginBottom: 16}}>
+              <GeoMap
+                height={280}
+                points={timeline
+                  .filter(e => e.latitude != null && e.longitude != null)
+                  .map(e => ({
+                    id: e.id,
+                    latitude: e.latitude!,
+                    longitude: e.longitude!,
+                    title: sourceLabel(e),
+                    subtitle: e.locationLabel || `${Math.round(e.confidence)}% match`,
+                    color: '#9B59B6',
+                  }))}
+              />
+            </div>
+          ) : null}
           {Object.keys(groupedTimeline).length === 0 ? (
             <p className="empty">No sightings yet. Use camera or scan library from the mobile app.</p>
           ) : (
