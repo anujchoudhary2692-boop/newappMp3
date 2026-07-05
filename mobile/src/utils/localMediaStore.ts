@@ -18,6 +18,7 @@ export interface LocalMediaRecord {
   downloadedAt: string;
   serverLibraryId?: string;
   sourceUrl?: string;
+  quality?: string;
 }
 
 const INDEX_KEY = '@mediaface/local_media_index';
@@ -170,7 +171,7 @@ export function localRecordToMediaItem(record: LocalMediaRecord): MediaItem {
       : `file://${record.localPath}`,
     thumbnailUrl: record.thumbnailUrl,
     fileSizeBytes: record.fileSizeBytes,
-    quality: record.type === 'AUDIO' ? 'On device · MP3/M4A' : 'On device · HD',
+    quality: record.quality || (record.type === 'AUDIO' ? 'On device · MP3/M4A' : 'On device · HD'),
     downloadedAt: record.downloadedAt,
   };
 }
@@ -188,6 +189,7 @@ export async function downloadMediaToDevice(
     sourceUrl: string;
     type: 'AUDIO' | 'VIDEO';
     thumbnailUrl?: string;
+    quality?: string;
   },
   onProgress?: (progress: DownloadProgress) => void,
 ): Promise<LocalMediaRecord> {
@@ -219,6 +221,7 @@ export async function downloadMediaToDevice(
       title: payload.title,
       sourceUrl: payload.sourceUrl,
       type: payload.type,
+      quality: payload.quality,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Server download failed';
@@ -282,6 +285,7 @@ export async function downloadMediaToDevice(
     downloadedAt: new Date().toISOString(),
     serverLibraryId: serverItem.id,
     sourceUrl: payload.sourceUrl,
+    quality: serverItem.quality || payload.quality,
   };
 
   const records = await loadIndex();
@@ -298,6 +302,7 @@ export async function downloadSearchItemToDevice(
   item: MediaSearchResult,
   type: 'AUDIO' | 'VIDEO',
   onProgress?: (progress: DownloadProgress) => void,
+  quality?: string,
 ): Promise<LocalMediaRecord> {
   return downloadMediaToDevice(
     {
@@ -306,6 +311,7 @@ export async function downloadSearchItemToDevice(
       sourceUrl: item.sourceUrl,
       type,
       thumbnailUrl: item.thumbnailUrl,
+      quality,
     },
     onProgress,
   );

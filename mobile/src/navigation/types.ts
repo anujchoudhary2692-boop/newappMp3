@@ -1,7 +1,7 @@
 import {NavigatorScreenParams} from '@react-navigation/native';
 
 export type MediaStackParamList = {
-  Search: {tab?: 'SearchTab' | 'AudioTab' | 'VideoTab'} | undefined;
+  Search: {tab?: 'SearchTab' | 'DownloadsTab' | 'AudioTab' | 'VideoTab'} | undefined;
   Player: {
     item?: import('../api/client').MediaItem;
     media?: import('../api/client').PlayableMedia;

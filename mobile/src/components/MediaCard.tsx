@@ -27,6 +27,7 @@ interface MediaCardProps {
   onPress?: () => void;
   onPressIn?: () => void;
   downloading?: 'AUDIO' | 'VIDEO' | null;
+  downloadProgress?: number | null;
   playing?: 'AUDIO' | 'VIDEO' | null;
   mode?: 'search' | 'library';
   type?: 'AUDIO' | 'VIDEO';
@@ -57,6 +58,7 @@ export function MediaCard({
   onPress,
   onPressIn,
   downloading,
+  downloadProgress,
   playing,
   mode = 'search',
   type,
@@ -122,6 +124,22 @@ export function MediaCard({
 
       {mode === 'search' && (
         <View style={[styles.iconActions, {paddingTop: layout.isCompact ? SPACING.sm : SPACING.md}]}>
+          {downloading && downloadProgress != null && downloadProgress > 0 && downloadProgress < 100 ? (
+            <View style={styles.progressWrap}>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${downloadProgress}%`,
+                      backgroundColor: downloading === 'AUDIO' ? COLORS.audio : COLORS.video,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.progressLabel}>Saving {downloadProgress}%</Text>
+            </View>
+          ) : null}
           <TouchableOpacity style={styles.iconAction} onPress={onPlayAudio} disabled={!!playing}>
             {playing === 'AUDIO' ? (
               <ActivityIndicator color={COLORS.audio} size="small" />
@@ -296,11 +314,31 @@ const styles = StyleSheet.create({
   },
   iconActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.sm,
     paddingBottom: SPACING.md,
     borderTopWidth: 1,
     borderTopColor: ENTERPRISE.divider,
+  },
+  progressWrap: {
+    width: '100%',
+    paddingHorizontal: SPACING.sm,
+    paddingBottom: SPACING.sm,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.surfaceLight,
+    overflow: 'hidden',
+  },
+  progressFill: {height: '100%', borderRadius: 3},
+  progressLabel: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+    textAlign: 'center',
   },
   iconAction: {alignItems: 'center', flex: 1, minWidth: 0},
   iconCircle: {

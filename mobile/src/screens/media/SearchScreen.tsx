@@ -15,13 +15,17 @@ import {SearchBar} from '../../components/SearchBar';
 import {MediaCard, formatDuration} from '../../components/MediaCard';
 import {EmptyState} from '../../components/EmptyState';
 import {MediaListSkeleton} from '../../components/Skeleton';
+import {QualityPickerSheet, QualityAction} from '../../components/QualityPickerSheet';
 import {usePlayback} from '../../context/PlaybackContext';
 import {COLORS, RADIUS, SPACING} from '../../config';
 import {ENTERPRISE} from '../../theme/enterprise';
 import {useFeatureFlag} from '../../core/features/FeatureFlagsProvider';
 import type {MediaSearchResult} from '../../features/media/domain/types';
+import type {AudioQuality, MediaQuality, VideoQuality} from '../../features/media/domain/qualityPresets';
+import {qualityLabel} from '../../features/media/domain/qualityPresets';
 import {useMediaSearch} from '../../features/media/hooks/useMediaSearch';
-import {prepareAndStartPlayback, saveSearchItemToDevice, showDownloadError} from '../../features/media/services/PlaybackOrchestrator';
+import {prepareAndStartPlayback, showDownloadError} from '../../features/media/services/PlaybackOrchestrator';
+import {downloadSearchItemToDevice} from '../../utils/localMediaStore';
 import {prefetchMediaPrepare, warmMediaServer} from '../../utils/mediaPrefetch';
 import {consumePendingSearchQuery} from '../../utils/searchIntent';
 import {useLayoutMetrics} from '../../utils/layout';
@@ -43,7 +47,11 @@ export function SearchScreen() {
   const mediaDownloadEnabled = useFeatureFlag('mediaDownload');
   const {query, setQuery, results, loading, search} = useMediaSearch();
   const [downloading, setDownloading] = useState<Record<string, 'AUDIO' | 'VIDEO'>>({});
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [playing, setPlaying] = useState<Record<string, 'AUDIO' | 'VIDEO'>>({});
+  const [pickerItem, setPickerItem] = useState<MediaSearchResult | null>(null);
+  const [pickerType, setPickerType] = useState<'AUDIO' | 'VIDEO'>('AUDIO');
+  const [pickerAction, setPickerAction] = useState<QualityAction>('play');
 
   useFocusEffect(
     useCallback(() => {
@@ -54,17 +62,25 @@ export function SearchScreen() {
     }, [setQuery]),
   );
 
-  const handlePlay = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO') => {
-    if (!mediaSearchEnabled) {
+  const openPicker = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', action: QualityAction) => {
+    if (action === 'play' && !mediaSearchEnabled) {
       Alert.alert('Unavailable', 'Media search is disabled on this server.');
       return;
     }
+    if (action === 'download' && !mediaDownloadEnabled) {
+      Alert.alert('Unavailable', 'Downloads are disabled on this server.');
+      return;
+    }
+    setPickerItem(item);
+    setPickerType(type);
+    setPickerAction(action);
+  };
+
+  const runPlay = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', quality: MediaQuality) => {
     prefetchMediaPrepare(item.videoId, type);
     setPlaying(prev => ({...prev, [item.videoId]: type}));
-    void prepareAndStartPlayback(item, type, playback)
-      .catch(() => {
-        // error alert shown in prepareAndStartPlayback
-      })
+    void prepareAndStartPlayback(item, type, playback, undefined, quality)
+      .catch(() => undefined)
       .finally(() => {
         setPlaying(prev => {
           const next = {...prev};
@@ -74,33 +90,53 @@ export function SearchScreen() {
       });
   };
 
-  const handleDownload = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO') => {
-    if (!mediaDownloadEnabled) {
-      Alert.alert('Unavailable', 'Downloads are disabled on this server.');
-      return;
-    }
+  const runDownload = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', quality: MediaQuality) => {
     void warmMediaServer();
     prefetchMediaPrepare(item.videoId, type);
     setDownloading(prev => ({...prev, [item.videoId]: type}));
-    void saveSearchItemToDevice(item, type)
+    setDownloadProgress(prev => ({...prev, [item.videoId]: 0}));
+    void downloadSearchItemToDevice(
+      item,
+      type,
+      progress => {
+        setDownloadProgress(prev => ({...prev, [item.videoId]: progress.percent}));
+      },
+      quality,
+    )
       .then(() => {
         Alert.alert(
           'Saved on device',
-          type === 'AUDIO'
-            ? 'Audio saved to your phone storage and cloud library.'
-            : 'Video saved to your phone storage and cloud library.',
+          `${qualityLabel(type, quality)} saved to My Downloads.`,
         );
       })
-      .catch(e => {
-        showDownloadError(e);
-      })
+      .catch(e => showDownloadError(e))
       .finally(() => {
         setDownloading(prev => {
           const next = {...prev};
           delete next[item.videoId];
           return next;
         });
+        setDownloadProgress(prev => {
+          const next = {...prev};
+          delete next[item.videoId];
+          return next;
+        });
       });
+  };
+
+  const handlePickerConfirm = (quality: AudioQuality | VideoQuality) => {
+    if (!pickerItem) {
+      return;
+    }
+    const item = pickerItem;
+    const type = pickerType;
+    const action = pickerAction;
+    setPickerItem(null);
+    if (action === 'play') {
+      runPlay(item, type, quality);
+    } else {
+      runDownload(item, type, quality);
+    }
   };
 
   return (
@@ -142,7 +178,7 @@ export function SearchScreen() {
             <EmptyState
               icon="search-outline"
               title="Search any song or video"
-              subtitle="Type at least 2 characters — results appear automatically"
+              subtitle="Type at least 2 characters — pick MP3 or HD quality when you play or save"
               accentColor={COLORS.primary}
             />
           ) : null
@@ -160,16 +196,17 @@ export function SearchScreen() {
             videoFormat={item.videoFormat}
             mode="search"
             downloading={downloading[item.videoId] || null}
+            downloadProgress={downloadProgress[item.videoId] ?? null}
             playing={playing[item.videoId] || null}
-            onPress={() => handlePlay(item, 'AUDIO')}
+            onPress={() => openPicker(item, 'AUDIO', 'play')}
             onPressIn={() => {
               prefetchMediaPrepare(item.videoId, 'AUDIO');
               prefetchMediaPrepare(item.videoId, 'VIDEO');
             }}
-            onPlayAudio={() => handlePlay(item, 'AUDIO')}
-            onPlayVideo={() => handlePlay(item, 'VIDEO')}
-            onDownloadAudio={() => handleDownload(item, 'AUDIO')}
-            onDownloadVideo={() => handleDownload(item, 'VIDEO')}
+            onPlayAudio={() => openPicker(item, 'AUDIO', 'play')}
+            onPlayVideo={() => openPicker(item, 'VIDEO', 'play')}
+            onDownloadAudio={() => openPicker(item, 'AUDIO', 'download')}
+            onDownloadVideo={() => openPicker(item, 'VIDEO', 'download')}
           />
         )}
         contentContainerStyle={
@@ -179,6 +216,14 @@ export function SearchScreen() {
         }
       />
 
+      <QualityPickerSheet
+        visible={pickerItem != null}
+        item={pickerItem}
+        mediaType={pickerType}
+        action={pickerAction}
+        onClose={() => setPickerItem(null)}
+        onConfirm={handlePickerConfirm}
+      />
     </View>
   );
 }

@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.mediaapp.util.MediaQualityPresets;
 import com.mediaapp.util.RangeFileResponse;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -224,13 +225,28 @@ public class MediaService {
         return resolveDirectUrl(videoId, type, true);
     }
 
+    public String resolveDirectUrlForClient(String videoId, MediaType type, String qualityPreset)
+            throws IOException, InterruptedException {
+        return resolveDirectUrl(videoId, type, false, qualityPreset);
+    }
+
+    public String resolveDirectUrlFastForClient(String videoId, MediaType type, String qualityPreset)
+            throws IOException, InterruptedException {
+        return resolveDirectUrl(videoId, type, true, qualityPreset);
+    }
+
     public String videoQualityLabelPublic() {
         return videoQualityLabel();
     }
 
     private String resolveDirectUrl(String videoId, MediaType type, boolean fast)
             throws IOException, InterruptedException {
-        String key = videoId + ":" + type.name();
+        return resolveDirectUrl(videoId, type, fast, null);
+    }
+
+    private String resolveDirectUrl(String videoId, MediaType type, boolean fast, String qualityPreset)
+            throws IOException, InterruptedException {
+        String key = videoId + ":" + type.name() + ":" + MediaQualityPresets.normalize(type, qualityPreset);
         DirectUrlEntry cached = directUrlCache.get(key);
         if (cached != null && cached.expiresAt.isAfter(Instant.now())) {
             return cached.url;
@@ -249,9 +265,12 @@ public class MediaService {
             int timeout = fast
                     ? Math.min(directUrlTimeoutSeconds, 20)
                     : directUrlTimeoutSeconds;
+            String format = type == MediaType.AUDIO
+                    ? MediaQualityPresets.ytDlpAudioFormat(qualityPreset)
+                    : MediaQualityPresets.ytDlpVideoFormat(qualityPreset);
             String url = fast
-                    ? ytDlpService.resolveDirectUrlFast(buildSourceUrl(videoId), arg, timeout)
-                    : ytDlpService.resolveDirectUrl(buildSourceUrl(videoId), arg, timeout);
+                    ? ytDlpService.resolveDirectUrlFast(buildSourceUrl(videoId), arg, timeout, format)
+                    : ytDlpService.resolveDirectUrl(buildSourceUrl(videoId), arg, timeout, format);
 
             directUrlCache.put(key, new DirectUrlEntry(url, Instant.now().plus(Duration.ofMinutes(45))));
             return url;
@@ -408,8 +427,13 @@ public class MediaService {
     }
 
     public MediaItem download(String videoId, String title, String sourceUrl, MediaType type) {
+        return download(videoId, title, sourceUrl, type, null);
+    }
+
+    public MediaItem download(String videoId, String title, String sourceUrl, MediaType type, String qualityPreset) {
         requireCloudPlaybackAllowed();
-        String lockKey = "dl:" + videoId + ":" + type;
+        String preset = MediaQualityPresets.normalize(type, qualityPreset);
+        String lockKey = "dl:" + videoId + ":" + type + ":" + preset;
         Object lock = downloadLocks.computeIfAbsent(lockKey, k -> new Object());
         synchronized (lock) {
             if (mediaItemRepository.existsBySourceIdAndType(videoId, type)) {
@@ -420,7 +444,7 @@ public class MediaService {
                 Path targetDir = downloadsPath.resolve(type == MediaType.AUDIO ? "audio" : "video");
                 Files.createDirectories(targetDir);
                 String safeTitle = sanitize(title);
-                Path outputPath = downloadLibraryFile(sourceUrl, type, targetDir, safeTitle, videoId);
+                Path outputPath = downloadLibraryFile(sourceUrl, type, targetDir, safeTitle, videoId, preset);
 
                 MediaItem item = MediaItem.builder()
                         .title(title)
@@ -432,8 +456,8 @@ public class MediaService {
                         .thumbnailUrl("https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg")
                         .fileSizeBytes(Files.size(outputPath))
                         .quality(type == MediaType.AUDIO
-                                ? (outputPath.getFileName().toString().endsWith(".mp3") ? "MP3" : "M4A Audio")
-                                : videoQualityLabel())
+                                ? MediaQualityPresets.audioLabel(preset)
+                                : MediaQualityPresets.videoLabel(preset))
                         .downloadedAt(Instant.now())
                         .build();
 
@@ -449,9 +473,22 @@ public class MediaService {
     }
 
     private Path downloadLibraryFile(String sourceUrl, MediaType type, Path targetDir,
-                                     String safeTitle, String videoId)
+                                     String safeTitle, String videoId, String qualityPreset)
             throws IOException, InterruptedException {
+        String preset = MediaQualityPresets.normalize(type, qualityPreset);
         if (type == MediaType.AUDIO) {
+            if ("m4a".equals(preset)) {
+                Path m4a = targetDir.resolve(safeTitle + "_" + videoId + ".m4a");
+                List<String> m4aCmd = new ArrayList<>();
+                m4aCmd.add(ytDlpPath);
+                m4aCmd.add(sourceUrl);
+                m4aCmd.addAll(List.of(
+                        "-f", "bestaudio[ext=m4a]/bestaudio/best",
+                        "-o", m4a.toString()
+                ));
+                runYtDlp(m4aCmd);
+                return m4a;
+            }
             if (isFfmpegAvailable()) {
                 try {
                     String template = targetDir.resolve(safeTitle + "_" + videoId + ".%(ext)s").toString();
@@ -460,7 +497,8 @@ public class MediaService {
                     mp3Cmd.add(sourceUrl);
                     mp3Cmd.addAll(List.of(
                             "-f", "bestaudio/best", "-x", "--audio-format", "mp3",
-                            "--audio-quality", "0", "-o", template
+                            "--audio-quality", MediaQualityPresets.mp3QualityArg(preset),
+                            "-o", template
                     ));
                     runYtDlp(mp3Cmd);
                     return findFileWithExtension(targetDir, videoId, ".mp3");
@@ -481,7 +519,7 @@ public class MediaService {
         }
 
         Path output = targetDir.resolve(safeTitle + "_" + videoId + ".mp4");
-        runYtDlp(buildVideoDownloadCommand(sourceUrl, output.toString()));
+        runYtDlp(buildVideoDownloadCommand(sourceUrl, output.toString(), preset));
         validatePlayableVideo(output);
         return output;
     }
@@ -490,23 +528,34 @@ public class MediaService {
         return isFfmpegAvailable() ? "HD Video (720p)" : "Video (360p MP4)";
     }
 
-    private List<String> buildVideoDownloadCommand(String sourceUrl, String outputPath) {
+    private List<String> buildVideoDownloadCommand(String sourceUrl, String outputPath, String qualityPreset) {
+        String preset = MediaQualityPresets.normalizeVideo(qualityPreset);
+        int height = switch (preset) {
+            case "360" -> 360;
+            case "1080" -> 1080;
+            default -> 720;
+        };
         List<String> command = new ArrayList<>();
         command.add(ytDlpPath);
         command.add(sourceUrl);
         if (isFfmpegAvailable()) {
             command.add("-f");
-            command.add("bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[ext=mp4]/best");
+            command.add("bestvideo[height<=" + height + "][ext=mp4]+bestaudio[ext=m4a]/best[height<="
+                    + height + "][ext=mp4]/best[ext=mp4]/best");
             command.add("--merge-output-format");
             command.add("mp4");
         } else {
             // Progressive MP4 only — avoids HLS/MPEG-TS files that mobile players cannot play
             command.add("-f");
-            command.add("22/18/best[height<=480][ext=mp4][vcodec^=avc1][acodec^=mp4a]/18");
+            command.add("22/18/best[height<=" + height + "][ext=mp4][vcodec^=avc1][acodec^=mp4a]/18");
         }
         command.add("-o");
         command.add(outputPath);
         return command;
+    }
+
+    private List<String> buildVideoDownloadCommand(String sourceUrl, String outputPath) {
+        return buildVideoDownloadCommand(sourceUrl, outputPath, "720");
     }
 
     private void validatePlayableVideo(Path path) throws IOException {

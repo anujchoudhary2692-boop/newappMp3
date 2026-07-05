@@ -1,6 +1,8 @@
 import {Alert} from 'react-native';
 import {mediaApi} from '../features/media/api/mediaApi';
 import type {MediaSearchResult, PlayableMedia} from '../features/media/domain/types';
+import type {MediaQuality} from '../features/media/domain/qualityPresets';
+import {qualityLabel} from '../features/media/domain/qualityPresets';
 import {getApiBaseUrl} from '../config';
 import {openPlayerScreen} from '../navigation/navigationRef';
 import {
@@ -202,13 +204,14 @@ export async function prepareAndStartPlayback(
   type: 'AUDIO' | 'VIDEO',
   playback: PlaybackController,
   onStatus?: (message?: string) => void,
+  quality?: MediaQuality,
 ): Promise<void> {
   const mediaBase: PlayableMedia = {
     title: item.title,
     type,
     streamUrl: '',
     thumbnailUrl: item.thumbnailUrl,
-    quality: type === 'AUDIO' ? item.audioFormat : item.videoFormat,
+    quality: quality ? qualityLabel(type, quality) : type === 'AUDIO' ? item.audioFormat : item.videoFormat,
     sourceUrl: item.sourceUrl,
     videoId: item.videoId,
   };
@@ -282,6 +285,7 @@ export async function saveSearchItemToDevice(
   item: MediaSearchResult,
   type: 'AUDIO' | 'VIDEO',
   onProgress?: (message: string) => void,
+  quality?: string,
 ): Promise<void> {
   await downloadSearchItemToDevice(item, type, progress => {
     if (progress.percent > 0 && progress.percent < 100) {
@@ -289,7 +293,7 @@ export async function saveSearchItemToDevice(
     } else if (progress.percent >= 100) {
       onProgress?.('Saved on this device');
     }
-  });
+  }, quality);
 }
 
 export function showPlaybackError(error: unknown): void {

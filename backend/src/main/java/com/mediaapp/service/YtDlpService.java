@@ -237,7 +237,12 @@ public class YtDlpService {
 
     public String resolveDirectUrl(String sourceUrl, MediaTypeArg type, int timeoutSeconds)
             throws IOException, InterruptedException {
-        return resolveDirectUrl(sourceUrl, type, timeoutSeconds, EXTRACTOR_PROFILES);
+        return resolveDirectUrl(sourceUrl, type, timeoutSeconds, EXTRACTOR_PROFILES, false, null);
+    }
+
+    public String resolveDirectUrl(String sourceUrl, MediaTypeArg type, int timeoutSeconds, String format)
+            throws IOException, InterruptedException {
+        return resolveDirectUrl(sourceUrl, type, timeoutSeconds, EXTRACTOR_PROFILES, false, format);
     }
 
     /** Fast path for playback — single iOS profile, no remote ejs fetch. */
@@ -248,7 +253,19 @@ public class YtDlpService {
                 type,
                 timeoutSeconds,
                 new String[] {EXTRACTOR_PROFILES[0]},
-                true);
+                true,
+                null);
+    }
+
+    public String resolveDirectUrlFast(String sourceUrl, MediaTypeArg type, int timeoutSeconds, String format)
+            throws IOException, InterruptedException {
+        return resolveDirectUrl(
+                sourceUrl,
+                type,
+                timeoutSeconds,
+                new String[] {EXTRACTOR_PROFILES[0]},
+                true,
+                format);
     }
 
     private String resolveDirectUrl(
@@ -257,7 +274,7 @@ public class YtDlpService {
             int timeoutSeconds,
             String[] profiles)
             throws IOException, InterruptedException {
-        return resolveDirectUrl(sourceUrl, type, timeoutSeconds, profiles, false);
+        return resolveDirectUrl(sourceUrl, type, timeoutSeconds, profiles, false, null);
     }
 
     private String resolveDirectUrl(
@@ -267,9 +284,22 @@ public class YtDlpService {
             String[] profiles,
             boolean fastExtract)
             throws IOException, InterruptedException {
-        String format = type == MediaTypeArg.AUDIO
-                ? "140/bestaudio[ext=m4a]/bestaudio/best"
-                : "18/best[height<=480][ext=mp4][vcodec^=avc1]/best[ext=mp4]/best";
+        return resolveDirectUrl(sourceUrl, type, timeoutSeconds, profiles, fastExtract, null);
+    }
+
+    private String resolveDirectUrl(
+            String sourceUrl,
+            MediaTypeArg type,
+            int timeoutSeconds,
+            String[] profiles,
+            boolean fastExtract,
+            String formatOverride)
+            throws IOException, InterruptedException {
+        String format = formatOverride != null && !formatOverride.isBlank()
+                ? formatOverride
+                : type == MediaTypeArg.AUDIO
+                    ? "140/bestaudio[ext=m4a]/bestaudio/best"
+                    : "18/best[height<=480][ext=mp4][vcodec^=avc1]/best[ext=mp4]/best";
 
         for (String profile : profiles) {
             List<String> cmd = new ArrayList<>();

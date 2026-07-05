@@ -62,7 +62,7 @@ export function goToHomeTab(): void {
 }
 
 export function goToMediaTab(
-  tab: 'SearchTab' | 'AudioTab' | 'VideoTab' = 'SearchTab',
+  tab: 'SearchTab' | 'DownloadsTab' | 'AudioTab' | 'VideoTab' = 'SearchTab',
   searchQuery?: string,
 ): void {
   if (!navigationRef.isReady()) {

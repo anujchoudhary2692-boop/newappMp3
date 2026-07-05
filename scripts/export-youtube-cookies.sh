@@ -28,8 +28,11 @@ yt-dlp \
   --skip-download \
   --no-playlist \
   --no-warnings \
+  --no-progress \
+  --quiet \
   --ignore-no-formats-error \
-  "$PROBE_URL"
+  --print "%(id)s" \
+  "$PROBE_URL" >/dev/null 2>&1 || true
 
 if [[ ! -s "$OUT" ]]; then
   echo "cookies.txt is empty — export failed."

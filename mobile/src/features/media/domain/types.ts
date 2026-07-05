@@ -72,4 +72,5 @@ export interface DownloadPayload {
   title: string;
   sourceUrl: string;
   type: MediaType;
+  quality?: string;
 }

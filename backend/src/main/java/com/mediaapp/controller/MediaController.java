@@ -121,7 +121,8 @@ public class MediaController {
                     request.getVideoId(),
                     request.getTitle(),
                     request.getSourceUrl(),
-                    request.getType()
+                    request.getType(),
+                    request.getQuality()
             );
             return ResponseEntity.ok(ApiResponse.ok("Download complete", toDto(item)));
         } catch (IllegalStateException e) {

@@ -15,4 +15,6 @@ public class DownloadRequest {
     private String title;
     private String sourceUrl;
     private MediaType type;
+    /** Audio: 128, 320, m4a. Video: 360, 720, 1080. */
+    private String quality;
 }
