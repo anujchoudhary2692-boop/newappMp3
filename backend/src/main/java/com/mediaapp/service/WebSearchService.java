@@ -179,6 +179,7 @@ public class WebSearchService {
                 .durationSeconds(node.path("duration").isNumber() ? node.path("duration").asInt() : null)
                 .sourceUrl(webpageUrl)
                 .source(formatSourceLabel(extractor))
+                .hasVideo(MediaService.hasVideoTrack(node, extractor))
                 .build());
     }
 

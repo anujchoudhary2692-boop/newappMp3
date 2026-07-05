@@ -22,4 +22,6 @@ public class MediaSearchResultDto {
     private String videoStreamUrl;
     /** e.g. Soundcloud, Web, Youtube */
     private String source;
+    /** False for audio-only sources (e.g. SoundCloud tracks). */
+    private Boolean hasVideo;
 }

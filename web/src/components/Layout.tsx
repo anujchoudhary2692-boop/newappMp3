@@ -6,7 +6,7 @@ import {usePlayback} from '../context/PlaybackContext';
 function MiniPlayer() {
   const pb = usePlayback();
   const nav = useNavigate();
-  if (!pb.media || !pb.streamUrl) return null;
+  if (!pb.media) return null;
   return (
     <div className="mini-player" onClick={() => nav('/player')}>
       {pb.media.thumbnailUrl ? (
@@ -17,7 +17,7 @@ function MiniPlayer() {
       <div className="mini-info">
         <div className="mini-title">{pb.media.title}</div>
         <div className="mini-sub">
-          {pb.buffering ? 'Buffering…' : pb.paused ? 'Paused' : 'Playing'}
+          {!pb.streamUrl ? pb.prepareStatus || 'Preparing…' : pb.buffering ? 'Buffering…' : pb.paused ? 'Paused' : 'Playing'}
         </div>
       </div>
       <button

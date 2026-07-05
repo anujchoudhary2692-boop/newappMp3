@@ -3,7 +3,8 @@ import {useNavigate} from 'react-router-dom';
 import {listFavorites} from '../stores/favorites';
 import {startPlayback} from '../utils/playback';
 import {usePlayback} from '../context/PlaybackContext';
-import type {MediaSearchResult} from '../types/media';
+import type {MediaSearchResult, PlayableMedia} from '../types/media';
+import {defaultQuality} from '../types/quality';
 
 export function FavoritesPage() {
   const [items] = useState(listFavorites());
@@ -18,12 +19,24 @@ export function FavoritesPage() {
       channel: fav.channel,
       sourceUrl: fav.sourceUrl,
     };
+    const partial: PlayableMedia = {
+      title: item.title,
+      type: fav.type,
+      streamUrl: '',
+      thumbnailUrl: item.thumbnailUrl,
+      sourceUrl: item.sourceUrl,
+      videoId: item.videoId,
+      quality: defaultQuality(fav.type),
+    };
+    pb.beginPrepare(partial);
+    nav('/player');
     try {
-      const {media, streamUrl} = await startPlayback(item, fav.type);
+      const {media, streamUrl} = await startPlayback(item, fav.type, undefined, msg =>
+        pb.setPrepareStatus(msg),
+      );
       pb.play(media, streamUrl);
-      nav('/player');
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Play failed');
+      pb.failPrepare(e instanceof Error ? e.message : 'Play failed');
     }
   };
 

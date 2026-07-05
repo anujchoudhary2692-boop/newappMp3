@@ -22,6 +22,8 @@ export function MediaCard({
   favAudio,
   favVideo,
 }: Props) {
+  const hasVideo = item.hasVideo !== false;
+
   return (
     <article className="card">
       <img src={item.thumbnailUrl} alt={item.title} loading="lazy" />
@@ -30,31 +32,42 @@ export function MediaCard({
         <div className="card-sub">
           {item.source ? `${item.source} · ` : ''}{item.channel}
           {item.durationSeconds ? ` · ${formatDuration(item.durationSeconds)}` : ''}
+          {!hasVideo ? ' · Audio only' : ''}
         </div>
       </div>
       <div className="card-actions">
         <button className="btn btn-audio" disabled={playing} onClick={() => onPlay('AUDIO')}>
           ▶ Audio
         </button>
-        <button className="btn btn-video" disabled={playing} onClick={() => onPlay('VIDEO')}>
-          ▶ Video
-        </button>
+        {hasVideo ? (
+          <button className="btn btn-video" disabled={playing} onClick={() => onPlay('VIDEO')}>
+            ▶ Video
+          </button>
+        ) : (
+          <button className="btn btn-ghost" disabled title="Audio-only track">
+            No video
+          </button>
+        )}
       </div>
       <div className="card-actions">
         <button className="btn btn-ghost" onClick={() => onDownload('AUDIO')}>
           ⬇ MP3
         </button>
-        <button className="btn btn-ghost" onClick={() => onDownload('VIDEO')}>
-          ⬇ MP4
-        </button>
+        {hasVideo && (
+          <button className="btn btn-ghost" onClick={() => onDownload('VIDEO')}>
+            ⬇ MP4
+          </button>
+        )}
         {onFavorite && (
           <>
             <button className="btn btn-ghost" onClick={() => onFavorite('AUDIO')} title="Favorite audio">
               {favAudio ? '❤️' : '🤍'}
             </button>
-            <button className="btn btn-ghost" onClick={() => onFavorite('VIDEO')} title="Favorite video">
-              {favVideo ? '❤️' : '🤍'}
-            </button>
+            {hasVideo && (
+              <button className="btn btn-ghost" onClick={() => onFavorite('VIDEO')} title="Favorite video">
+                {favVideo ? '❤️' : '🤍'}
+              </button>
+            )}
             <button className="btn btn-ghost" onClick={onPlaylist} title="Add to playlist">
               ➕
             </button>

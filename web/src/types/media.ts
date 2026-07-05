@@ -10,6 +10,7 @@ export interface MediaSearchResult {
   audioFormat?: string;
   videoFormat?: string;
   source?: string;
+  hasVideo?: boolean;
 }
 
 export interface PlayableMedia {

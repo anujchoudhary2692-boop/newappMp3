@@ -785,6 +785,7 @@ public class MediaService {
                     .durationSeconds(node.path("duration").isNumber() ? node.path("duration").asInt() : null)
                     .sourceUrl(sourceUrl)
                     .source(formatSourceLabel(extractor))
+                    .hasVideo(hasVideoTrack(node, extractor))
                     .build());
         } catch (Exception e) {
             return Optional.empty();
@@ -821,6 +822,31 @@ public class MediaService {
             return "Web";
         }
         return extractor.replace('_', ' ');
+    }
+
+    static boolean hasVideoTrack(JsonNode node, String extractor) {
+        if (node.has("vcodec")) {
+            String vcodec = node.path("vcodec").asText("none");
+            if (vcodec != null && !vcodec.isBlank() && !"none".equalsIgnoreCase(vcodec)) {
+                return true;
+            }
+        }
+        if (node.has("formats") && node.path("formats").isArray()) {
+            for (JsonNode fmt : node.path("formats")) {
+                String vcodec = fmt.path("vcodec").asText("none");
+                if (vcodec != null && !vcodec.isBlank() && !"none".equalsIgnoreCase(vcodec)) {
+                    return true;
+                }
+            }
+        }
+        String ext = extractor == null ? "" : extractor.toLowerCase(Locale.ROOT);
+        if (ext.contains("youtube") || ext.contains("vimeo")) {
+            return true;
+        }
+        if (ext.contains("soundcloud") || ext.contains("bandcamp")) {
+            return false;
+        }
+        return true;
     }
 
     public List<MediaItem> listByType(MediaType type) {

@@ -1,4 +1,5 @@
-import React, {createContext, useCallback, useContext, useMemo, useRef, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
+import {useLocation} from 'react-router-dom';
 import type {PlayableMedia} from '../types/media';
 import {formatTime} from '../utils/format';
 
@@ -16,11 +17,17 @@ interface PlaybackCtx {
   duration: number;
   buffering: boolean;
   playbackRate: number;
+  error: string | null;
+  prepareStatus: string | null;
   queue: QueueTrack[];
   queueIndex: number;
   repeat: boolean;
   shuffle: boolean;
+  onPlayerPage: boolean;
   play: (media: PlayableMedia, streamUrl: string) => void;
+  beginPrepare: (media: PlayableMedia) => void;
+  setPrepareStatus: (msg: string) => void;
+  failPrepare: (msg: string) => void;
   playQueue: (tracks: QueueTrack[], start?: number) => void;
   togglePause: () => void;
   seek: (t: number) => void;
@@ -37,15 +44,19 @@ interface PlaybackCtx {
   onEnded: () => void;
   onWaiting: () => void;
   onPlaying: () => void;
+  onPauseEvt: () => void;
+  onError: () => void;
   formatCurrent: string;
   formatDuration: string;
 }
 
 const Ctx = createContext<PlaybackCtx | null>(null);
 
-const RATES = [0.75, 1, 1.25, 1.5, 2];
+export const RATES = [0.75, 1, 1.25, 1.5, 2];
 
 export function PlaybackProvider({children}: {children: React.ReactNode}) {
+  const location = useLocation();
+  const onPlayerPage = location.pathname === '/player';
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [media, setMedia] = useState<PlayableMedia | null>(null);
@@ -55,13 +66,23 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   const [duration, setDuration] = useState(0);
   const [buffering, setBuffering] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const [prepareStatus, setPrepareStatus] = useState<string | null>(null);
   const [queue, setQueue] = useState<QueueTrack[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const [repeat, setRepeat] = useState(false);
   const [shuffle, setShuffle] = useState(false);
 
-  const activeEl = () =>
-    media?.type === 'VIDEO' ? videoRef.current : audioRef.current;
+  const activeEl = useCallback((): HTMLMediaElement | null => {
+    if (media?.type === 'VIDEO') return videoRef.current;
+    return audioRef.current;
+  }, [media?.type]);
+
+  const tryPlay = useCallback(() => {
+    const el = activeEl();
+    if (!el || paused) return;
+    void el.play().catch(() => setPaused(true));
+  }, [activeEl, paused]);
 
   const playTrack = useCallback((m: PlayableMedia, url: string) => {
     setMedia(m);
@@ -70,6 +91,27 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     setCurrentTime(0);
     setDuration(0);
     setBuffering(true);
+    setError(null);
+    setPrepareStatus(null);
+  }, []);
+
+  const beginPrepare = useCallback((m: PlayableMedia) => {
+    audioRef.current?.pause();
+    videoRef.current?.pause();
+    setMedia(m);
+    setStreamUrl(null);
+    setPaused(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setBuffering(true);
+    setError(null);
+    setPrepareStatus('Preparing on cloud… first play can take 1–2 min');
+  }, []);
+
+  const failPrepare = useCallback((msg: string) => {
+    setBuffering(false);
+    setPrepareStatus(null);
+    setError(msg);
   }, []);
 
   const play = useCallback(
@@ -86,8 +128,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       if (!tracks.length) return;
       setQueue(tracks);
       setQueueIndex(start);
-      const t = tracks[start];
-      playTrack(t.media, t.streamUrl);
+      playTrack(tracks[start].media, tracks[start].streamUrl);
     },
     [playTrack],
   );
@@ -99,6 +140,17 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       playTrack(queue[idx].media, queue[idx].streamUrl);
     },
     [queue, playTrack],
+  );
+
+  const seek = useCallback(
+    (t: number) => {
+      const el = activeEl();
+      if (el) {
+        el.currentTime = t;
+        setCurrentTime(t);
+      }
+    },
+    [activeEl],
   );
 
   const next = useCallback(() => {
@@ -114,27 +166,18 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       return;
     }
     if (queueIndex > 0) goTo(queueIndex - 1);
-  }, [currentTime, queueIndex, goTo]);
-
-  const seek = useCallback((t: number) => {
-    const el = activeEl();
-    if (el) {
-      el.currentTime = t;
-      setCurrentTime(t);
-    }
-  }, [media]);
+  }, [currentTime, queueIndex, goTo, seek]);
 
   const togglePause = useCallback(() => {
     const el = activeEl();
     if (!el) return;
     if (el.paused) {
-      void el.play();
-      setPaused(false);
+      void el.play().then(() => setPaused(false)).catch(() => setError('Tap play to start'));
     } else {
       el.pause();
       setPaused(true);
     }
-  }, [media]);
+  }, [activeEl]);
 
   const setRate = useCallback(
     (r: number) => {
@@ -142,13 +185,24 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       const el = activeEl();
       if (el) el.playbackRate = r;
     },
-    [media],
+    [activeEl],
   );
+
+  const stop = useCallback(() => {
+    audioRef.current?.pause();
+    videoRef.current?.pause();
+    setMedia(null);
+    setStreamUrl(null);
+    setPaused(true);
+    setQueue([]);
+    setError(null);
+    setPrepareStatus(null);
+  }, []);
 
   const onTimeUpdate = useCallback(() => {
     const el = activeEl();
     if (el) setCurrentTime(el.currentTime);
-  }, [media]);
+  }, [activeEl]);
 
   const onLoaded = useCallback(() => {
     const el = activeEl();
@@ -156,19 +210,36 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       setDuration(el.duration || 0);
       el.playbackRate = playbackRate;
       setBuffering(false);
+      if (!paused) tryPlay();
     }
-  }, [media, playbackRate]);
+  }, [activeEl, playbackRate, paused, tryPlay]);
 
   const onEnded = useCallback(() => next(), [next]);
   const onWaiting = useCallback(() => setBuffering(true), []);
-  const onPlaying = useCallback(() => setBuffering(false), []);
-
-  const stop = useCallback(() => {
-    setMedia(null);
-    setStreamUrl(null);
-    setPaused(true);
-    setQueue([]);
+  const onPlaying = useCallback(() => {
+    setPaused(false);
+    setBuffering(false);
+    setError(null);
   }, []);
+  const onPauseEvt = useCallback(() => setPaused(true), []);
+  const onError = useCallback(
+    () => setError('Playback failed — try ▶ Audio or another track'),
+    [],
+  );
+
+  useEffect(() => {
+    const el = activeEl();
+    if (!el || !streamUrl) return;
+    el.load();
+    if (!paused) {
+      const t = window.setTimeout(() => tryPlay(), 100);
+      return () => window.clearTimeout(t);
+    }
+  }, [streamUrl, media?.type, activeEl, paused, tryPlay]);
+
+  useEffect(() => {
+    if (onPlayerPage && !paused && streamUrl) tryPlay();
+  }, [onPlayerPage, paused, streamUrl, tryPlay]);
 
   const value = useMemo(
     () => ({
@@ -179,11 +250,17 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       duration,
       buffering,
       playbackRate,
+      error,
+      prepareStatus,
       queue,
       queueIndex,
       repeat,
       shuffle,
+      onPlayerPage,
       play,
+      beginPrepare,
+      setPrepareStatus,
+      failPrepare,
       playQueue,
       togglePause,
       seek,
@@ -200,6 +277,8 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       onEnded,
       onWaiting,
       onPlaying,
+      onPauseEvt,
+      onError,
       formatCurrent: formatTime(currentTime),
       formatDuration: formatTime(duration),
     }),
@@ -211,11 +290,17 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       duration,
       buffering,
       playbackRate,
+      error,
+      prepareStatus,
       queue,
       queueIndex,
       repeat,
       shuffle,
+      onPlayerPage,
       play,
+      beginPrepare,
+      setPrepareStatus,
+      failPrepare,
       playQueue,
       togglePause,
       seek,
@@ -227,22 +312,50 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       onEnded,
       onWaiting,
       onPlaying,
+      onPauseEvt,
+      onError,
     ],
   );
+
+  const mediaEvents = {
+    onTimeUpdate,
+    onLoadedMetadata: onLoaded,
+    onEnded,
+    onWaiting,
+    onPlaying,
+    onPause: onPauseEvt,
+    onError,
+  };
+
+  const showVideo = media?.type === 'VIDEO';
+  const videoSrc = showVideo && streamUrl ? streamUrl : undefined;
+  const audioSrc = media?.type === 'AUDIO' && streamUrl ? streamUrl : undefined;
 
   return (
     <Ctx.Provider value={value}>
       {children}
       <audio
         ref={audioRef}
-        src={media?.type === 'AUDIO' ? streamUrl ?? undefined : undefined}
-        onTimeUpdate={onTimeUpdate}
-        onLoadedMetadata={onLoaded}
-        onEnded={onEnded}
-        onWaiting={onWaiting}
-        onPlaying={onPlaying}
-        onError={() => setBuffering(false)}
+        src={audioSrc}
         preload="auto"
+        playsInline
+        {...mediaEvents}
+      />
+      <video
+        ref={videoRef}
+        className={
+          showVideo && streamUrl
+            ? onPlayerPage
+              ? 'player-video player-video--active'
+              : 'player-video player-video--hidden'
+            : 'player-video player-video--hidden'
+        }
+        src={videoSrc}
+        poster={media?.thumbnailUrl}
+        preload="auto"
+        playsInline
+        controls={onPlayerPage && showVideo && !!streamUrl}
+        {...mediaEvents}
       />
     </Ctx.Provider>
   );
@@ -253,5 +366,3 @@ export function usePlayback() {
   if (!ctx) throw new Error('usePlayback outside provider');
   return ctx;
 }
-
-export {RATES};

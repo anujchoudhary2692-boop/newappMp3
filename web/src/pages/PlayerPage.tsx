@@ -1,48 +1,26 @@
-import {useEffect, useRef} from 'react';
-import {Link, useNavigate} from 'react-router-dom';
+import {Link, Navigate} from 'react-router-dom';
 import {RATES, usePlayback} from '../context/PlaybackContext';
 
 export function PlayerPage() {
   const pb = usePlayback();
-  const nav = useNavigate();
-  const started = useRef(false);
 
-  useEffect(() => {
-    if (!pb.media || !pb.streamUrl) {
-      nav('/', {replace: true});
-      return;
-    }
-    const el = pb.media.type === 'VIDEO' ? pb.videoRef.current : pb.audioRef.current;
-    if (el && !started.current) {
-      started.current = true;
-      void el.play().catch(() => undefined);
-    }
-  }, [pb.media, pb.streamUrl, nav, pb.videoRef, pb.audioRef]);
+  if (!pb.media) {
+    return <Navigate to="/" replace />;
+  }
 
-  if (!pb.media || !pb.streamUrl) return null;
+  const preparing = !pb.streamUrl;
 
   const pct = pb.duration > 0 ? (pb.currentTime / pb.duration) * 100 : 0;
+  const isVideo = pb.media.type === 'VIDEO';
 
   return (
-    <div className="player-page">
-      <Link to="/" className="btn btn-ghost" style={{float: 'left', marginBottom: 16}}>
+    <div className="page player-page">
+      <Link to="/search" className="btn btn-ghost" style={{marginBottom: 16}}>
         ← Back
       </Link>
 
-      {pb.media.type === 'VIDEO' ? (
-        <video
-          ref={pb.videoRef}
-          className="player-video"
-          src={pb.streamUrl}
-          poster={pb.media.thumbnailUrl}
-          playsInline
-          controls={false}
-          onTimeUpdate={pb.onTimeUpdate}
-          onLoadedMetadata={pb.onLoaded}
-          onEnded={pb.onEnded}
-          onWaiting={pb.onWaiting}
-          onPlaying={pb.onPlaying}
-        />
+      {isVideo ? (
+        <div className="player-video-stage" aria-hidden="true" />
       ) : (
         <img
           className="player-art"
@@ -58,15 +36,28 @@ export function PlayerPage() {
       <p style={{color: 'var(--muted)', fontSize: 14, marginBottom: 8}}>
         {pb.media.type}
         {pb.media.quality ? ` · ${pb.media.quality}` : ''}
-        {pb.buffering ? ' · Buffering…' : ''}
+        {preparing ? ` · ${pb.prepareStatus || 'Preparing…'}` : pb.buffering ? ' · Buffering…' : pb.paused ? ' · Paused' : ' · Playing'}
       </p>
+
+      {preparing && (
+        <div style={{margin: '16px 0'}}>
+          <div className="spinner" style={{margin: '0 auto 12px'}} />
+          <p style={{color: 'var(--muted)', fontSize: 13}}>{pb.prepareStatus || 'Preparing stream on cloud…'}</p>
+        </div>
+      )}
+
+      {pb.error && (
+        <p style={{color: 'var(--danger)', marginBottom: 12, fontSize: 14}}>{pb.error}</p>
+      )}
 
       <input
         type="range"
         className="progress"
         min={0}
         max={pb.duration || 100}
+        step={0.1}
         value={pb.currentTime}
+        disabled={preparing}
         onChange={e => pb.seek(Number(e.target.value))}
         style={{background: `linear-gradient(to right, var(--primary) ${pct}%, var(--surface2) ${pct}%)`}}
       />
@@ -82,7 +73,7 @@ export function PlayerPage() {
         <button className="control-btn" onClick={pb.prev} title="Previous">
           ⏮
         </button>
-        <button className="control-btn play" onClick={pb.togglePause}>
+        <button className="control-btn play" onClick={pb.togglePause} disabled={preparing}>
           {pb.paused ? '▶' : '⏸'}
         </button>
         <button className="control-btn" onClick={pb.next} title="Next">
@@ -103,6 +94,12 @@ export function PlayerPage() {
           </button>
         ))}
       </div>
+
+      {isVideo && (
+        <p style={{fontSize: 12, color: 'var(--muted)', marginTop: 16}}>
+          Use the video controls above the title for fullscreen. SoundCloud tracks are often audio-only.
+        </p>
+      )}
 
       {pb.queue.length > 1 && (
         <div style={{marginTop: 24, textAlign: 'left'}}>

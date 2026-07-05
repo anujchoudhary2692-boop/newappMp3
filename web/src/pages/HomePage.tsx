@@ -49,7 +49,7 @@ export function HomePage() {
         <p>Search, stream, and download music from SoundCloud & the open web.</p>
         <div className="search-bar">
           <Link to="/search" className="btn btn-primary" style={{flex: 1, textAlign: 'center'}}>
-            🔍 Search YouTube
+            🔍 Search music
           </Link>
         </div>
         <div className="chips">

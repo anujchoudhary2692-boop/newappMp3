@@ -420,11 +420,39 @@ select {
 }
 
 .player-video {
-  width: 100%;
+  width: min(640px, 92vw);
   max-height: 360px;
   border-radius: 12px;
   background: #000;
-  margin-bottom: 16px;
+  object-fit: contain;
+}
+
+.player-video--active {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+.player-video--hidden {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  left: -9999px;
+}
+
+.player-video-stage {
+  width: min(640px, 92vw);
+  max-height: 360px;
+  aspect-ratio: 16 / 9;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+  background: #000;
 }
 
 .progress {

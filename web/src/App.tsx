@@ -12,26 +12,32 @@ import {PlaylistsPage} from './pages/PlaylistsPage';
 import {SearchPage} from './pages/SearchPage';
 import {SettingsPage} from './pages/SettingsPage';
 
-export function App() {
+function AppRoutes() {
   return (
     <PlaybackProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="search" element={<SearchPage />} />
-            <Route path="library" element={<LibraryPage />} />
-            <Route path="playlists" element={<PlaylistsPage />} />
-            <Route path="playlists/:id" element={<PlaylistDetailPage />} />
-            <Route path="favorites" element={<FavoritesPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<HomePage />} />
+          <Route path="search" element={<SearchPage />} />
+          <Route path="library" element={<LibraryPage />} />
+          <Route path="playlists" element={<PlaylistsPage />} />
+          <Route path="playlists/:id" element={<PlaylistDetailPage />} />
+          <Route path="favorites" element={<FavoritesPage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="player" element={<PlayerPage />} />
-          <Route path="faces" element={<FacesPage />} />
-          <Route path="camera" element={<CameraPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+        </Route>
+        <Route path="faces" element={<FacesPage />} />
+        <Route path="camera" element={<CameraPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </PlaybackProvider>
+  );
+}
+
+export function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
   );
 }

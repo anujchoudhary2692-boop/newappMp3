@@ -3,8 +3,9 @@ import {useNavigate} from 'react-router-dom';
 import {getPlaylist, removeFromPlaylist, reorderPlaylist} from '../stores/playlists';
 import {usePlayback} from '../context/PlaybackContext';
 import {startPlayback} from '../utils/playback';
-import type {MediaSearchResult} from '../types/media';
+import type {MediaSearchResult, PlayableMedia} from '../types/media';
 import {useState} from 'react';
+import {defaultQuality} from '../types/quality';
 
 export function PlaylistDetailPage() {
   const {id} = useParams<{id: string}>();
@@ -25,12 +26,24 @@ export function PlaylistDetailPage() {
       channel: '',
       sourceUrl: t.sourceUrl,
     };
+    const partial: PlayableMedia = {
+      title: item.title,
+      type: t.type,
+      streamUrl: '',
+      thumbnailUrl: item.thumbnailUrl,
+      sourceUrl: item.sourceUrl,
+      videoId: item.videoId,
+      quality: defaultQuality(t.type),
+    };
+    pb.beginPrepare(partial);
+    nav('/player');
     try {
-      const {media, streamUrl} = await startPlayback(item, t.type);
+      const {media, streamUrl} = await startPlayback(item, t.type, undefined, msg =>
+        pb.setPrepareStatus(msg),
+      );
       pb.play(media, streamUrl);
-      nav('/player');
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Play failed');
+      pb.failPrepare(e instanceof Error ? e.message : 'Play failed');
     }
   };
 

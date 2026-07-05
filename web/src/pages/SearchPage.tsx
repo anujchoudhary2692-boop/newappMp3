@@ -9,7 +9,9 @@ import {isFavorite, toggleFavorite} from '../stores/favorites';
 import {addToPlaylist, listPlaylists} from '../stores/playlists';
 import type {MediaSearchResult} from '../types/media';
 import type {MediaQuality} from '../types/quality';
+import {defaultQuality} from '../types/quality';
 import {downloadToBrowser, startPlayback} from '../utils/playback';
+import type {PlayableMedia} from '../types/media';
 
 type Pending = {
   item: MediaSearchResult;
@@ -106,15 +108,29 @@ export function SearchPage() {
     setStatus('');
     try {
       if (action === 'play') {
-        const {media, streamUrl} = await startPlayback(item, type, quality, setStatus);
-        pb.play(media, streamUrl);
+        const preset = quality || defaultQuality(type);
+        const partial: PlayableMedia = {
+          title: item.title,
+          type,
+          streamUrl: '',
+          thumbnailUrl: item.thumbnailUrl,
+          sourceUrl: item.sourceUrl,
+          videoId: item.videoId,
+          quality: preset,
+        };
+        pb.beginPrepare(partial);
         nav('/player');
+        const {media, streamUrl} = await startPlayback(item, type, quality, msg => {
+          pb.setPrepareStatus(msg);
+        });
+        pb.play(media, streamUrl);
       } else {
         await downloadToBrowser(item, type, quality, setStatus);
         alert('Download started — check your Downloads folder.');
       }
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed');
+      const msg = e instanceof Error ? e.message : 'Failed';
+      pb.failPrepare(msg);
     } finally {
       setBusy(null);
       setStatus('');
