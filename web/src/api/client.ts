@@ -41,17 +41,46 @@ async function request<T>(path: string, init: RequestInit = {}, timeoutMs = 1200
 
 export async function wakeServer(maxMs = 180000): Promise<boolean> {
   const deadline = Date.now() + maxMs;
-  while (Date.now() < deadline) {
+  const base = () => getApiBase();
+
+  const fetchJson = async (path: string, timeoutMs: number) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(`${getApiBase()}/api/health`, {headers: {Accept: 'application/json'}});
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data?.status === 'UP') return true;
-      }
+      const res = await fetch(`${base()}${path}`, {
+        headers: {Accept: 'application/json'},
+        signal: controller.signal,
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as {success?: boolean; data?: {status?: string}};
     } catch {
-      // retry
+      return null;
+    } finally {
+      clearTimeout(timer);
     }
-    await new Promise(r => setTimeout(r, 2500));
+  };
+
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now();
+    // Instant path: /api/live never waits on Mongo
+    const live = await fetchJson('/api/live', Math.min(12000, remaining));
+    if (live?.success && (live.data?.status === 'UP' || live.data?.status === 'DEGRADED')) {
+      return true;
+    }
+    // Legacy / fuller check — accept DEGRADED (Mongo down still means JVM is up)
+    const health = await fetchJson('/api/health', Math.min(12000, remaining));
+    if (
+      health?.success &&
+      (health.data?.status === 'UP' || health.data?.status === 'DEGRADED')
+    ) {
+      return true;
+    }
+    // Last resort while old deploy has no /api/live
+    const features = await fetchJson('/api/features', Math.min(8000, remaining));
+    if (features?.success && features.data) {
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 2000));
   }
   return false;
 }

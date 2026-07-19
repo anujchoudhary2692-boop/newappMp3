@@ -112,9 +112,9 @@ export function BackendGate({children}: {children: React.ReactNode}) {
         </View>
         <Text style={[styles.appName, {fontSize: layout.font.hero * 0.4}]}>Cannot connect</Text>
         <Text style={[styles.tagline, {fontSize: layout.font.md, lineHeight: layout.font.lineMd, maxWidth: layout.contentW}]}>
-          {production
-            ? 'Check your internet and try again.\nFirst open can take a minute.'
-            : 'Start the app backend on your Mac, or use cloud mode.'}
+              {production
+                ? 'Check your internet and try again.\nFirst open can take a minute.\nIf it keeps failing, MongoDB may be down on Render — the app needs /api/live or a healthy server.'
+                : 'Start the app backend on your Mac, or use cloud mode.'}
         </Text>
         <View style={[styles.errorBox, {maxWidth: layout.contentW}]}>
           <Text style={styles.errorHost}>Tried:</Text>

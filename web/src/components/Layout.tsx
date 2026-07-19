@@ -78,8 +78,15 @@ function MiniPlayer() {
 export function Layout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const [elapsed, setElapsed] = useState(0);
   const pb = usePlayback();
   const nav = useNavigate();
+
+  useEffect(() => {
+    if (ready || error) return;
+    const id = window.setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [ready, error]);
 
   useEffect(() => {
     wakeServer(180000)
@@ -116,7 +123,7 @@ export function Layout() {
         ) : (
           <>
             <div className="spinner" />
-            <p>Waking cloud server… first load can take up to 3 minutes.</p>
+            <p>Waking cloud server… {elapsed}s (can take up to 3 minutes on free tier).</p>
           </>
         )}
       </div>

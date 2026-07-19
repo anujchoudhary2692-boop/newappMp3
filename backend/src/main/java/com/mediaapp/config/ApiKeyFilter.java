@@ -19,6 +19,8 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     private static final Set<String> PUBLIC_PATHS = Set.of(
             "/",
             "/api/health",
+            "/api/live",
+            "/api/features",
             "/favicon.ico"
     );
 

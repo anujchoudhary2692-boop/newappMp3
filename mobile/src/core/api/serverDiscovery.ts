@@ -11,7 +11,7 @@ const BONJOUR_TYPE = 'mediaface';
 const BONJOUR_PROTOCOL = 'tcp';
 const BONJOUR_DOMAIN = 'local.';
 
-export type PlayDownloadStatus = 'UP' | 'LIMITED' | 'DOWN';
+export type PlayDownloadStatus = 'UP' | 'LIMITED' | 'DOWN' | 'UNKNOWN';
 
 export interface ServerProbeResult {
   base: string;
@@ -111,37 +111,62 @@ export async function probeServerCapabilities(
 ): Promise<ServerProbeResult | null> {
   const apiKey = getApiKey();
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
     const headers: Record<string, string> = {Accept: 'application/json'};
     if (apiKey) {
       headers['X-API-Key'] = apiKey;
     }
-    const response = await fetch(`${base}/api/health`, {
-      signal: controller.signal,
-      headers,
-    });
-    clearTimeout(timer);
 
-    if (isGatewayStatus(response.status)) {
+    const tryPath = async (path: string, ms: number) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ms);
+      try {
+        const response = await fetch(`${base}${path}`, {
+          signal: controller.signal,
+          headers,
+        });
+        if (isGatewayStatus(response.status) || !response.ok || response.status >= 500) {
+          return null;
+        }
+        return (await response.json()) as {success?: boolean; data?: HealthResponse & Record<string, unknown>};
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    // Prefer /api/live (instant) so cold wake is not blocked by Mongo ping.
+    const live = await tryPath('/api/live', Math.min(10000, timeoutMs));
+    if (live?.success && live.data && isReachableHealthStatus(live.data.status ?? 'UP')) {
+      return {
+        base,
+        source: isCloudBase(base) ? 'cloud' : 'bonjour',
+        playDownload: 'UNKNOWN',
+        healthStatus: (live.data.status as string) ?? 'UP',
+      };
+    }
+
+    const health = await tryPath('/api/health', timeoutMs);
+    if (!health?.success || !health.data || !isReachableHealthStatus(health.data.status)) {
+      // Old deploy / partial wake: features endpoint alone proves HTTP is up.
+      const features = await tryPath('/api/features', Math.min(8000, timeoutMs));
+      if (features?.success && features.data) {
+        return {
+          base,
+          source: isCloudBase(base) ? 'cloud' : 'bonjour',
+          playDownload: 'UNKNOWN',
+          healthStatus: 'UP',
+        };
+      }
       return null;
     }
 
-    if (!response.ok || response.status >= 500) {
-      return null;
-    }
-
-    const json = (await response.json()) as {success?: boolean; data?: HealthResponse};
-    if (!json.success || !json.data || !isReachableHealthStatus(json.data.status)) {
-      return null;
-    }
-
-    const playDownload = json.data.media?.playDownload ?? 'DOWN';
+    const playDownload = health.data.media?.playDownload ?? 'DOWN';
     return {
       base,
       source: isCloudBase(base) ? 'cloud' : 'bonjour',
       playDownload,
-      healthStatus: json.data.status ?? 'UP',
+      healthStatus: health.data.status ?? 'UP',
     };
   } catch {
     return null;

@@ -6,6 +6,8 @@ spring:
   data:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27019/mediaface}
+      # Fail fast when Atlas is unreachable so /api/health never blocks wake
+      # (driver options can also be appended on MONGODB_URI in Render).
   servlet:
     multipart:
       max-file-size: 120MB
