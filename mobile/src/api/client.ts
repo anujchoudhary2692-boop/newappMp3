@@ -64,11 +64,14 @@ export const api = {
   scanCapture: faceApi.scanCapture,
   scanMediaVideo: faceApi.scanMediaVideo,
   getAuditLog: faceApi.getAuditLog,
+  listFaceClusters: faceApi.listClusters,
+  nameFaceCluster: faceApi.nameCluster,
 
   getCaptures: captureApi.list,
   getCapture: captureApi.get,
   uploadCapture: captureApi.upload,
   deleteCapture: captureApi.delete,
+  listCapturePlaces: captureApi.places,
 
   getStreamUrl: mediaApi.resolveStreamUrl,
   getPlayStreamUrl: mediaApi.playStreamUrl,

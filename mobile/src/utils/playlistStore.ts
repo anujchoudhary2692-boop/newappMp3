@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {MediaType} from '../features/media/domain/types';
+import {getAuthToken} from './authStorage';
+import {httpRequest} from '../core/api/httpClient';
 
 export interface PlaylistTrack {
   id: string;
@@ -11,6 +13,7 @@ export interface PlaylistTrack {
   videoId?: string;
   localMediaId?: string;
   quality?: string;
+  channel?: string;
 }
 
 export interface Playlist {
@@ -27,12 +30,14 @@ function newId(): string {
   return `pl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+async function cloud(): Promise<boolean> {
+  return !!(await getAuthToken());
+}
+
 async function loadAll(): Promise<Playlist[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as Playlist[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -56,8 +61,21 @@ export async function getPlaylist(id: string): Promise<Playlist | null> {
 
 export async function createPlaylist(name: string): Promise<Playlist> {
   const trimmed = name.trim();
-  if (!trimmed) {
-    throw new Error('Playlist name is required');
+  if (!trimmed) throw new Error('Playlist name is required');
+  if (await cloud()) {
+    try {
+      const res = await httpRequest<Playlist>('/api/library/playlists', {
+        method: 'POST',
+        body: JSON.stringify({name: trimmed}),
+      });
+      if (res.success && res.data) {
+        const items = await loadAll();
+        await saveAll([res.data, ...items.filter(p => p.id !== res.data.id)]);
+        return res.data;
+      }
+    } catch {
+      // fall through to local
+    }
   }
   const now = new Date().toISOString();
   const playlist: Playlist = {
@@ -74,21 +92,26 @@ export async function createPlaylist(name: string): Promise<Playlist> {
 
 export async function renamePlaylist(id: string, name: string): Promise<void> {
   const trimmed = name.trim();
-  if (!trimmed) {
-    throw new Error('Playlist name is required');
-  }
+  if (!trimmed) throw new Error('Playlist name is required');
   const items = await loadAll();
   const idx = items.findIndex(p => p.id === id);
-  if (idx < 0) {
-    throw new Error('Playlist not found');
-  }
+  if (idx < 0) throw new Error('Playlist not found');
   items[idx] = {...items[idx], name: trimmed, updatedAt: new Date().toISOString()};
   await saveAll(items);
+  if (await cloud()) {
+    void httpRequest(`/api/library/playlists/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({name: trimmed}),
+    }).catch(() => undefined);
+  }
 }
 
 export async function deletePlaylist(id: string): Promise<void> {
   const items = await loadAll();
   await saveAll(items.filter(p => p.id !== id));
+  if (await cloud()) {
+    void httpRequest(`/api/library/playlists/${id}`, {method: 'DELETE'}).catch(() => undefined);
+  }
 }
 
 export async function addTrackToPlaylist(
@@ -97,18 +120,14 @@ export async function addTrackToPlaylist(
 ): Promise<void> {
   const items = await loadAll();
   const idx = items.findIndex(p => p.id === playlistId);
-  if (idx < 0) {
-    throw new Error('Playlist not found');
-  }
+  if (idx < 0) throw new Error('Playlist not found');
   const playlist = items[idx];
   const duplicate = playlist.items.some(
     t =>
       (track.videoId && t.videoId === track.videoId && t.type === track.type) ||
       (track.localMediaId && t.localMediaId === track.localMediaId),
   );
-  if (duplicate) {
-    return;
-  }
+  if (duplicate) return;
   const nextTrack: PlaylistTrack = {...track, id: newId()};
   items[idx] = {
     ...playlist,
@@ -116,14 +135,18 @@ export async function addTrackToPlaylist(
     updatedAt: new Date().toISOString(),
   };
   await saveAll(items);
+  if (await cloud()) {
+    void httpRequest(`/api/library/playlists/${playlistId}/tracks`, {
+      method: 'POST',
+      body: JSON.stringify(track),
+    }).catch(() => undefined);
+  }
 }
 
 export async function removeTrackFromPlaylist(playlistId: string, trackId: string): Promise<void> {
   const items = await loadAll();
   const idx = items.findIndex(p => p.id === playlistId);
-  if (idx < 0) {
-    return;
-  }
+  if (idx < 0) return;
   const playlist = items[idx];
   items[idx] = {
     ...playlist,
@@ -131,6 +154,11 @@ export async function removeTrackFromPlaylist(playlistId: string, trackId: strin
     updatedAt: new Date().toISOString(),
   };
   await saveAll(items);
+  if (await cloud()) {
+    void httpRequest(`/api/library/playlists/${playlistId}/tracks/${trackId}`, {
+      method: 'DELETE',
+    }).catch(() => undefined);
+  }
 }
 
 export async function reorderPlaylistTracks(
@@ -139,12 +167,28 @@ export async function reorderPlaylistTracks(
 ): Promise<void> {
   const items = await loadAll();
   const idx = items.findIndex(p => p.id === playlistId);
-  if (idx < 0) {
-    return;
-  }
+  if (idx < 0) return;
   const playlist = items[idx];
   const map = new Map(playlist.items.map(t => [t.id, t]));
   const reordered = trackIds.map(id => map.get(id)).filter((t): t is PlaylistTrack => !!t);
   items[idx] = {...playlist, items: reordered, updatedAt: new Date().toISOString()};
   await saveAll(items);
+  if (await cloud()) {
+    void httpRequest(`/api/library/playlists/${playlistId}/tracks/order`, {
+      method: 'PUT',
+      body: JSON.stringify({trackIds}),
+    }).catch(() => undefined);
+  }
+}
+
+export async function pullCloudPlaylists(): Promise<void> {
+  if (!(await cloud())) return;
+  try {
+    const res = await httpRequest<Playlist[]>('/api/library/playlists');
+    if (res.success && Array.isArray(res.data)) {
+      await saveAll(res.data);
+    }
+  } catch {
+    // keep local
+  }
 }

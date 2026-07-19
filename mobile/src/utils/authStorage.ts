@@ -15,14 +15,17 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 export async function setAuthSession(token: string, user: StoredAuthUser): Promise<void> {
-  await AsyncStorage.multiSet([
-    [AUTH_TOKEN_KEY, token],
-    [AUTH_USER_KEY, JSON.stringify(user)],
+  await Promise.all([
+    AsyncStorage.setItem(AUTH_TOKEN_KEY, token),
+    AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user)),
   ]);
 }
 
 export async function clearAuthSession(): Promise<void> {
-  await AsyncStorage.multiRemove([AUTH_TOKEN_KEY, AUTH_USER_KEY]);
+  await Promise.all([
+    AsyncStorage.removeItem(AUTH_TOKEN_KEY),
+    AsyncStorage.removeItem(AUTH_USER_KEY),
+  ]);
 }
 
 export async function getAuthUser(): Promise<StoredAuthUser | null> {

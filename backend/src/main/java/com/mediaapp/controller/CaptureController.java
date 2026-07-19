@@ -2,6 +2,7 @@ package com.mediaapp.controller;
 
 import com.mediaapp.dto.ApiResponse;
 import com.mediaapp.dto.CaptureDto;
+import com.mediaapp.dto.PlaceSummaryDto;
 import com.mediaapp.model.CaptureType;
 import com.mediaapp.service.CaptureExportService;
 import com.mediaapp.service.CaptureService;
@@ -28,6 +29,11 @@ public class CaptureController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<CaptureDto>>> list() {
         return ResponseEntity.ok(ApiResponse.ok(captureService.listCaptures()));
+    }
+
+    @GetMapping("/places")
+    public ResponseEntity<ApiResponse<List<PlaceSummaryDto>>> places() {
+        return ResponseEntity.ok(ApiResponse.ok(captureService.listPlaces()));
     }
 
     @GetMapping("/map/geojson")
@@ -82,11 +88,13 @@ public class CaptureController {
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String country,
             @RequestParam(required = false) Long durationMs,
-            @RequestParam(required = false) String clientCapturedAt) {
+            @RequestParam(required = false) String clientCapturedAt,
+            @RequestParam(required = false) Double heading,
+            @RequestParam(required = false) String trackPointsJson) {
         try {
             CaptureDto capture = captureService.saveCapture(
                     file, type, latitude, longitude, altitude, gpsAccuracy,
-                    address, city, country, durationMs, clientCapturedAt);
+                    address, city, country, durationMs, clientCapturedAt, heading, trackPointsJson);
             return ResponseEntity.ok(ApiResponse.ok("Capture saved", capture));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));

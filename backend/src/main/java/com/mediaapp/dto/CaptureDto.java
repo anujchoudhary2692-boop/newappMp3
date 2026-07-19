@@ -25,4 +25,6 @@ public class CaptureDto {
     private Double gpsAccuracy;
     private String scanStatus;
     private Integer matchCount;
+    private Double heading;
+    private String trackPointsJson;
 }

@@ -120,4 +120,14 @@ export const faceApi = {
 
   getAuditLog: (limit = 100) =>
     httpRequest<import('../domain/types').PersonTimelineEntry[]>(`/api/faces/audit/recent?limit=${limit}`),
+
+  listClusters: () =>
+    httpRequest<Array<{id: string; name: string; personId?: string; faceCount: number}>>(
+      '/api/faces/clusters',
+    ),
+
+  nameCluster: (id: string, name: string) =>
+    httpRequest<unknown>(`/api/faces/clusters/${id}/name?name=${encodeURIComponent(name)}`, {
+      method: 'POST',
+    }),
 };

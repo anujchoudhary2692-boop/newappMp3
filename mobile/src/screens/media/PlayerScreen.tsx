@@ -584,6 +584,15 @@ export function PlayerScreen({route, navigation}: Props) {
           onPress={playback.toggleShuffleQueue}
         />
       ) : null}
+      {!isVideo ? (
+        <FeatureChip
+          icon="git-compare-outline"
+          label="Crossfade"
+          active={playback.crossfadeEnabled}
+          accent={accent}
+          onPress={playback.toggleCrossfade}
+        />
+      ) : null}
       <FeatureChip icon="refresh" label="Restart" accent={accent} onPress={() => (isVideo ? seekTo(0) : playback.seekTo(0))} />
       {queueActive ? (
         <FeatureChip
@@ -851,6 +860,10 @@ export function PlayerScreen({route, navigation}: Props) {
           </View>
         )}
       </ScrollView>
+
+      {isVideo && (
+        <Modal
+          visible={isFullscreen}
           animationType="fade"
           supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
           onRequestClose={exitFullscreen}>

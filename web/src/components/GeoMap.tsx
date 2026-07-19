@@ -9,8 +9,21 @@ interface Props {
 
 declare global {
   interface Window {
-    L?: typeof import('leaflet');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    L?: any;
   }
+}
+
+/** Simple grid clustering for dense maps. */
+function clusterPoints(points: GeoMapPoint[], cell = 0.02): GeoMapPoint[][] {
+  const buckets = new Map<string, GeoMapPoint[]>();
+  for (const p of points) {
+    const key = `${Math.round(p.latitude / cell)}:${Math.round(p.longitude / cell)}`;
+    const list = buckets.get(key) || [];
+    list.push(p);
+    buckets.set(key, list);
+  }
+  return [...buckets.values()];
 }
 
 export function GeoMap({points, height = 320, className}: Props) {
@@ -20,7 +33,8 @@ export function GeoMap({points, height = 320, className}: Props) {
   useEffect(() => {
     if (!containerRef.current || valid.length === 0) return;
 
-    let map: import('leaflet').Map | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let map: any;
     let cancelled = false;
 
     const load = async () => {
@@ -46,18 +60,39 @@ export function GeoMap({points, height = 320, className}: Props) {
         attribution: '&copy; OpenStreetMap',
       }).addTo(map);
 
-      const group: import('leaflet').Layer[] = [];
-      valid.forEach(p => {
-        const marker = L.circleMarker([p.latitude, p.longitude], {
-          radius: 8,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const group: any[] = [];
+      const clusters = clusterPoints(valid);
+      clusters.forEach(cluster => {
+        const p = cluster[0];
+        const lat = cluster.reduce((s, c) => s + c.latitude, 0) / cluster.length;
+        const lng = cluster.reduce((s, c) => s + c.longitude, 0) / cluster.length;
+        const count = cluster.length;
+        const marker = L.circleMarker([lat, lng], {
+          radius: count > 1 ? Math.min(18, 8 + count) : 8,
           color: '#fff',
           weight: 2,
           fillColor: p.color || '#FF9900',
           fillOpacity: 0.95,
         }).addTo(map!);
-        if (p.title) {
-          marker.bindPopup(`<strong>${p.title}</strong>${p.subtitle ? `<br/>${p.subtitle}` : ''}`);
-        }
+
+        const thumbs = cluster
+          .filter(c => c.thumbnailUrl)
+          .slice(0, 3)
+          .map(c => `<img src="${c.thumbnailUrl}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;margin:2px" />`)
+          .join('');
+        const links = cluster
+          .slice(0, 5)
+          .map(c => {
+            const label = c.title || c.id;
+            return c.href
+              ? `<div><a href="${c.href}">${label}</a>${c.subtitle ? ` · ${c.subtitle}` : ''}</div>`
+              : `<div><strong>${label}</strong>${c.subtitle ? `<br/>${c.subtitle}` : ''}</div>`;
+          })
+          .join('');
+        marker.bindPopup(
+          `<div style="min-width:140px">${count > 1 ? `<div style="font-weight:700;margin-bottom:6px">${count} captures</div>` : ''}${thumbs}<div style="margin-top:6px">${links}</div></div>`,
+        );
         group.push(marker);
       });
       if (group.length > 1) {

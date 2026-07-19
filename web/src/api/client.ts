@@ -97,7 +97,42 @@ export const api = {
   registerFace: (form: FormData) =>
     request<Person>('/api/faces/register', {method: 'POST', body: form}, 60000),
   identifyFace: (form: FormData) =>
-    request<{personName?: string; personId?: string; confidence?: number; matched?: boolean; candidates?: unknown[]}>('/api/faces/identify', {method: 'POST', body: form}, 60000),
+    request<{
+      personName?: string;
+      personId?: string;
+      confidence?: number;
+      matched?: boolean;
+      candidates?: Array<{personId?: string; personName?: string; confidence?: number; imageUrl?: string; cropUrl?: string}>;
+      galleryHits?: Array<{
+        personName?: string;
+        confidence?: number;
+        imageUrl?: string;
+        cropUrl?: string;
+        sourceId?: string;
+        sourceType?: string;
+      }>;
+    }>('/api/faces/identify', {method: 'POST', body: form}, 60000),
+  listFaceClusters: () =>
+    request<Array<{id: string; name: string; personId?: string; faceCount: number; sampleImageUrl?: string}>>(
+      '/api/faces/clusters',
+    ),
+  nameFaceCluster: (id: string, name: string) =>
+    request<unknown>(`/api/faces/clusters/${id}/name?name=${encodeURIComponent(name)}`, {method: 'POST'}),
+  galleryFaceSearch: (form: FormData) =>
+    request<
+      Array<{
+        personName?: string;
+        confidence?: number;
+        imageUrl?: string;
+        cropUrl?: string;
+        sourceId?: string;
+        sourceType?: string;
+      }>
+    >('/api/faces/gallery-search', {method: 'POST', body: form}, 60000),
+  listPlaces: () =>
+    request<Array<{placeKey: string; city?: string; country?: string; count: number; latitude: number; longitude: number; sampleCaptureId?: string}>>(
+      '/api/captures/places',
+    ),
   personTimeline: (personId: string, limit = 200) =>
     request<PersonTimelineEntry[]>(`/api/faces/person/${personId}/timeline?limit=${limit}`),
   recentFaceAlerts: (limit = 50) =>
@@ -131,4 +166,52 @@ export const api = {
     request<Array<{id: string; action: string; actorUsername?: string; details?: string; createdAt?: string}>>(
       `/api/auth/audit?limit=${limit}`,
     ),
+  listUsers: () =>
+    request<Array<{id: string; username: string; role: string; orgId?: string}>>('/api/auth/users'),
+  createUser: (body: {username: string; password: string; role: string; orgId?: string}) =>
+    request<{id: string; username: string; role: string}>('/api/auth/users', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  librarySnapshot: () =>
+    request<{
+      playlists: Array<Record<string, unknown>>;
+      favorites: Array<Record<string, unknown>>;
+      recent: Array<Record<string, unknown>>;
+      updatedAt?: string;
+    }>('/api/library'),
+  libraryMigrate: (body: {
+    playlists: unknown[];
+    favorites: unknown[];
+    recent: unknown[];
+  }) => request<unknown>('/api/library/migrate', {method: 'POST', body: JSON.stringify(body)}),
+  libraryCreatePlaylist: (name: string) =>
+    request<Record<string, unknown>>('/api/library/playlists', {
+      method: 'POST',
+      body: JSON.stringify({name}),
+    }),
+  libraryRenamePlaylist: (id: string, name: string) =>
+    request<Record<string, unknown>>(`/api/library/playlists/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({name}),
+    }),
+  libraryDeletePlaylist: (id: string) =>
+    request<{deleted: boolean}>(`/api/library/playlists/${id}`, {method: 'DELETE'}),
+  libraryAddTrack: (playlistId: string, track: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/api/library/playlists/${playlistId}/tracks`, {
+      method: 'POST',
+      body: JSON.stringify(track),
+    }),
+  libraryRemoveTrack: (playlistId: string, trackId: string) =>
+    request<Record<string, unknown>>(`/api/library/playlists/${playlistId}/tracks/${trackId}`, {
+      method: 'DELETE',
+    }),
+  libraryToggleFavorite: (body: Record<string, unknown>) =>
+    request<{favorited: boolean}>('/api/library/favorites/toggle', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  libraryPushRecent: (body: Record<string, unknown>) =>
+    request<unknown[]>('/api/library/recent', {method: 'POST', body: JSON.stringify(body)}),
 };

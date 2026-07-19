@@ -312,6 +312,52 @@ export async function prepareAndStartPlayback(
   }
 }
 
+/** Prepare stream and return a queue track without navigating away. */
+export async function prepareQueueTrack(
+  item: MediaSearchResult,
+  type: 'AUDIO' | 'VIDEO',
+  quality?: MediaQuality,
+  onStatus?: (message?: string) => void,
+): Promise<{id: string; media: PlayableMedia; streamUrl: string}> {
+  const preset = normalizeQuality(type, quality);
+  const mediaBase: PlayableMedia = {
+    title: item.title,
+    type,
+    streamUrl: '',
+    thumbnailUrl: item.thumbnailUrl,
+    quality: quality ? qualityLabel(type, preset) : type === 'AUDIO' ? item.audioFormat : item.videoFormat,
+    sourceUrl: item.sourceUrl,
+    videoId: item.videoId,
+  };
+  prefetchMediaPrepare(item.videoId, type, preset);
+  await pinPlaybackServer();
+  const instant = resolveReadyStream(item.videoId, type, preset);
+  if (instant) {
+    const streamUrl = resolvePlaybackStreamUrl(instant.streamPath);
+    const media = {...mediaBase, streamUrl, quality: instant.quality || mediaBase.quality};
+    return {
+      id: `${item.videoId}:${type}:${Date.now()}`,
+      media,
+      streamUrl,
+    };
+  }
+  onStatus?.('Preparing for queue…');
+  const {streamPath, quality: readyQuality} = await waitForMediaReady(
+    item.videoId,
+    type,
+    onStatus,
+    item,
+    preset,
+  );
+  const streamUrl = resolvePlaybackStreamUrl(streamPath);
+  const media = {...mediaBase, streamUrl, quality: readyQuality || mediaBase.quality};
+  return {
+    id: `${item.videoId}:${type}:${Date.now()}`,
+    media,
+    streamUrl,
+  };
+}
+
 export async function saveMediaToDevice(
   payload: {
     videoId: string;

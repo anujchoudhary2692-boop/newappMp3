@@ -9,12 +9,16 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FaceCandidateDto {
+public class GalleryHitDto {
+    private String indexId;
+    private String clusterId;
     private String personId;
     private String personName;
-    private double confidence;
+    private String sourceType;
+    private String sourceId;
     private String imageUrl;
     private String cropUrl;
+    private double confidence;
     private Integer bboxX;
     private Integer bboxY;
     private Integer bboxW;

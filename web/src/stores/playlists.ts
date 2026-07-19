@@ -1,5 +1,7 @@
 import type {MediaType} from '../types/media';
 import {loadJson, saveJson} from './storage';
+import {getAuthToken} from '../utils/auth';
+import {api} from '../api/client';
 
 export interface PlaylistTrack {
   id: string;
@@ -9,6 +11,8 @@ export interface PlaylistTrack {
   sourceUrl?: string;
   videoId?: string;
   quality?: string;
+  streamUrl?: string;
+  channel?: string;
 }
 
 export interface Playlist {
@@ -29,6 +33,10 @@ function save(items: Playlist[]) {
   saveJson(KEY, items);
 }
 
+function cloud(): boolean {
+  return !!getAuthToken();
+}
+
 export function listPlaylists(): Playlist[] {
   return load().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
@@ -47,6 +55,14 @@ export function createPlaylist(name: string): Playlist {
     items: [],
   };
   save([pl, ...load()]);
+  if (cloud()) {
+    void api.libraryCreatePlaylist(name.trim()).then(res => {
+      const remote = res.data as unknown as Playlist;
+      if (remote?.id) {
+        save(load().map(p => (p.id === pl.id ? {...remote, items: remote.items || []} : p)));
+      }
+    }).catch(() => undefined);
+  }
   return pl;
 }
 
@@ -56,19 +72,29 @@ export function renamePlaylist(id: string, name: string) {
       p.id === id ? {...p, name: name.trim(), updatedAt: new Date().toISOString()} : p,
     ),
   );
+  if (cloud()) {
+    void api.libraryRenamePlaylist(id, name.trim()).catch(() => undefined);
+  }
 }
 
 export function deletePlaylist(id: string) {
   save(load().filter(p => p.id !== id));
+  if (cloud()) {
+    void api.libraryDeletePlaylist(id).catch(() => undefined);
+  }
 }
 
 export function addToPlaylist(playlistId: string, track: Omit<PlaylistTrack, 'id'>) {
   const items = load();
   const pl = items.find(p => p.id === playlistId);
   if (!pl) return;
-  pl.items.push({...track, id: `tr_${Date.now()}`});
+  const next = {...track, id: `tr_${Date.now()}`};
+  pl.items.push(next);
   pl.updatedAt = new Date().toISOString();
   save(items);
+  if (cloud()) {
+    void api.libraryAddTrack(playlistId, track).catch(() => undefined);
+  }
 }
 
 export function removeFromPlaylist(playlistId: string, trackId: string) {
@@ -78,6 +104,9 @@ export function removeFromPlaylist(playlistId: string, trackId: string) {
   pl.items = pl.items.filter(t => t.id !== trackId);
   pl.updatedAt = new Date().toISOString();
   save(items);
+  if (cloud()) {
+    void api.libraryRemoveTrack(playlistId, trackId).catch(() => undefined);
+  }
 }
 
 export function reorderPlaylist(playlistId: string, from: number, to: number) {

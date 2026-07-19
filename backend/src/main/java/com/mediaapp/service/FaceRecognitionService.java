@@ -48,11 +48,19 @@ public class FaceRecognitionService {
         } catch (Exception e) {
             log.warn("Could not count persons: {}", e.getMessage());
         }
+        boolean insightRequested = faceAiEngine.useInsightFace();
+        boolean insightActive = "insightface".equalsIgnoreCase(faceAiEngine.getEngineType());
+        String mode = insightActive ? "insightface" : (insightRequested ? "insightface-stub" : "opencv");
         return FaceStatusDto.builder()
                 .engineReady(faceAiEngine.isReady())
                 .registeredCount((int) count)
-                .message(faceAiEngine.getStatusMessage())
+                .message(faceAiEngine.getStatusMessage()
+                        + (insightRequested && !insightActive
+                        ? " — rebuild Docker/Maven with -Pinsightface and ONNX models to enable InsightFace."
+                        : ""))
                 .engineType(faceAiEngine.getEngineType())
+                .engineMode(mode)
+                .insightFacePackaged(insightActive)
                 .build();
     }
 

@@ -29,6 +29,8 @@ interface PlaybackCtx {
   setPrepareStatus: (msg: string) => void;
   failPrepare: (msg: string) => void;
   playQueue: (tracks: QueueTrack[], start?: number) => void;
+  addToQueue: (track: QueueTrack) => void;
+  playNextInsert: (track: QueueTrack) => void;
   togglePause: () => void;
   seek: (t: number) => void;
   next: () => void;
@@ -105,8 +107,37 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     setDuration(0);
     setBuffering(true);
     setError(null);
-    setPrepareStatus('Preparing on cloud… first play can take 1–2 min');
+    setPrepareStatus('Getting stream ready…');
   }, []);
+
+  const addToQueue = useCallback((track: QueueTrack) => {
+    setQueue(q => [...q, track]);
+  }, []);
+
+  const playNextInsert = useCallback(
+    (track: QueueTrack) => {
+      if (!media || !streamUrl) {
+        setQueue([track]);
+        setQueueIndex(0);
+        playTrack(track.media, track.streamUrl);
+        return;
+      }
+      setQueue(q => {
+        if (!q.length) {
+          const current: QueueTrack = {
+            id: media.videoId || media.streamUrl || media.title,
+            media,
+            streamUrl,
+          };
+          return [current, track];
+        }
+        const next = [...q];
+        next.splice(queueIndex + 1, 0, track);
+        return next;
+      });
+    },
+    [queueIndex, media, streamUrl, playTrack],
+  );
 
   const failPrepare = useCallback((msg: string) => {
     setBuffering(false);
@@ -154,11 +185,26 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   );
 
   const next = useCallback(() => {
-    if (!queue.length) return;
+    if (!queue.length) {
+      if (repeat && media && streamUrl) {
+        seek(0);
+        setPaused(false);
+        tryPlay();
+      }
+      return;
+    }
+    if (shuffle && queue.length > 1) {
+      let idx = queueIndex;
+      while (idx === queueIndex) {
+        idx = Math.floor(Math.random() * queue.length);
+      }
+      goTo(idx);
+      return;
+    }
     const n = queueIndex + 1;
     if (n < queue.length) goTo(n);
     else if (repeat) goTo(0);
-  }, [queue, queueIndex, repeat, goTo]);
+  }, [queue, queueIndex, repeat, shuffle, goTo, media, streamUrl, seek, tryPlay]);
 
   const prev = useCallback(() => {
     if (currentTime > 3) {
@@ -241,6 +287,41 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     if (onPlayerPage && !paused && streamUrl) tryPlay();
   }, [onPlayerPage, paused, streamUrl, tryPlay]);
 
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !media) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: media.title,
+      artist: media.quality || media.type,
+      artwork: media.thumbnailUrl
+        ? [{src: media.thumbnailUrl, sizes: '512x512', type: 'image/jpeg'}]
+        : [],
+    });
+    navigator.mediaSession.setActionHandler('play', () => {
+      setPaused(false);
+      tryPlay();
+    });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      activeEl()?.pause();
+      setPaused(true);
+    });
+    navigator.mediaSession.setActionHandler('previoustrack', () => prev());
+    navigator.mediaSession.setActionHandler('nexttrack', () => next());
+    navigator.mediaSession.setActionHandler('seekto', details => {
+      if (details.seekTime != null) seek(details.seekTime);
+    });
+    return () => {
+      try {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler('nexttrack', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
+      } catch {
+        // ignore
+      }
+    };
+  }, [media, tryPlay, prev, next, seek, activeEl]);
+
   const value = useMemo(
     () => ({
       media,
@@ -262,6 +343,8 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       setPrepareStatus,
       failPrepare,
       playQueue,
+      addToQueue,
+      playNextInsert,
       togglePause,
       seek,
       next,
@@ -302,6 +385,8 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       setPrepareStatus,
       failPrepare,
       playQueue,
+      addToQueue,
+      playNextInsert,
       togglePause,
       seek,
       next,

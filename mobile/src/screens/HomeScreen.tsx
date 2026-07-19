@@ -76,7 +76,12 @@ export function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      void Promise.all([
+        import('../utils/playlistStore').then(m => m.pullCloudPlaylists()),
+        import('../utils/favoritesStore').then(m => m.pullCloudFavorites()),
+        import('../utils/recentMedia').then(m => m.pullCloudRecent()),
+      ]).catch(() => undefined);
     }, [load]),
   );
 

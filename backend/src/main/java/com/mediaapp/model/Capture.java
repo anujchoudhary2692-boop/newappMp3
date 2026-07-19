@@ -30,6 +30,10 @@ public class Capture {
     private String address;
     private String city;
     private String country;
+    /** Compass heading in degrees (0-360) when available. */
+    private Double heading;
+    /** JSON array of {lat,lng,t,accuracy?} track points for video routes. */
+    private String trackPointsJson;
     /** Client-side capture time (EXIF or device clock). */
     private Instant clientCapturedAt;
     private Instant capturedAt;

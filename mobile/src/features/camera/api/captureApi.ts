@@ -43,8 +43,27 @@ export const captureApi = {
     if (payload.durationMs != null) {
       form.append('durationMs', String(payload.durationMs));
     }
+    if (payload.heading != null) {
+      form.append('heading', String(payload.heading));
+    }
+    if (payload.trackPointsJson) {
+      form.append('trackPointsJson', payload.trackPointsJson);
+    }
     return httpRequest<CaptureItem>('/api/captures', {method: 'POST', body: form}, 300000);
   },
+
+  places: () =>
+    httpRequest<
+      Array<{
+        placeKey: string;
+        city?: string;
+        country?: string;
+        count: number;
+        latitude: number;
+        longitude: number;
+        sampleCaptureId?: string;
+      }>
+    >('/api/captures/places'),
 
   delete: (id: string) => httpRequest<void>(`/api/captures/${id}`, {method: 'DELETE'}),
 };

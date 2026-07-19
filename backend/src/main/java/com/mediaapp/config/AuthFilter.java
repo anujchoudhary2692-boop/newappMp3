@@ -38,14 +38,12 @@ public class AuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        if (!requireAuth) {
-            return true;
-        }
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        String path = request.getRequestURI();
-        return PUBLIC_PATHS.contains(path);
+        // Always run so optional Bearer tokens populate AuthContext (cloud library sync).
+        // When requireAuth=false we still pass through unauthenticated requests.
+        return false;
     }
 
     @Override
@@ -54,21 +52,31 @@ public class AuthFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
         try {
+            String path = request.getRequestURI();
             String authHeader = request.getHeader("Authorization");
             String token = null;
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 token = authHeader.substring(7);
             }
             AuthContext context = authService.resolveToken(token).orElse(null);
-            if (context == null) {
-                unauthorized(response, "Authentication required");
-                return;
-            }
-            if (!isAllowed(context, request)) {
+
+            if (requireAuth && !PUBLIC_PATHS.contains(path)) {
+                if (context == null) {
+                    unauthorized(response, "Authentication required");
+                    return;
+                }
+                if (!isAllowed(context, request)) {
+                    forbidden(response, "Insufficient permissions");
+                    return;
+                }
+            } else if (context != null && !isAllowed(context, request)) {
                 forbidden(response, "Insufficient permissions");
                 return;
             }
-            AuthContextHolder.set(context);
+
+            if (context != null) {
+                AuthContextHolder.set(context);
+            }
             filterChain.doFilter(request, response);
         } finally {
             AuthContextHolder.clear();

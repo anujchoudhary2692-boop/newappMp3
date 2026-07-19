@@ -34,9 +34,8 @@ export function PlayerPage() {
 
       <h1 style={{fontSize: 20, fontWeight: 800, marginBottom: 4}}>{pb.media.title}</h1>
       <p style={{color: 'var(--muted)', fontSize: 14, marginBottom: 8}}>
-        {pb.media.type}
-        {pb.media.quality ? ` · ${pb.media.quality}` : ''}
-        {preparing ? ` · ${pb.prepareStatus || 'Preparing…'}` : pb.buffering ? ' · Buffering…' : pb.paused ? ' · Paused' : ' · Playing'}
+        {pb.media.quality || pb.media.type}
+        {preparing ? ` · ${pb.prepareStatus || 'Getting stream ready…'}` : pb.buffering ? ' · Buffering…' : pb.paused ? ' · Paused' : ' · Playing'}
       </p>
 
       {preparing && (

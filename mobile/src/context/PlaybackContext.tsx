@@ -50,6 +50,10 @@ interface PlaybackContextValue {
   playQueueIndex: (index: number) => void;
   playNext: () => void;
   playPrevious: () => void;
+  enqueueTrack: (track: QueueTrack) => void;
+  insertNextTrack: (track: QueueTrack) => void;
+  crossfadeEnabled: boolean;
+  toggleCrossfade: () => void;
   toggleRepeatQueue: () => void;
   toggleShuffleQueue: () => void;
   cyclePlaybackRate: () => void;
@@ -107,6 +111,9 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   const [repeatQueue, setRepeatQueue] = useState(false);
   const [shuffleQueue, setShuffleQueue] = useState(false);
   const [queueTracks, setQueueTracks] = useState<QueueTrack[]>([]);
+  const [crossfadeEnabled, setCrossfadeEnabled] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const crossfadeEnabledRef = useRef(false);
   const [playbackRate, setPlaybackRateState] = useState(1);
 
   repeatQueueRef.current = repeatQueue;
@@ -217,6 +224,32 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     setPlaybackRateState(rate);
   }, []);
 
+  const toggleCrossfade = useCallback(() => {
+    setCrossfadeEnabled(v => {
+      crossfadeEnabledRef.current = !v;
+      return !v;
+    });
+  }, []);
+
+  const enqueueTrack = useCallback((track: QueueTrack) => {
+    queueRef.current = [...queueRef.current, track];
+    setQueueLength(queueRef.current.length);
+    setQueueTracks([...queueRef.current]);
+  }, []);
+
+  const insertNextTrack = useCallback((track: QueueTrack) => {
+    const idx = queueIndexRef.current;
+    const q = [...queueRef.current];
+    if (idx < 0 || q.length === 0) {
+      q.push(track);
+    } else {
+      q.splice(idx + 1, 0, track);
+    }
+    queueRef.current = q;
+    setQueueLength(q.length);
+    setQueueTracks(q);
+  }, []);
+
   const playNext = useCallback(() => {
     const queue = queueRef.current;
     if (queue.length === 0) {
@@ -248,21 +281,34 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   }, []);
 
   const onTrackEnd = useCallback(() => {
-    const nextIdx = queueIndexRef.current + 1;
-    const queue = queueRef.current;
+    const advance = () => {
+      const nextIdx = queueIndexRef.current + 1;
+      const queue = queueRef.current;
 
-    if (nextIdx >= queue.length) {
-      if (repeatQueueRef.current && queue.length > 0) {
-        goToQueueIndex(0);
-      } else {
-        clearQueue();
-        setPaused(true);
+      if (nextIdx >= queue.length) {
+        if (repeatQueueRef.current && queue.length > 0) {
+          goToQueueIndex(0);
+        } else {
+          clearQueue();
+          setPaused(true);
+        }
+        return;
       }
+
+      goToQueueIndex(nextIdx);
+    };
+
+    if (crossfadeEnabledRef.current && media?.type === 'AUDIO') {
+      // Soft fade-out then advance (gapless-ish feel)
+      setVolume(0.35);
+      setTimeout(() => {
+        setVolume(1);
+        advance();
+      }, 350);
       return;
     }
-
-    goToQueueIndex(nextIdx);
-  }, [clearQueue, goToQueueIndex]);
+    advance();
+  }, [clearQueue, goToQueueIndex, media?.type]);
 
   const syncFromRoute = useCallback((nextMedia: PlayableMedia, nextStreamUrl: string) => {
     const nextUrl = nextStreamUrl || '';
@@ -425,6 +471,10 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       playQueueIndex,
       playNext,
       playPrevious,
+      enqueueTrack,
+      insertNextTrack,
+      crossfadeEnabled,
+      toggleCrossfade,
       toggleRepeatQueue,
       toggleShuffleQueue,
       cyclePlaybackRate,
@@ -463,6 +513,10 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       playQueueIndex,
       playNext,
       playPrevious,
+      enqueueTrack,
+      insertNextTrack,
+      crossfadeEnabled,
+      toggleCrossfade,
       toggleRepeatQueue,
       toggleShuffleQueue,
       cyclePlaybackRate,
@@ -495,6 +549,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
             source={videoSource}
             style={styles.hiddenVideo}
             paused={paused}
+            volume={volume}
             rate={playbackRate}
             playInBackground
             playWhenInactive

@@ -4,6 +4,7 @@
  */
 export {
   prepareAndStartPlayback,
+  prepareQueueTrack,
   waitForMediaReady,
   saveMediaToDevice,
   saveSearchItemToDevice,

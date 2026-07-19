@@ -5,26 +5,37 @@ import {GeoMap} from '../components/GeoMap';
 import type {CaptureItem} from '../types/media';
 import {reverseGeocode} from '../utils/geocode';
 
-type Mode = 'gallery' | 'map' | 'camera';
+type Mode = 'gallery' | 'map' | 'places' | 'camera';
 
 export function CameraPage() {
   const [mode, setMode] = useState<Mode>('gallery');
   const [captures, setCaptures] = useState<CaptureItem[]>([]);
+  const [places, setPlaces] = useState<
+    Array<{placeKey: string; city?: string; country?: string; count: number; latitude: number; longitude: number; sampleCaptureId?: string}>
+  >([]);
+  const [placeFilter, setPlaceFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [recording, setRecording] = useState(false);
-  const [loc, setLoc] = useState<{lat: number; lng: number; accuracy?: number} | null>(null);
+  const [loc, setLoc] = useState<{lat: number; lng: number; accuracy?: number; heading?: number} | null>(null);
   const [locLabel, setLocLabel] = useState('');
   const [status, setStatus] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const trackPointsRef = useRef<Array<{lat: number; lng: number; t: number; accuracy?: number}>>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.listCaptures();
       setCaptures(res.data);
+      try {
+        const p = await api.listPlaces();
+        setPlaces(p.data);
+      } catch {
+        setPlaces([]);
+      }
     } catch {
       setCaptures([]);
     } finally {
@@ -61,7 +72,12 @@ export function CameraPage() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         p => {
-          setLoc({lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy});
+          setLoc({
+            lat: p.coords.latitude,
+            lng: p.coords.longitude,
+            accuracy: p.coords.accuracy,
+            heading: p.coords.heading != null && !Number.isNaN(p.coords.heading) ? p.coords.heading : undefined,
+          });
           void reverseGeocode(p.coords.latitude, p.coords.longitude).then(g => setLocLabel(g.shortLabel));
         },
         () => undefined,
@@ -75,6 +91,31 @@ export function CameraPage() {
   }, [mode]);
 
   useEffect(() => {
+    if (mode !== 'camera' || !navigator.geolocation) return;
+    const id = navigator.geolocation.watchPosition(
+      p => {
+        setLoc({
+          lat: p.coords.latitude,
+          lng: p.coords.longitude,
+          accuracy: p.coords.accuracy,
+          heading: p.coords.heading != null && !Number.isNaN(p.coords.heading) ? p.coords.heading : undefined,
+        });
+        if (recording) {
+          trackPointsRef.current.push({
+            lat: p.coords.latitude,
+            lng: p.coords.longitude,
+            t: Date.now(),
+            accuracy: p.coords.accuracy,
+          });
+        }
+      },
+      () => undefined,
+      {enableHighAccuracy: true, maximumAge: 2000},
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [mode, recording]);
+
+  useEffect(() => {
     return () => stream?.getTracks().forEach(t => t.stop());
   }, [stream]);
 
@@ -82,6 +123,11 @@ export function CameraPage() {
     () =>
       captures
         .filter(c => c.latitude != null && c.longitude != null)
+        .filter(c => {
+          if (!placeFilter) return true;
+          const label = c.locationLabel || [c.city, c.country].filter(Boolean).join(', ');
+          return label === placeFilter || c.city === placeFilter;
+        })
         .map(c => ({
           id: c.id,
           latitude: c.latitude!,
@@ -89,9 +135,19 @@ export function CameraPage() {
           title: c.locationLabel || c.fileName,
           subtitle: c.capturedAt ? new Date(c.capturedAt).toLocaleString() : c.type,
           color: c.type === 'VIDEO' ? '#FF6B9D' : '#FF9900',
+          thumbnailUrl: c.type === 'PHOTO' ? api.captureFileUrl(c.id) : undefined,
+          href: `#capture-${c.id}`,
         })),
-    [captures],
+    [captures, placeFilter],
   );
+
+  const galleryCaptures = useMemo(() => {
+    if (!placeFilter) return captures;
+    return captures.filter(c => {
+      const label = c.locationLabel || [c.city, c.country].filter(Boolean).join(', ');
+      return label === placeFilter || c.city === placeFilter;
+    });
+  }, [captures, placeFilter]);
 
   const upload = async (blob: Blob, type: 'PHOTO' | 'VIDEO', fileName: string, durationMs?: number) => {
     setStatus('Uploading…');
@@ -103,6 +159,10 @@ export function CameraPage() {
       form.append('latitude', String(loc.lat));
       form.append('longitude', String(loc.lng));
       if (loc.accuracy != null) form.append('gpsAccuracy', String(loc.accuracy));
+      if (loc.heading != null) form.append('heading', String(loc.heading));
+      if (trackPointsRef.current.length >= 2) {
+        form.append('trackPointsJson', JSON.stringify(trackPointsRef.current));
+      }
       const geo = await reverseGeocode(loc.lat, loc.lng);
       if (geo.address) form.append('address', geo.address);
       if (geo.city) form.append('city', geo.city);
@@ -143,6 +203,10 @@ export function CameraPage() {
       return;
     }
     chunksRef.current = [];
+    trackPointsRef.current = [];
+    if (loc) {
+      trackPointsRef.current.push({lat: loc.lat, lng: loc.lng, t: Date.now(), accuracy: loc.accuracy});
+    }
     const rec = new MediaRecorder(stream, {mimeType: MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : undefined});
     recorderRef.current = rec;
     const started = Date.now();
@@ -169,17 +233,30 @@ export function CameraPage() {
 
   return (
     <div className="page">
-      <Link to="/" className="btn btn-ghost" style={{marginBottom: 12}}>
+      <Link to="/" className="btn btn-ghost page-back" style={{marginBottom: 12}}>
         ← Home
       </Link>
       <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 16}}>Geo Camera</h1>
 
       <div className="tabs">
-        <button className={`tab ${mode === 'gallery' ? 'active' : ''}`} onClick={() => setMode('gallery')}>
+        <button
+          className={`tab ${mode === 'gallery' ? 'active' : ''}`}
+          onClick={() => {
+            setMode('gallery');
+            setPlaceFilter(null);
+          }}>
           Gallery
         </button>
         <button className={`tab ${mode === 'map' ? 'active' : ''}`} onClick={() => setMode('map')}>
           Map
+        </button>
+        <button
+          className={`tab ${mode === 'places' ? 'active' : ''}`}
+          onClick={() => {
+            setMode('places');
+            setPlaceFilter(null);
+          }}>
+          Places
         </button>
         <button className={`tab ${mode === 'camera' ? 'active' : ''}`} onClick={() => setMode('camera')}>
           Capture
@@ -206,6 +283,30 @@ export function CameraPage() {
             </button>
           </div>
         </div>
+      ) : mode === 'places' ? (
+        loading ? (
+          <div className="spinner" style={{margin: '24px auto'}} />
+        ) : places.length === 0 ? (
+          <p className="empty">No places yet. Capture with GPS to build a Places album.</p>
+        ) : (
+          <div className="places-grid">
+            {places.map(p => (
+              <button
+                key={p.placeKey}
+                type="button"
+                className="place-card"
+                onClick={() => {
+                  setPlaceFilter(p.placeKey);
+                  setMode('gallery');
+                }}>
+                <h3>{p.placeKey}</h3>
+                <p>
+                  {p.count} capture{p.count === 1 ? '' : 's'}
+                </p>
+              </button>
+            ))}
+          </div>
+        )
       ) : mode === 'map' ? (
         loading ? (
           <div className="spinner" style={{margin: '24px auto'}} />
@@ -226,11 +327,22 @@ export function CameraPage() {
         )
       ) : loading ? (
         <div className="spinner" style={{margin: '24px auto'}} />
-      ) : captures.length === 0 ? (
-        <p className="empty">No captures yet. Take a photo or video.</p>
+      ) : galleryCaptures.length === 0 ? (
+        <p className="empty">
+          {placeFilter ? `No captures for ${placeFilter}.` : 'No captures yet. Take a photo or video.'}
+        </p>
       ) : (
         <div className="grid">
-          {captures.map(c => (
+          {placeFilter ? (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{gridColumn: '1 / -1', justifySelf: 'start'}}
+              onClick={() => setPlaceFilter(null)}>
+              ✕ {placeFilter}
+            </button>
+          ) : null}
+          {galleryCaptures.map(c => (
             <article key={c.id} className="card">
               {c.type === 'PHOTO' ? (
                 <img src={api.captureFileUrl(c.id)} alt="" loading="lazy" />

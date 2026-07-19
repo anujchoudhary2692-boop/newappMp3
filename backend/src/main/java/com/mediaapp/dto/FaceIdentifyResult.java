@@ -21,4 +21,10 @@ public class FaceIdentifyResult {
     private double matchGap;
     @Builder.Default
     private List<FaceCandidateDto> candidates = new ArrayList<>();
+    @Builder.Default
+    private List<GalleryHitDto> galleryHits = new ArrayList<>();
+    private Integer probeBboxX;
+    private Integer probeBboxY;
+    private Integer probeBboxW;
+    private Integer probeBboxH;
 }

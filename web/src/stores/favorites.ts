@@ -1,5 +1,7 @@
 import type {MediaSearchResult} from '../types/media';
 import {loadJson, saveJson} from './storage';
+import {getAuthToken} from '../utils/auth';
+import {api} from '../api/client';
 
 export interface FavoriteItem {
   id: string;
@@ -28,22 +30,35 @@ export function listFavorites(type?: 'AUDIO' | 'VIDEO'): FavoriteItem[] {
 export function toggleFavorite(item: MediaSearchResult, type: 'AUDIO' | 'VIDEO'): boolean {
   const id = fid(item.videoId, type);
   const items = loadJson<FavoriteItem[]>(KEY, []);
+  let liked: boolean;
   if (items.some(i => i.id === id)) {
     saveJson(KEY, items.filter(i => i.id !== id));
-    return false;
+    liked = false;
+  } else {
+    items.unshift({
+      id,
+      videoId: item.videoId,
+      title: item.title,
+      thumbnailUrl: item.thumbnailUrl,
+      channel: item.channel,
+      sourceUrl: item.sourceUrl,
+      type,
+      addedAt: new Date().toISOString(),
+    });
+    saveJson(KEY, items);
+    liked = true;
   }
-  items.unshift({
-    id,
-    videoId: item.videoId,
-    title: item.title,
-    thumbnailUrl: item.thumbnailUrl,
-    channel: item.channel,
-    sourceUrl: item.sourceUrl,
-    type,
-    addedAt: new Date().toISOString(),
-  });
-  saveJson(KEY, items);
-  return true;
+  if (getAuthToken()) {
+    void api.libraryToggleFavorite({
+      videoId: item.videoId,
+      title: item.title,
+      thumbnailUrl: item.thumbnailUrl,
+      channel: item.channel,
+      sourceUrl: item.sourceUrl,
+      type,
+    }).catch(() => undefined);
+  }
+  return liked;
 }
 
 export function isFavorite(videoId: string, type: 'AUDIO' | 'VIDEO'): boolean {

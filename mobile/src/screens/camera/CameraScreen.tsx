@@ -39,6 +39,10 @@ import {
   ensureLocationPermission,
   GeoAddress,
   GeoLocation,
+  getCurrentLocation,
+  reverseGeocode,
+  watchLocation,
+  clearLocationWatch,
   resolveCaptureLocation,
 } from '../../utils/location';
 import {notifyPersonSighted} from '../../utils/faceAlerts';
@@ -82,6 +86,8 @@ export function CameraScreen() {
   const [address, setAddress] = useState<GeoAddress | undefined>();
   const [locating, setLocating] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const trackPointsRef = useRef<Array<{lat: number; lng: number; t: number; accuracy?: number}>>([]);
+  const locationWatchRef = useRef<number | null>(null);
   const [liveIdentify, setLiveIdentify] = useState(false);
   const [liveMatch, setLiveMatch] = useState<{name: string; confidence: number} | null>(null);
   const liveScanRef = useRef(false);
@@ -271,11 +277,16 @@ export function CameraScreen() {
       longitude: loc?.longitude,
       altitude: loc?.altitude,
       gpsAccuracy: loc?.accuracy,
+      heading: loc?.heading,
       address: addr?.displayName,
       city: addr?.city,
       country: addr?.country,
       durationMs,
       clientCapturedAt: new Date().toISOString(),
+      trackPointsJson:
+        type === 'VIDEO' && trackPointsRef.current.length >= 2
+          ? JSON.stringify(trackPointsRef.current)
+          : undefined,
     });
   };
 
@@ -347,6 +358,28 @@ export function CameraScreen() {
         }
         deactivateEngine();
 
+        trackPointsRef.current = [];
+        if (location) {
+          trackPointsRef.current.push({
+            lat: location.latitude,
+            lng: location.longitude,
+            t: Date.now(),
+            accuracy: location.accuracy,
+          });
+        }
+        clearLocationWatch(locationWatchRef.current);
+        if (locationEnabled) {
+          locationWatchRef.current = watchLocation(loc => {
+            setLocation(loc);
+            trackPointsRef.current.push({
+              lat: loc.latitude,
+              lng: loc.longitude,
+              t: Date.now(),
+              accuracy: loc.accuracy,
+            });
+          });
+        }
+
         const recorder = await videoOutput.createRecorder({maxDuration: MAX_VIDEO_SECONDS});
         recorderRef.current = recorder;
 
@@ -356,6 +389,8 @@ export function CameraScreen() {
             recorderRef.current = null;
             setRecording(false);
             setBusy(true);
+            clearLocationWatch(locationWatchRef.current);
+            locationWatchRef.current = null;
 
             (async () => {
               try {
@@ -384,6 +419,8 @@ export function CameraScreen() {
             setRecording(false);
             setBusy(false);
             recorderRef.current = null;
+            clearLocationWatch(locationWatchRef.current);
+            locationWatchRef.current = null;
             const message = error.message.includes('not yet connected')
               ? 'Camera still starting — try again'
               : error.message;
@@ -396,6 +433,8 @@ export function CameraScreen() {
         setRecording(false);
         setBusy(false);
         recorderRef.current = null;
+        clearLocationWatch(locationWatchRef.current);
+        locationWatchRef.current = null;
         const message =
           error instanceof Error && error.message.includes('not yet connected')
             ? 'Camera still starting — try again'

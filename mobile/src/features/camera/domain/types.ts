@@ -16,6 +16,8 @@ export interface CaptureItem {
   durationMs?: number;
   scanStatus?: string;
   matchCount?: number;
+  heading?: number;
+  trackPointsJson?: string;
 }
 
 export interface CaptureUploadPayload {
@@ -32,4 +34,6 @@ export interface CaptureUploadPayload {
   country?: string;
   durationMs?: number;
   clientCapturedAt?: string;
+  heading?: number;
+  trackPointsJson?: string;
 }

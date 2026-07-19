@@ -29,6 +29,8 @@ interface MediaCardProps {
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   onAddToPlaylist?: () => void;
+  onPlayNext?: () => void;
+  onAddToQueue?: () => void;
   batchSelect?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
@@ -66,6 +68,8 @@ export function MediaCard({
   isFavorite,
   onToggleFavorite,
   onAddToPlaylist,
+  onPlayNext,
+  onAddToQueue,
   batchSelect,
   selected,
   onToggleSelect,
@@ -221,6 +225,22 @@ export function MediaCard({
               </>
             )}
           </TouchableOpacity>
+          {onPlayNext ? (
+            <TouchableOpacity style={styles.iconAction} onPress={onPlayNext}>
+              <View style={[styles.iconCircle, styles.audioOutlineCircle, {width: circle, height: circle, borderRadius: circle / 2}]}>
+                <Icon name="play-skip-forward-outline" size={iconSize} color={COLORS.audio} />
+              </View>
+              <Text style={[styles.iconLabel, {fontSize: layout.font.xs}, !showActionLabels && styles.iconLabelHidden]}>Next</Text>
+            </TouchableOpacity>
+          ) : null}
+          {onAddToQueue ? (
+            <TouchableOpacity style={styles.iconAction} onPress={onAddToQueue}>
+              <View style={[styles.iconCircle, styles.audioOutlineCircle, {width: circle, height: circle, borderRadius: circle / 2}]}>
+                <Icon name="list-outline" size={iconSize} color={COLORS.text} />
+              </View>
+              <Text style={[styles.iconLabel, {fontSize: layout.font.xs}, !showActionLabels && styles.iconLabelHidden]}>Queue</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       )}
 

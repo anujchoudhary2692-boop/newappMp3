@@ -7,6 +7,7 @@ export interface GeoLocation {
   longitude: number;
   altitude?: number;
   accuracy?: number;
+  heading?: number;
 }
 
 export interface GeoAddress {
@@ -58,6 +59,10 @@ export function getCurrentLocation(): Promise<GeoLocation> {
           longitude: position.coords.longitude,
           altitude: position.coords.altitude ?? undefined,
           accuracy: position.coords.accuracy,
+          heading:
+            position.coords.heading != null && !Number.isNaN(position.coords.heading)
+              ? position.coords.heading
+              : undefined,
         });
       },
       error => reject(new Error(error.message || 'Could not get GPS location')),
@@ -70,6 +75,38 @@ export function getCurrentLocation(): Promise<GeoLocation> {
       },
     );
   });
+}
+
+export function watchLocation(
+  onUpdate: (loc: GeoLocation) => void,
+): number {
+  return Geolocation.watchPosition(
+    position => {
+      onUpdate({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        altitude: position.coords.altitude ?? undefined,
+        accuracy: position.coords.accuracy,
+        heading:
+          position.coords.heading != null && !Number.isNaN(position.coords.heading)
+            ? position.coords.heading
+            : undefined,
+      });
+    },
+    () => undefined,
+    {
+      enableHighAccuracy: true,
+      distanceFilter: 3,
+      interval: 2000,
+      fastestInterval: 1000,
+    },
+  );
+}
+
+export function clearLocationWatch(watchId: number | null | undefined) {
+  if (watchId != null) {
+    Geolocation.clearWatch(watchId);
+  }
 }
 
 export async function reverseGeocode(

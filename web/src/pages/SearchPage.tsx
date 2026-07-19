@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
 import {api} from '../api/client';
 import {MediaCard} from '../components/MediaCard';
@@ -16,8 +16,10 @@ import type {PlayableMedia} from '../types/media';
 type Pending = {
   item: MediaSearchResult;
   type: 'AUDIO' | 'VIDEO';
-  action: 'play' | 'download';
+  action: 'play' | 'download' | 'queue' | 'playNext';
 };
+
+type Tab = 'top' | 'songs' | 'videos';
 
 export function SearchPage() {
   const [params, setParams] = useSearchParams();
@@ -32,6 +34,7 @@ export function SearchPage() {
   const [status, setStatus] = useState('');
   const [history, setHistory] = useState(listHistory());
   const [favRev, setFavRev] = useState(0);
+  const [tab, setTab] = useState<Tab>('top');
 
   const search = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -43,6 +46,11 @@ export function SearchPage() {
       setResults(res.data);
       addHistory(trimmed);
       setHistory(listHistory());
+      // Prefetch prepare for top result (instant-feel)
+      const top = res.data[0];
+      if (top?.videoId) {
+        void api.prepare(top.videoId, 'AUDIO', defaultQuality('AUDIO'), top.sourceUrl).catch(() => undefined);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Search failed');
       setResults([]);
@@ -58,6 +66,15 @@ export function SearchPage() {
       void search(q);
     }
   }, [params, search]);
+
+  const filtered = useMemo(() => {
+    if (tab === 'songs') return results.filter(r => r.hasVideo === false);
+    if (tab === 'videos') return results.filter(r => r.hasVideo !== false);
+    return results;
+  }, [results, tab]);
+
+  const topResult = tab === 'top' ? results[0] : null;
+  const listResults = tab === 'top' ? results.slice(1) : filtered;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,13 +141,24 @@ export function SearchPage() {
           pb.setPrepareStatus(msg);
         });
         pb.play(media, streamUrl);
+      } else if (action === 'queue' || action === 'playNext') {
+        const {media, streamUrl} = await startPlayback(item, type, quality, setStatus);
+        const track = {
+          id: `${media.videoId || media.title}:${type}:${Date.now()}`,
+          media,
+          streamUrl,
+        };
+        if (action === 'playNext') pb.playNextInsert(track);
+        else pb.addToQueue(track);
+        setStatus(action === 'playNext' ? 'Queued to play next' : 'Added to queue');
       } else {
         await downloadToBrowser(item, type, quality, setStatus);
         alert('Download started — check your Downloads folder.');
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed';
-      pb.failPrepare(msg);
+      if (action === 'play') pb.failPrepare(msg);
+      else setError(msg);
     } finally {
       setBusy(null);
       setStatus('');
@@ -140,7 +168,7 @@ export function SearchPage() {
   const addPlaylist = (item: MediaSearchResult) => {
     const pls = listPlaylists();
     if (!pls.length) {
-      alert('Create a playlist first in the Lists tab.');
+      alert('Create a playlist first from Home → Playlists.');
       return;
     }
     addToPlaylist(pls[0].id, {
@@ -149,15 +177,16 @@ export function SearchPage() {
       thumbnailUrl: item.thumbnailUrl,
       sourceUrl: item.sourceUrl,
       videoId: item.videoId,
+      channel: item.channel,
     });
     alert(`Added to "${pls[0].name}"`);
   };
 
   return (
     <div className="page">
-      <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 8}}>Browse the web</h1>
+      <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 8}}>Browse</h1>
       <p style={{color: 'var(--muted)', fontSize: 14, marginBottom: 16}}>
-        Searches SoundCloud and open web (not YouTube) so cloud playback works without cookies.
+        SoundCloud & open web · tap a result to play, or use ⋯ for queue & downloads
       </p>
       <form className="search-bar" onSubmit={submit}>
         <input
@@ -176,14 +205,35 @@ export function SearchPage() {
       {history.length > 0 && !results.length && (
         <div className="chips">
           {history.map(h => (
-            <span key={h} className="chip" onClick={() => { setQuery(h); setParams({q: h}); void search(h); }}>
+            <span
+              key={h}
+              className="chip"
+              onClick={() => {
+                setQuery(h);
+                setParams({q: h});
+                void search(h);
+              }}>
               {h}
               <button
                 style={{marginLeft: 6, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer'}}
-                onClick={e => { e.stopPropagation(); removeHistory(h); setHistory(listHistory()); }}>
+                onClick={e => {
+                  e.stopPropagation();
+                  removeHistory(h);
+                  setHistory(listHistory());
+                }}>
                 ×
               </button>
             </span>
+          ))}
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <div className="search-tabs tabs">
+          {(['top', 'songs', 'videos'] as Tab[]).map(t => (
+            <button key={t} type="button" className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
+              {t === 'top' ? 'Top' : t === 'songs' ? 'Songs' : 'Videos'}
+            </button>
           ))}
         </div>
       )}
@@ -192,8 +242,35 @@ export function SearchPage() {
       {error && <p style={{color: 'var(--danger)', marginBottom: 12}}>{error}</p>}
       {loading && <div className="spinner" style={{margin: '24px auto'}} />}
 
+      {topResult && (
+        <div className="hero-result">
+          {topResult.thumbnailUrl ? <img src={topResult.thumbnailUrl} alt="" /> : <div />}
+          <div>
+            <div style={{fontSize: 12, color: 'var(--primary)', fontWeight: 700, marginBottom: 4}}>Top result</div>
+            <div style={{fontSize: 20, fontWeight: 800, marginBottom: 4}}>{topResult.title}</div>
+            <div style={{fontSize: 13, color: 'var(--muted)', marginBottom: 12}}>
+              {topResult.channel}
+              {topResult.source ? ` · ${topResult.source}` : ''}
+            </div>
+            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+              <button className="btn btn-audio" onClick={() => setPending({item: topResult, type: 'AUDIO', action: 'play'})}>
+                Play audio
+              </button>
+              {topResult.hasVideo !== false && (
+                <button className="btn btn-video" onClick={() => setPending({item: topResult, type: 'VIDEO', action: 'play'})}>
+                  Play video
+                </button>
+              )}
+              <button className="btn btn-ghost" onClick={() => setPending({item: topResult, type: 'AUDIO', action: 'playNext'})}>
+                Play next
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid" key={favRev}>
-        {results.map(item => (
+        {listResults.map(item => (
           <MediaCard
             key={item.videoId}
             item={item}
@@ -202,8 +279,16 @@ export function SearchPage() {
             favVideo={isFavorite(item.videoId, 'VIDEO')}
             onPlay={type => setPending({item, type, action: 'play'})}
             onDownload={type => setPending({item, type, action: 'download'})}
-            onFavorite={type => { toggleFavorite(item, type); setFavRev(v => v + 1); }}
+            onQueue={type => setPending({item, type, action: 'queue'})}
+            onPlayNext={type => setPending({item, type, action: 'playNext'})}
+            onFavorite={type => {
+              toggleFavorite(item, type);
+              setFavRev(v => v + 1);
+            }}
             onPlaylist={() => addPlaylist(item)}
+            onPrefetch={() => {
+              void api.prepare(item.videoId, 'AUDIO', defaultQuality('AUDIO'), item.sourceUrl).catch(() => undefined);
+            }}
           />
         ))}
       </div>
@@ -211,7 +296,7 @@ export function SearchPage() {
       {pending && (
         <QualityModal
           type={pending.type}
-          action={pending.action}
+          action={pending.action === 'download' ? 'download' : 'play'}
           onPick={handlePick}
           onClose={() => setPending(null)}
         />

@@ -14,4 +14,7 @@ public class FaceStatusDto {
     private int registeredCount;
     private String message;
     private String engineType;
+    /** opencv | insightface | insightface-stub */
+    private String engineMode;
+    private boolean insightFacePackaged;
 }

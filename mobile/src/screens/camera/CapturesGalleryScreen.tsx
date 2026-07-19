@@ -26,7 +26,7 @@ import {GeoMapView} from '../../components/GeoMapView';
 import {getApiBaseUrl} from '../../config';
 
 type Nav = NativeStackNavigationProp<CameraStackParamList>;
-type FilterKey = 'all' | 'photo' | 'video' | 'geo';
+type FilterKey = 'all' | 'photo' | 'video' | 'geo' | 'places';
 type ViewMode = 'grid' | 'list' | 'map';
 
 const FILTERS: {key: FilterKey; label: string; icon: string}[] = [
@@ -34,6 +34,7 @@ const FILTERS: {key: FilterKey; label: string; icon: string}[] = [
   {key: 'photo', label: 'Photos', icon: 'camera'},
   {key: 'video', label: 'Videos', icon: 'videocam'},
   {key: 'geo', label: 'Geo', icon: 'location'},
+  {key: 'places', label: 'Places', icon: 'map'},
 ];
 
 function formatWhen(iso?: string): string {
@@ -52,9 +53,13 @@ export function CapturesGalleryScreen() {
   const navigation = useNavigation<Nav>();
   const layout = useLayoutMetrics(true);
   const [items, setItems] = useState<CaptureItem[]>([]);
+  const [places, setPlaces] = useState<
+    Array<{placeKey: string; city?: string; country?: string; count: number; latitude: number; longitude: number}>
+  >([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [placeFilter, setPlaceFilter] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,6 +67,12 @@ export function CapturesGalleryScreen() {
       const res = await api.getCaptures();
       if (res.success) {
         setItems(res.data || []);
+      }
+      try {
+        const p = await api.listCapturePlaces();
+        if (p.success) setPlaces(p.data || []);
+      } catch {
+        setPlaces([]);
       }
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Could not load captures');
@@ -76,8 +87,18 @@ export function CapturesGalleryScreen() {
     if (filter === 'photo') return item.type === 'PHOTO';
     if (filter === 'video') return item.type === 'VIDEO';
     if (filter === 'geo') return item.latitude != null;
+    if (filter === 'places' && placeFilter) {
+      const label = item.locationLabel || [item.city, item.country].filter(Boolean).join(', ');
+      return (
+        label === placeFilter ||
+        item.city === placeFilter ||
+        item.locationLabel === placeFilter ||
+        [item.city, item.country].filter(Boolean).join(', ') === placeFilter
+      );
+    }
+    if (filter === 'places') return false;
     return true;
-  }), [items, filter]);
+  }), [items, filter, placeFilter]);
 
   const stats = useMemo(() => ({
     photos: items.filter(i => i.type === 'PHOTO').length,
@@ -214,7 +235,10 @@ export function CapturesGalleryScreen() {
           <TouchableOpacity
             key={f.key}
             style={[styles.filterChip, filter === f.key && styles.filterActive]}
-            onPress={() => setFilter(f.key)}>
+            onPress={() => {
+              setFilter(f.key);
+              setPlaceFilter(null);
+            }}>
             <Icon name={f.icon} size={14} color={filter === f.key ? '#fff' : COLORS.textSecondary} />
             <Text style={[styles.filterText, {fontSize: layout.font.sm}, filter === f.key && styles.filterTextActive]}>
               {f.label}
@@ -230,6 +254,39 @@ export function CapturesGalleryScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
+
+      {filter === 'places' && placeFilter ? (
+        <TouchableOpacity
+          style={[styles.filterChip, styles.filterActive, {alignSelf: 'flex-start', marginBottom: SPACING.sm}]}
+          onPress={() => setPlaceFilter(null)}>
+          <Icon name="close" size={14} color="#fff" />
+          <Text style={[styles.filterText, styles.filterTextActive, {fontSize: layout.font.sm}]} numberOfLines={1}>
+            {placeFilter}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {filter === 'places' && !placeFilter ? (
+        <View style={{gap: SPACING.sm, paddingBottom: SPACING.sm}}>
+          {places.length === 0 ? (
+            <Text style={{color: COLORS.textMuted, fontSize: 13}}>No places yet — capture with GPS.</Text>
+          ) : (
+            places.map(p => (
+              <TouchableOpacity
+                key={p.placeKey}
+                style={[styles.filterChip, {alignSelf: 'stretch', justifyContent: 'space-between'}]}
+                onPress={() => setPlaceFilter(p.placeKey)}>
+                <Text style={[styles.filterText, {fontSize: layout.font.sm}]} numberOfLines={1}>
+                  {p.placeKey}
+                </Text>
+                <Text style={[styles.filterText, {fontSize: layout.font.xs}]}>
+                  {p.count}
+                </Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      ) : null}
     </View>
   );
 

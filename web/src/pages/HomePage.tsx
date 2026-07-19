@@ -2,26 +2,37 @@ import {useEffect, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {api, resolveUrl} from '../api/client';
 import {usePlayback} from '../context/PlaybackContext';
+import {listFavorites} from '../stores/favorites';
 import {listRecent} from '../stores/recent';
+import {pullCloudLibrary} from '../stores/librarySync';
 import type {MediaItem} from '../types/media';
 import {formatBytes} from '../utils/format';
-const TRENDING = ['Bollywood hits', 'Lo-fi beats', 'Hindi songs', 'Punjabi music'];
+import {getAuthUser} from '../utils/auth';
+
+const TRENDING = ['Bollywood hits', 'Lo-fi beats', 'Hindi songs', 'Punjabi music', 'Workout mix', 'Chill indie'];
 
 export function HomePage() {
   const nav = useNavigate();
   const pb = usePlayback();
   const [audioLib, setAudioLib] = useState<MediaItem[]>([]);
-  const [recent] = useState(listRecent());
+  const [recent, setRecent] = useState(listRecent());
+  const [favorites, setFavorites] = useState(listFavorites());
   const [loading, setLoading] = useState(true);
+  const user = getAuthUser();
 
   useEffect(() => {
+    void (async () => {
+      await pullCloudLibrary();
+      setRecent(listRecent());
+      setFavorites(listFavorites());
+    })();
     api.audioLibrary()
-      .then(r => setAudioLib(r.data.slice(0, 8)))
+      .then(r => setAudioLib(r.data.slice(0, 12)))
       .catch(() => undefined)
       .finally(() => setLoading(false));
   }, []);
 
-  const playRecent = async (entry: (typeof recent)[0]) => {
+  const playRecent = (entry: (typeof recent)[0]) => {
     pb.play(entry.media, entry.streamUrl);
     nav('/player');
   };
@@ -34,6 +45,7 @@ export function HomePage() {
         type: item.type,
         streamUrl: url,
         thumbnailUrl: item.thumbnailUrl,
+        quality: item.quality,
         videoId: item.sourceUrl?.match(/v=([^&]+)/)?.[1],
         libraryId: item.id,
       },
@@ -46,12 +58,23 @@ export function HomePage() {
     <div className="page">
       <div className="hero">
         <h1>MediaFace</h1>
-        <p>Search, stream, and download music from SoundCloud & the open web.</p>
-        <div className="search-bar">
-          <Link to="/search" className="btn btn-primary" style={{flex: 1, textAlign: 'center'}}>
-            🔍 Search music
-          </Link>
-        </div>
+        <p>
+          {user
+            ? `Welcome back, ${user.username} — your library syncs across devices.`
+            : 'Search, stream, and save music. Sign in to sync playlists & favorites.'}
+        </p>
+        <form
+          className="search-bar"
+          onSubmit={e => {
+            e.preventDefault();
+            const q = new FormData(e.currentTarget).get('q')?.toString().trim();
+            if (q) nav(`/search?q=${encodeURIComponent(q)}`);
+          }}>
+          <input name="q" placeholder="Search songs, artists, links…" />
+          <button type="submit" className="btn btn-primary">
+            Search
+          </button>
+        </form>
         <div className="chips">
           {TRENDING.map(q => (
             <Link key={q} to={`/search?q=${encodeURIComponent(q)}`} className="chip">
@@ -61,21 +84,36 @@ export function HomePage() {
         </div>
       </div>
 
-      <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24}}>
-        <Link to="/faces" className="btn btn-ghost">👤 Faces</Link>
-        <Link to="/camera" className="btn btn-ghost">📷 Camera</Link>
-        <Link to="/favorites" className="btn btn-ghost">❤️ Favorites</Link>
+      <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8}}>
+        <Link to="/favorites" className="btn btn-ghost">
+          Favorites
+        </Link>
+        <Link to="/playlists" className="btn btn-ghost">
+          Playlists
+        </Link>
+        <Link to="/faces" className="btn btn-ghost">
+          People
+        </Link>
+        <Link to="/camera" className="btn btn-ghost">
+          Geo Camera
+        </Link>
+        {!user && (
+          <Link to="/login" className="btn btn-primary">
+            Sign in
+          </Link>
+        )}
       </div>
 
       {recent.length > 0 && (
         <>
-          <h2 className="section-title">Recently played</h2>
-          <div className="grid">
-            {recent.slice(0, 6).map((r, i) => (
+          <h2 className="section-title">Continue listening</h2>
+          <div className="section-rail">
+            {recent.slice(0, 10).map((r, i) => (
               <article key={i} className="card" style={{cursor: 'pointer'}} onClick={() => playRecent(r)}>
                 {r.media.thumbnailUrl && <img src={r.media.thumbnailUrl} alt="" />}
                 <div className="card-body">
                   <div className="card-title">{r.media.title}</div>
+                  <div className="card-sub">{r.media.quality || r.media.type}</div>
                 </div>
               </article>
             ))}
@@ -83,13 +121,34 @@ export function HomePage() {
         </>
       )}
 
-      <h2 className="section-title">Saved on server</h2>
+      {favorites.length > 0 && (
+        <>
+          <h2 className="section-title">Liked</h2>
+          <div className="section-rail">
+            {favorites.slice(0, 10).map(f => (
+              <article
+                key={f.id}
+                className="card"
+                style={{cursor: 'pointer'}}
+                onClick={() => nav(`/search?q=${encodeURIComponent(f.title)}`)}>
+                {f.thumbnailUrl && <img src={f.thumbnailUrl} alt="" />}
+                <div className="card-body">
+                  <div className="card-title">{f.title}</div>
+                  <div className="card-sub">{f.channel || f.type}</div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+
+      <h2 className="section-title">Recently saved</h2>
       {loading ? (
         <p className="empty">Loading…</p>
       ) : audioLib.length === 0 ? (
-        <p className="empty">No downloads yet. Search and download tracks.</p>
+        <p className="empty">No downloads yet. Search and save tracks for offline.</p>
       ) : (
-        <div className="grid">
+        <div className="section-rail">
           {audioLib.map(item => (
             <article key={item.id} className="card" style={{cursor: 'pointer'}} onClick={() => playLibrary(item)}>
               <img src={item.thumbnailUrl} alt="" />

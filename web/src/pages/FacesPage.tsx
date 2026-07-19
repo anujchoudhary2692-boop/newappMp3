@@ -11,7 +11,7 @@ import {
 } from '../utils/faceAlerts';
 import {GeoMap} from '../components/GeoMap';
 
-type Tab = 'people' | 'register' | 'identify' | 'alerts' | 'trace';
+type Tab = 'people' | 'clusters' | 'register' | 'identify' | 'alerts' | 'trace';
 
 function dayLabel(iso?: string) {
   if (!iso) return 'Unknown date';
@@ -44,6 +44,15 @@ export function FacesPage() {
   const [liveActive, setLiveActive] = useState(false);
   const [liveResult, setLiveResult] = useState('');
   const [alertsOn, setAlertsOn] = useState(isFaceAlertsEnabled());
+  const [candidates, setCandidates] = useState<
+    Array<{personId?: string; personName?: string; confidence?: number; imageUrl?: string; cropUrl?: string}>
+  >([]);
+  const [galleryHits, setGalleryHits] = useState<
+    Array<{personName?: string; confidence?: number; imageUrl?: string; cropUrl?: string; sourceId?: string}>
+  >([]);
+  const [clusters, setClusters] = useState<
+    Array<{id: string; name: string; personId?: string; faceCount: number; sampleImageUrl?: string}>
+  >([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const liveTimerRef = useRef<number | null>(null);
@@ -61,6 +70,12 @@ export function FacesPage() {
       setPeople(res.data);
       const alertRes = await api.recentFaceAlerts(30);
       setAlerts(alertRes.data);
+      try {
+        const cl = await api.listFaceClusters();
+        setClusters(cl.data);
+      } catch {
+        setClusters([]);
+      }
       setMsg('');
     } catch (e) {
       setReady(false);
@@ -116,19 +131,29 @@ export function FacesPage() {
     try {
       const res = await api.identifyFace(form);
       const d = res.data;
+      setCandidates(d.candidates || []);
       if (d.matched && d.personName) {
         const conf = d.confidence ?? 0;
         const text = `${d.personName} (${Math.round(conf <= 1 ? conf * 100 : conf)}%)`;
         setResult(text);
         void notifyPersonSighted(d.personName, conf <= 1 ? conf * 100 : conf);
-        alert(`Match found: ${text}`);
       } else if (d.personName) {
         setResult(`${d.personName} (${Math.round(d.confidence ?? 0)}%)`);
       } else {
-        setResult('No match found');
+        setResult('No registered match');
+      }
+      try {
+        const gForm = new FormData();
+        gForm.append('image', file);
+        const hits = await api.galleryFaceSearch(gForm);
+        setGalleryHits(hits.data || []);
+      } catch {
+        setGalleryHits([]);
       }
     } catch (e) {
       setResult(e instanceof Error ? e.message : 'Identify failed');
+      setCandidates([]);
+      setGalleryHits([]);
     }
   };
 
@@ -208,7 +233,7 @@ export function FacesPage() {
 
   return (
     <div className="page">
-      <Link to="/" className="btn btn-ghost" style={{marginBottom: 12}}>
+      <Link to="/" className="btn btn-ghost page-back" style={{marginBottom: 12}}>
         ← Home
       </Link>
       <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 8}}>Face tracing</h1>
@@ -237,9 +262,21 @@ export function FacesPage() {
       )}
 
       <div className="tabs">
-        {(['people', 'register', 'identify', 'alerts', ...(tracePerson ? (['trace'] as Tab[]) : [])] as Tab[]).map(t => (
+        {(
+          ['people', 'clusters', 'register', 'identify', 'alerts', ...(tracePerson ? (['trace'] as Tab[]) : [])] as Tab[]
+        ).map(t => (
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'people' ? 'People' : t === 'register' ? 'Register' : t === 'identify' ? 'Identify' : t === 'alerts' ? 'Alerts' : 'Trace'}
+            {t === 'people'
+              ? 'People'
+              : t === 'clusters'
+                ? 'Albums'
+                : t === 'register'
+                  ? 'Register'
+                  : t === 'identify'
+                    ? 'Identify'
+                    : t === 'alerts'
+                      ? 'Alerts'
+                      : 'Trace'}
           </button>
         ))}
       </div>
@@ -274,6 +311,40 @@ export function FacesPage() {
                 <button className="btn btn-ghost" onClick={() => del(p.id)}>
                   🗑
                 </button>
+              </div>
+            ))
+          )}
+        </>
+      )}
+
+      {tab === 'clusters' && (
+        <>
+          <p style={{fontSize: 13, color: 'var(--muted)', marginBottom: 12}}>
+            Unnamed faces found in captures. Name them to add to your People gallery.
+          </p>
+          {clusters.length === 0 ? (
+            <p className="empty">No face albums yet. Capture photos to auto-cluster.</p>
+          ) : (
+            clusters.map(c => (
+              <div key={c.id} style={{display: 'flex', gap: 12, alignItems: 'center', padding: 12, borderBottom: '1px solid var(--border)'}}>
+                <div style={{flex: 1, minWidth: 0}}>
+                  <div style={{fontWeight: 700}}>{c.name}</div>
+                  <div style={{fontSize: 12, color: 'var(--muted)'}}>
+                    {c.faceCount} face{c.faceCount === 1 ? '' : 's'}
+                    {c.personId ? ' · linked' : ''}
+                  </div>
+                </div>
+                {!c.personId && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      const n = prompt('Name this person', c.name.startsWith('Unnamed') ? '' : c.name);
+                      if (!n?.trim()) return;
+                      void api.nameFaceCluster(c.id, n.trim()).then(() => load());
+                    }}>
+                    Name
+                  </button>
+                )}
               </div>
             ))
           )}
@@ -315,6 +386,40 @@ export function FacesPage() {
             </>
           )}
           {result && <p style={{fontSize: 18, fontWeight: 700, color: 'var(--primary)'}}>{result}</p>}
+          {candidates.length > 0 && (
+            <div>
+              <h3 style={{fontSize: 14, marginBottom: 8}}>Top matches</h3>
+              {candidates.map((c, i) => (
+                <div key={i} className="candidate-row">
+                  {(c.cropUrl || c.imageUrl) && (
+                    <img className="candidate-crop" src={resolveUrl(c.cropUrl || c.imageUrl || '')} alt="" />
+                  )}
+                  <div style={{flex: 1, minWidth: 0}}>
+                    <div style={{fontWeight: 700}}>{c.personName || 'Unknown'}</div>
+                    <div style={{fontSize: 12, color: 'var(--muted)'}}>{Math.round(c.confidence ?? 0)}% confidence</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {galleryHits.length > 0 && (
+            <div>
+              <h3 style={{fontSize: 14, marginBottom: 8}}>Gallery hits</h3>
+              {galleryHits.slice(0, 8).map((h, i) => (
+                <div key={i} className="candidate-row">
+                  {(h.cropUrl || h.imageUrl) && (
+                    <img className="candidate-crop" src={resolveUrl(h.cropUrl || h.imageUrl || '')} alt="" />
+                  )}
+                  <div style={{flex: 1, minWidth: 0}}>
+                    <div style={{fontWeight: 700}}>{h.personName || 'Face match'}</div>
+                    <div style={{fontSize: 12, color: 'var(--muted)'}}>
+                      {Math.round(h.confidence ?? 0)}% · {h.sourceId || 'media'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -26,7 +26,7 @@ import type {MediaSearchResult} from '../../features/media/domain/types';
 import type {AudioQuality, MediaQuality, VideoQuality} from '../../features/media/domain/qualityPresets';
 import {qualityLabel} from '../../features/media/domain/qualityPresets';
 import {useMediaSearch} from '../../features/media/hooks/useMediaSearch';
-import {prepareAndStartPlayback, showDownloadError} from '../../features/media/services/PlaybackOrchestrator';
+import {prepareAndStartPlayback, prepareQueueTrack, showDownloadError} from '../../features/media/services/PlaybackOrchestrator';
 import {downloadSearchItemToDevice} from '../../utils/localMediaStore';
 import {prefetchMediaPrepare, warmMediaServer} from '../../utils/mediaPrefetch';
 import {consumePendingSearchQuery} from '../../utils/searchIntent';
@@ -112,6 +112,32 @@ export function SearchScreen() {
     setPlaying(prev => ({...prev, [item.videoId]: type}));
     void prepareAndStartPlayback(item, type, playback, undefined, quality)
       .catch(() => undefined)
+      .finally(() => {
+        setPlaying(prev => {
+          const next = {...prev};
+          delete next[item.videoId];
+          return next;
+        });
+      });
+  };
+
+  const runQueue = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', mode: 'next' | 'end') => {
+    if (!mediaSearchEnabled) {
+      Alert.alert('Unavailable', 'Media search is disabled on this server.');
+      return;
+    }
+    setPlaying(prev => ({...prev, [item.videoId]: type}));
+    void prepareQueueTrack(item, type)
+      .then(track => {
+        if (mode === 'next') {
+          playback.insertNextTrack(track);
+          Alert.alert('Queued', 'Will play next');
+        } else {
+          playback.enqueueTrack(track);
+          Alert.alert('Queued', 'Added to end of queue');
+        }
+      })
+      .catch(e => Alert.alert('Queue failed', e instanceof Error ? e.message : 'Error'))
       .finally(() => {
         setPlaying(prev => {
           const next = {...prev};
@@ -382,6 +408,8 @@ export function SearchScreen() {
             onPlayVideo={() => openPicker(item, 'VIDEO', 'play')}
             onDownloadAudio={() => openPicker(item, 'AUDIO', 'download')}
             onDownloadVideo={() => openPicker(item, 'VIDEO', 'download')}
+            onPlayNext={() => runQueue(item, 'AUDIO', 'next')}
+            onAddToQueue={() => runQueue(item, 'AUDIO', 'end')}
             isFavorite={favoriteIds.has(`AUDIO:${item.videoId}`)}
             onToggleFavorite={() => handleToggleFavorite(item)}
             onAddToPlaylist={() => openPlaylistPicker(item)}

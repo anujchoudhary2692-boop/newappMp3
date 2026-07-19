@@ -1,5 +1,7 @@
 import type {PlayableMedia} from '../types/media';
 import {loadJson, saveJson} from './storage';
+import {getAuthToken} from '../utils/auth';
+import {api} from '../api/client';
 
 export interface RecentEntry {
   media: PlayableMedia;
@@ -23,4 +25,16 @@ export function pushRecent(media: PlayableMedia, streamUrl: string) {
     ),
   ].slice(0, MAX);
   saveJson(KEY, next);
+  if (getAuthToken()) {
+    void api.libraryPushRecent({
+      title: media.title,
+      thumbnailUrl: media.thumbnailUrl,
+      type: media.type,
+      streamUrl,
+      videoId: media.videoId,
+      sourceUrl: media.sourceUrl,
+      libraryId: media.libraryId,
+      quality: media.quality,
+    }).catch(() => undefined);
+  }
 }

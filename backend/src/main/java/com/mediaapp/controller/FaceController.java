@@ -5,10 +5,13 @@ import com.mediaapp.dto.CaptureScanStatusDto;
 import com.mediaapp.dto.MultiPersonScanResultDto;
 import com.mediaapp.dto.PersonTimelineEntryDto;
 import com.mediaapp.dto.FaceIdentifyResult;
+import com.mediaapp.dto.GalleryHitDto;
 import com.mediaapp.dto.LibraryScanResultDto;
 import com.mediaapp.dto.PersonDto;
 import com.mediaapp.dto.PersonPhotoDto;
 import com.mediaapp.dto.UpdatePersonRequest;
+import com.mediaapp.dto.FaceClusterDto;
+import com.mediaapp.service.FaceClusterService;
 import com.mediaapp.service.FaceRecognitionService;
 import com.mediaapp.service.FaceScanService;
 import com.mediaapp.service.FaceAlertService;
@@ -32,10 +35,53 @@ public class FaceController {
     private final FaceScanService faceScanService;
     private final FaceAlertService faceAlertService;
     private final TraceExportService traceExportService;
+    private final FaceClusterService faceClusterService;
 
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<com.mediaapp.dto.FaceStatusDto>> status() {
         return ResponseEntity.ok(ApiResponse.ok(faceRecognitionService.getStatus()));
+    }
+
+    @GetMapping("/clusters")
+    public ResponseEntity<ApiResponse<List<FaceClusterDto>>> clusters() {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceClusterService.listClusters()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/clusters/{id}/name")
+    public ResponseEntity<ApiResponse<FaceClusterDto>> nameCluster(
+            @PathVariable String id,
+            @RequestParam String name) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceClusterService.nameCluster(id, name)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/clusters/{id}/merge")
+    public ResponseEntity<ApiResponse<FaceClusterDto>> mergeCluster(
+            @PathVariable String id,
+            @RequestParam String personId) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceClusterService.mergeCluster(id, personId)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "/gallery-search", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<List<GalleryHitDto>>> gallerySearch(
+            @RequestParam("image") MultipartFile image,
+            @RequestParam(defaultValue = "20") int limit) {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(faceClusterService.gallerySearch(image, limit)));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @GetMapping

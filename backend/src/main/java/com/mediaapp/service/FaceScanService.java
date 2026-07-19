@@ -40,6 +40,7 @@ public class FaceScanService {
     private final PersonRepository personRepository;
     private final VideoFrameService videoFrameService;
     private final MediaService mediaService;
+    private final FaceClusterService faceClusterService;
     private ExecutorService executor;
 
     @PostConstruct
@@ -109,6 +110,11 @@ public class FaceScanService {
                     .build();
             MultiPersonScanResultDto result = faceRecognitionService.scanImagePathForAllPersons(file, ctx, true);
             saved = (int) result.getMatches().stream().filter(PersonMatchDto::isSaved).count();
+            try {
+                faceClusterService.indexCapture(capture);
+            } catch (Exception e) {
+                log.debug("Cluster index skipped: {}", e.getMessage());
+            }
         } else {
             List<VideoFrameService.FrameSample> frames = videoFrameService.extractFrames(file, capture.getDurationMs());
             try {

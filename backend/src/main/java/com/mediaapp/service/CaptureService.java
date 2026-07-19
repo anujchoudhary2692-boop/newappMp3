@@ -1,6 +1,7 @@
 package com.mediaapp.service;
 
 import com.mediaapp.dto.CaptureDto;
+import com.mediaapp.dto.PlaceSummaryDto;
 import com.mediaapp.model.Capture;
 import com.mediaapp.model.CaptureType;
 import com.mediaapp.repository.CaptureRepository;
@@ -36,7 +37,9 @@ public class CaptureService {
             String city,
             String country,
             Long durationMs,
-            String clientCapturedAt) throws IOException {
+            String clientCapturedAt,
+            Double heading,
+            String trackPointsJson) throws IOException {
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Capture file is required");
@@ -88,6 +91,8 @@ public class CaptureService {
                 .clientCapturedAt(clientTime)
                 .capturedAt(clientTime != null ? clientTime : Instant.now())
                 .durationMs(durationMs)
+                .heading(heading)
+                .trackPointsJson(trackPointsJson)
                 .scanStatus("PENDING")
                 .matchCount(0)
                 .build();
@@ -170,7 +175,34 @@ public class CaptureService {
                 .durationMs(capture.getDurationMs())
                 .scanStatus(capture.getScanStatus())
                 .matchCount(capture.getMatchCount())
+                .heading(capture.getHeading())
+                .trackPointsJson(capture.getTrackPointsJson())
                 .build();
+    }
+
+    public List<PlaceSummaryDto> listPlaces() {
+        java.util.Map<String, PlaceSummaryDto> map = new java.util.LinkedHashMap<>();
+        for (Capture c : captureRepository.findAllByOrderByCapturedAtDesc()) {
+            if (c.getLatitude() == null || c.getLongitude() == null) continue;
+            String key = !isBlank(c.getCity())
+                    ? c.getCity() + (isBlank(c.getCountry()) ? "" : ", " + c.getCountry())
+                    : buildLocationLabel(c);
+            PlaceSummaryDto existing = map.get(key);
+            if (existing == null) {
+                map.put(key, PlaceSummaryDto.builder()
+                        .placeKey(key)
+                        .city(c.getCity())
+                        .country(c.getCountry())
+                        .count(1)
+                        .latitude(c.getLatitude())
+                        .longitude(c.getLongitude())
+                        .sampleCaptureId(c.getId())
+                        .build());
+            } else {
+                existing.setCount(existing.getCount() + 1);
+            }
+        }
+        return new java.util.ArrayList<>(map.values());
     }
 
     private String buildLocationLabel(Capture capture) {

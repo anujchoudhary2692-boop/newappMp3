@@ -5,15 +5,8 @@ export interface GeoMapPoint {
   title?: string;
   subtitle?: string;
   color?: string;
-}
-
-export interface GeoMapPoint {
-  id: string;
-  latitude: number;
-  longitude: number;
-  title?: string;
-  subtitle?: string;
-  color?: string;
+  thumbnailUrl?: string;
+  href?: string;
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<{

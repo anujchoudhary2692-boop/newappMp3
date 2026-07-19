@@ -23,6 +23,9 @@ export function SettingsPage() {
   const [authUser, setAuthUser] = useState(getAuthUser());
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
+  const [users, setUsers] = useState<Array<{id: string; username: string; role: string}>>([]);
+  const [faceEngine, setFaceEngine] = useState<{engineType?: string; engineMode?: string; insightFacePackaged?: boolean; message?: string} | null>(null);
+  const [newUser, setNewUser] = useState({username: '', password: '', role: 'VIEWER'});
 
   const refresh = useCallback(async () => {
     setHealth('checking…');
@@ -34,6 +37,20 @@ export function SettingsPage() {
       setMedia(h.data.media ?? null);
       const f = await api.features();
       setFeatures(f.data);
+      try {
+        const st = await api.faceStatus();
+        setFaceEngine(st.data as typeof faceEngine);
+      } catch {
+        setFaceEngine(null);
+      }
+      if (getAuthUser()?.role === 'ADMIN') {
+        try {
+          const u = await api.listUsers();
+          setUsers(u.data);
+        } catch {
+          setUsers([]);
+        }
+      }
     } catch (e) {
       setHealth(e instanceof Error ? e.message : 'Offline');
       setMedia(null);
@@ -172,6 +189,8 @@ export function SettingsPage() {
                     setAuthSession(res.data.token, res.data.user);
                     setAuthUser(res.data.user);
                     setLoginPass('');
+                    const {migrateLocalLibraryToCloud} = await import('../stores/librarySync');
+                    await migrateLocalLibraryToCloud();
                   } catch (e) {
                     alert(e instanceof Error ? e.message : 'Login failed');
                   }
@@ -184,6 +203,81 @@ export function SettingsPage() {
         <p style={{fontSize: 12, color: 'var(--muted)', marginTop: 8}}>
           Roles: ADMIN (manage users), OPERATOR (register/scan), VIEWER (read-only). Set ADMIN_USERNAME + ADMIN_PASSWORD on Render to seed admin.
         </p>
+        {!authUser && (
+          <p style={{fontSize: 13, marginTop: 8}}>
+            <a href="/login">Open full sign-in page</a>
+            {authRequired ? ' — login is required for API access.' : ' — guest mode keeps library on this device only.'}
+          </p>
+        )}
+        {authUser?.role === 'ADMIN' && (
+          <div style={{marginTop: 16}}>
+            <h3 style={{fontSize: 14, marginBottom: 8}}>Users</h3>
+            {users.map(u => (
+              <div key={u.id} style={{fontSize: 13, padding: '6px 0', borderBottom: '1px solid var(--border)'}}>
+                {u.username} · {u.role}
+              </div>
+            ))}
+            <div style={{display: 'grid', gap: 8, marginTop: 12, maxWidth: 360}}>
+              <input
+                placeholder="New username"
+                value={newUser.username}
+                onChange={e => setNewUser(s => ({...s, username: e.target.value}))}
+                style={{padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)'}}
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={newUser.password}
+                onChange={e => setNewUser(s => ({...s, password: e.target.value}))}
+                style={{padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)'}}
+              />
+              <select
+                value={newUser.role}
+                onChange={e => setNewUser(s => ({...s, role: e.target.value}))}
+                style={{padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)'}}>
+                <option value="VIEWER">VIEWER</option>
+                <option value="OPERATOR">OPERATOR</option>
+                <option value="ADMIN">ADMIN</option>
+              </select>
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await api.createUser(newUser);
+                      setNewUser({username: '', password: '', role: 'VIEWER'});
+                      void refresh();
+                    } catch (e) {
+                      alert(e instanceof Error ? e.message : 'Create failed');
+                    }
+                  })();
+                }}>
+                Create user
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section style={{marginBottom: 24}}>
+        <h2 className="section-title">Face AI engine</h2>
+        {faceEngine ? (
+          <div style={{fontSize: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 14}}>
+            <p>
+              Active: <strong>{faceEngine.engineType || 'opencv'}</strong>
+              {faceEngine.engineMode ? ` (${faceEngine.engineMode})` : ''}
+            </p>
+            <p style={{fontSize: 13, color: 'var(--muted)', marginTop: 6}}>{faceEngine.message}</p>
+            {!faceEngine.insightFacePackaged && (
+              <p style={{fontSize: 13, color: 'var(--muted)', marginTop: 8}}>
+                OpenCV SFace is the default on free-tier Render. For InsightFace, rebuild with{' '}
+                <code>mvn -Pinsightface package</code> and set <code>FACE_ENGINE=insightface</code> with ONNX models present.
+              </p>
+            )}
+          </div>
+        ) : (
+          <p style={{color: 'var(--muted)', fontSize: 13}}>Face status unavailable.</p>
+        )}
       </section>
 
       <section style={{marginBottom: 24}}>

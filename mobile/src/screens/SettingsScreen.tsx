@@ -306,6 +306,8 @@ export function SettingsScreen() {
                     await setAuthSession(res.data.token, res.data.user);
                     setAuthUser(res.data.user);
                     setLoginPass('');
+                    const {migrateAndSyncCloudLibrary} = await import('../utils/librarySync');
+                    await migrateAndSyncCloudLibrary();
                   } catch (e) {
                     Alert.alert('Login failed', e instanceof Error ? e.message : 'Error');
                   }

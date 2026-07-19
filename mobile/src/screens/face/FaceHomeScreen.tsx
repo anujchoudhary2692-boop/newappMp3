@@ -32,11 +32,15 @@ export function FaceHomeScreen() {
   const layout = useLayoutMetrics(true);
   const navigation = useNavigation<Nav>();
   const [persons, setPersons] = useState<Person[]>([]);
+  const [clusters, setClusters] = useState<Array<{id: string; name: string; personId?: string; faceCount: number}>>([]);
   const [loading, setLoading] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [editName, setEditName] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [namingCluster, setNamingCluster] = useState<{id: string; name: string; faceCount: number} | null>(null);
+  const [clusterName, setClusterName] = useState('');
+  const [savingCluster, setSavingCluster] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,6 +51,12 @@ export function FaceHomeScreen() {
         setPersons(personsRes.data || []);
       } else {
         Alert.alert('Error', personsRes.message || 'Could not load people');
+      }
+      try {
+        const cl = await api.listFaceClusters();
+        if (cl.success) setClusters((cl.data || []).filter(c => !c.personId));
+      } catch {
+        setClusters([]);
       }
     } catch {
       Alert.alert('Error', 'Could not load face recognition data');
@@ -115,6 +125,27 @@ export function FaceHomeScreen() {
     }
   };
 
+  const saveClusterName = async () => {
+    if (!namingCluster || !clusterName.trim()) {
+      Alert.alert('Name required', 'Please enter a name for this album.');
+      return;
+    }
+    setSavingCluster(true);
+    try {
+      const res = await api.nameFaceCluster(namingCluster.id, clusterName.trim());
+      if (res.success) {
+        setNamingCluster(null);
+        load();
+      } else {
+        Alert.alert('Could not save', res.message || 'Try again');
+      }
+    } catch {
+      Alert.alert('Could not save', 'Check your connection and try again.');
+    } finally {
+      setSavingCluster(false);
+    }
+  };
+
   const personActions = (person: Person) => {
     Alert.alert(person.name, undefined, [
       {text: 'Edit name & notes', onPress: () => openEdit(person)},
@@ -180,7 +211,38 @@ export function FaceHomeScreen() {
           <RefreshControl refreshing={loading && persons.length > 0} onRefresh={load} tintColor={COLORS.face} />
         }
         ListHeaderComponent={
-          loading && persons.length === 0 ? <PersonListSkeleton count={4} /> : null
+          <>
+            {loading && persons.length === 0 ? <PersonListSkeleton count={4} /> : null}
+            {clusters.length > 0 ? (
+              <View style={{paddingHorizontal: layout.hPad, marginBottom: SPACING.md}}>
+                <Text style={[styles.sectionTitle, {fontSize: layout.font.md, marginBottom: SPACING.sm}]}>
+                  Albums · {clusters.length}
+                </Text>
+                {clusters.map(c => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.personCard, {marginHorizontal: 0, marginBottom: SPACING.sm}]}
+                    onPress={() => {
+                      setNamingCluster({id: c.id, name: c.name || '', faceCount: c.faceCount});
+                      setClusterName(c.name || '');
+                    }}>
+                    <View style={[styles.avatar, styles.avatarPlaceholder, {width: layout.thumbSize * 0.7, height: layout.thumbSize * 0.7, borderRadius: layout.thumbSize * 0.35}]}>
+                      <Icon name="people" size={layout.thumbSize * 0.32} color={COLORS.face} />
+                    </View>
+                    <View style={styles.personInfo}>
+                      <Text style={[styles.personName, {fontSize: layout.font.md}]} numberOfLines={1}>
+                        {c.name || 'Unnamed album'}
+                      </Text>
+                      <Text style={[styles.photoCount, {fontSize: layout.font.sm}]} numberOfLines={1}>
+                        {c.faceCount} face{c.faceCount === 1 ? '' : 's'} · tap to name
+                      </Text>
+                    </View>
+                    <Icon name="chevron-forward" size={18} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+          </>
         }
         ListEmptyComponent={
           !loading ? (
@@ -284,6 +346,41 @@ export function FaceHomeScreen() {
                 onPress={saveEdit}
                 disabled={savingEdit}>
                 <Text style={styles.modalSaveText}>{savingEdit ? 'Saving…' : 'Save'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={!!namingCluster} transparent animationType="slide">
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={[styles.modalCard, {maxWidth: layout.modalMaxWidth, alignSelf: 'center', width: '100%'}]}>
+            <Text style={styles.modalTitle}>Name album</Text>
+            <Text style={styles.modalLabel}>
+              {namingCluster ? `${namingCluster.faceCount} face${namingCluster.faceCount === 1 ? '' : 's'} grouped` : ''}
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={clusterName}
+              onChangeText={setClusterName}
+              placeholder="Album name"
+              placeholderTextColor={COLORS.textMuted}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setNamingCluster(null)}
+                disabled={savingCluster}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSave, savingCluster && styles.modalSaveDisabled]}
+                onPress={saveClusterName}
+                disabled={savingCluster}>
+                <Text style={styles.modalSaveText}>{savingCluster ? 'Saving…' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
           </View>
