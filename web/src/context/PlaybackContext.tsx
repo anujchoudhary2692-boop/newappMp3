@@ -157,11 +157,25 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   const playQueue = useCallback(
     (tracks: QueueTrack[], start = 0) => {
       if (!tracks.length) return;
-      setQueue(tracks);
-      setQueueIndex(start);
-      playTrack(tracks[start].media, tracks[start].streamUrl);
+      let ordered = tracks;
+      let idx = Math.min(Math.max(0, start), tracks.length - 1);
+      if (shuffle && tracks.length > 1) {
+        const current = tracks[idx];
+        ordered = [...tracks];
+        for (let i = ordered.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
+        }
+        const shuffledIndex = ordered.findIndex(
+          t => t.id === current.id || (t.media.videoId && t.media.videoId === current.media.videoId),
+        );
+        idx = shuffledIndex >= 0 ? shuffledIndex : 0;
+      }
+      setQueue(ordered);
+      setQueueIndex(idx);
+      playTrack(ordered[idx].media, ordered[idx].streamUrl);
     },
-    [playTrack],
+    [playTrack, shuffle],
   );
 
   const goTo = useCallback(

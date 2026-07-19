@@ -68,7 +68,11 @@ export function SearchPage() {
   }, [params, search]);
 
   const filtered = useMemo(() => {
-    if (tab === 'songs') return results.filter(r => r.hasVideo === false);
+    if (tab === 'songs') {
+      const audioOnly = results.filter(r => r.hasVideo === false);
+      // Prefer catalog/audio hits; if search is YouTube-heavy, show all so Songs is usable.
+      return audioOnly.length > 0 ? audioOnly : results;
+    }
     if (tab === 'videos') return results.filter(r => r.hasVideo !== false);
     return results;
   }, [results, tab]);

@@ -49,12 +49,10 @@ export function BackendGate({children}: {children: React.ReactNode}) {
         if (production) {
           const probe = await probeServerCapabilities(found, 30000);
           if (probe?.playDownload === 'LIMITED') {
+            // Server is healthy — still enter the app. YouTube may be limited;
+            // SoundCloud/web/local library/faces/camera remain usable.
             setTriedUrls([found]);
-            setStatus('fail');
-            setError(
-              'Cloud server is up but YouTube playback is blocked.\n\n' +
-                'Set YOUTUBE_COOKIES_BASE64 on Render, or use Mac backend on same Wi‑Fi.',
-            );
+            setStatus('ok');
             return;
           }
         }

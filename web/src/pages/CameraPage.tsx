@@ -126,7 +126,13 @@ export function CameraPage() {
         .filter(c => {
           if (!placeFilter) return true;
           const label = c.locationLabel || [c.city, c.country].filter(Boolean).join(', ');
-          return label === placeFilter || c.city === placeFilter;
+          const cityCountry = [c.city, c.country].filter(Boolean).join(', ');
+          return (
+            label === placeFilter ||
+            cityCountry === placeFilter ||
+            c.city === placeFilter ||
+            c.locationLabel === placeFilter
+          );
         })
         .map(c => ({
           id: c.id,
@@ -145,7 +151,13 @@ export function CameraPage() {
     if (!placeFilter) return captures;
     return captures.filter(c => {
       const label = c.locationLabel || [c.city, c.country].filter(Boolean).join(', ');
-      return label === placeFilter || c.city === placeFilter;
+      const cityCountry = [c.city, c.country].filter(Boolean).join(', ');
+      return (
+        label === placeFilter ||
+        cityCountry === placeFilter ||
+        c.city === placeFilter ||
+        c.locationLabel === placeFilter
+      );
     });
   }, [captures, placeFilter]);
 

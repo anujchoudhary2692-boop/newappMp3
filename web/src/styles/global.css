@@ -22,6 +22,7 @@
   --success: #22c55e;
   --radius: 12px;
   --nav-h: 64px;
+  --nav-total: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   --mini-h: 88px;
   --font: 'SF Pro Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
@@ -55,11 +56,11 @@ select {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  padding-bottom: var(--nav-h);
+  padding-bottom: var(--nav-total);
 }
 
 .app-shell--with-mini {
-  padding-bottom: calc(var(--nav-h) + var(--mini-h));
+  padding-bottom: calc(var(--nav-total) + var(--mini-h));
 }
 
 .page {
@@ -266,7 +267,8 @@ select {
   bottom: 0;
   left: 0;
   right: 0;
-  height: var(--nav-h);
+  height: var(--nav-total);
+  box-sizing: border-box;
   background: rgba(14, 14, 20, 0.94);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--border);
@@ -301,7 +303,7 @@ select {
 
 .mini-player {
   position: fixed;
-  bottom: var(--nav-h);
+  bottom: var(--nav-total);
   left: 0;
   right: 0;
   min-height: var(--mini-h);
@@ -460,7 +462,7 @@ select {
 }
 
 .app-shell--with-mini {
-  padding-bottom: calc(var(--nav-h) + var(--mini-h));
+  padding-bottom: calc(var(--nav-total) + var(--mini-h));
 }
 
 .login-page {
@@ -804,7 +806,7 @@ select {
   }
 
   .player-page {
-    padding: 16px 12px calc(var(--nav-h) + var(--mini-h) + 24px);
+    padding: 16px 12px calc(var(--nav-total) + var(--mini-h) + 24px);
   }
 
   .player-video-stage {

@@ -18,10 +18,14 @@ import {PlaylistPickerSheet} from '../../components/media/PlaylistPickerSheet';
 import {usePlayback} from '../../context/PlaybackContext';
 import {COLORS, SPACING} from '../../config';
 import {enterpriseStyles} from '../../theme/enterprise';
-import {goToMediaTab} from '../../navigation/navigationRef';
-import {prepareAndStartPlayback} from '../../features/media/services/PlaybackOrchestrator';
+import {goToMediaTab, openPlayerScreen} from '../../navigation/navigationRef';
+import {
+  prepareAndStartPlayback,
+  prepareQueueTrack,
+} from '../../features/media/services/PlaybackOrchestrator';
 import {
   listFavorites,
+  pullCloudFavorites,
   removeFavorite,
   type FavoriteItem,
 } from '../../utils/favoritesStore';
@@ -41,14 +45,20 @@ export function FavoritesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [playlistPicker, setPlaylistPicker] = useState<FavoriteItem | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [queueing, setQueueing] = useState(false);
 
   const load = useCallback(async () => {
+    try {
+      await pullCloudFavorites();
+    } catch {
+      // keep local cache
+    }
     setItems(await listFavorites());
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
     }, [load]),
   );
 
@@ -62,25 +72,42 @@ export function FavoritesScreen() {
   const audioCount = items.filter(i => i.type === 'AUDIO').length;
   const videoCount = items.filter(i => i.type === 'VIDEO').length;
 
+  const toSearchItem = (item: FavoriteItem) => ({
+    videoId: item.videoId,
+    title: item.title,
+    thumbnailUrl: item.thumbnailUrl,
+    channel: item.channel,
+    sourceUrl: item.sourceUrl,
+  });
+
   const handlePlay = (item: FavoriteItem) => {
-    void prepareAndStartPlayback(
-      {
-        videoId: item.videoId,
-        title: item.title,
-        thumbnailUrl: item.thumbnailUrl,
-        channel: item.channel,
-        sourceUrl: item.sourceUrl,
-      },
-      item.type,
-      playback,
-    );
+    void prepareAndStartPlayback(toSearchItem(item), item.type, playback);
   };
 
-  const handlePlayAll = () => {
-    if (filtered.length === 0) {
-      return;
+  const handlePlayAll = async (startIdx = 0) => {
+    if (filtered.length === 0 || queueing) return;
+    setQueueing(true);
+    try {
+      const start = Math.min(Math.max(0, startIdx), filtered.length - 1);
+      const first = filtered[start];
+      const firstTrack = await prepareQueueTrack(toSearchItem(first), first.type);
+      playback.playQueue([firstTrack], 0);
+      openPlayerScreen(firstTrack.media, firstTrack.streamUrl);
+
+      const rest = [...filtered.slice(start + 1), ...filtered.slice(0, start)];
+      for (const item of rest) {
+        try {
+          const track = await prepareQueueTrack(toSearchItem(item), item.type);
+          playback.enqueueTrack(track);
+        } catch {
+          // skip failed tracks
+        }
+      }
+    } catch (e) {
+      Alert.alert('Play failed', e instanceof Error ? e.message : 'Could not start favorites');
+    } finally {
+      setQueueing(false);
     }
-    handlePlay(filtered[0]);
   };
 
   const handleRemove = (item: FavoriteItem) => {
@@ -91,7 +118,7 @@ export function FavoritesScreen() {
         style: 'destructive',
         onPress: async () => {
           await removeFavorite(item.id);
-          load();
+          void load();
         },
       },
     ]);
@@ -140,8 +167,11 @@ export function FavoritesScreen() {
         subtitle={`${items.length} saved songs and videos`}
         action={
           filtered.length > 0 ? (
-            <TouchableOpacity style={styles.playAllBtn} onPress={handlePlayAll}>
-              <Icon name="play" size={18} color="#111" />
+            <TouchableOpacity
+              style={[styles.playAllBtn, queueing && {opacity: 0.6}]}
+              disabled={queueing}
+              onPress={() => void handlePlayAll()}>
+              <Icon name={queueing ? 'hourglass-outline' : 'play'} size={18} color="#111" />
             </TouchableOpacity>
           ) : null
         }>
