@@ -1,6 +1,6 @@
 import {Platform} from 'react-native';
 import Zeroconf from 'react-native-zeroconf';
-import {getApiKey} from '../../config';
+import {getApiKey, isProductionMode} from '../../config';
 import {PRODUCTION_API_URL} from '../../production.config';
 import {LAN_BACKEND_HOST} from '../../local.config';
 import {isReachableHealthStatus} from '../../utils/serverConnection';
@@ -217,15 +217,17 @@ export async function collectServerCandidates(
     add(base, 'cloud');
   }
 
-  if (includeBonjour) {
-    const bonjour = await scanBonjourServers();
-    for (const base of bonjour) {
-      add(base, 'bonjour');
+  // Production builds talk only to Render — Mac can be powered off.
+  if (!isProductionMode()) {
+    if (includeBonjour) {
+      const bonjour = await scanBonjourServers();
+      for (const base of bonjour) {
+        add(base, 'bonjour');
+      }
     }
-  }
-
-  for (const base of buildManualCandidates()) {
-    add(base, 'manual');
+    for (const base of buildManualCandidates()) {
+      add(base, 'manual');
+    }
   }
 
   return out;
@@ -293,18 +295,26 @@ export function invalidateStickyMediaServer(): void {
 /** Pick the best server for play/download (full playback capability, auto LAN or cloud). */
 export async function pickBestMediaServer(): Promise<ServerProbeResult | null> {
   if (stickyMediaServer && Date.now() < stickyMediaServer.expiresAt) {
-    const quick = await probeServerCapabilities(stickyMediaServer.result.base, 3000);
-    if (quick && isMediaPlayable(quick)) {
-      quick.source = stickyMediaServer.result.source;
-      return quick;
+    // Drop sticky Mac URL in production — laptop may be off.
+    if (isProductionMode() && stickyMediaServer.result.source !== 'cloud') {
+      stickyMediaServer = null;
+    } else {
+      const quick = await probeServerCapabilities(stickyMediaServer.result.base, 3000);
+      if (quick && isMediaPlayable(quick)) {
+        quick.source = stickyMediaServer.result.source;
+        return quick;
+      }
+      stickyMediaServer = null;
     }
-    stickyMediaServer = null;
   }
 
-  const candidates = await collectServerCandidates(true);
-  const lanCandidates = candidates.filter(c => c.source !== 'cloud');
+  const candidates = await collectServerCandidates(!isProductionMode());
   const cloudCandidates = candidates.filter(c => c.source === 'cloud');
-  const ordered = [...lanCandidates, ...cloudCandidates];
+  const lanCandidates = candidates.filter(c => c.source !== 'cloud');
+  // Dev: try LAN first when Mac is on. Production: cloud only.
+  const ordered = isProductionMode()
+    ? cloudCandidates
+    : [...lanCandidates, ...cloudCandidates];
 
   const probes = (
     await Promise.all(

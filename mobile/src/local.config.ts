@@ -1,12 +1,13 @@
 /**
  * Network settings for iOS & Android.
  *
- * Production apps auto-discover the Mac backend via Bonjour (_mediaface._tcp)
- * and always use the cloud URL from production.config.ts — no IP required.
+ * Production (APP_MODE=production): phone uses Render cloud only.
+ * MacBook can be fully powered off — no LAN / Bonjour required.
  *
- * LAN_BACKEND_HOST is an optional manual override only (leave empty normally).
+ * Development: optional LAN_BACKEND_HOST for physical device testing
+ * against a Mac backend on the same Wi‑Fi.
  */
 export const USE_PHYSICAL_DEVICE = true;
 
-/** Optional manual override — leave empty for automatic Bonjour discovery */
+/** Optional manual LAN override for development only — leave empty normally */
 export const LAN_BACKEND_HOST: string = '';

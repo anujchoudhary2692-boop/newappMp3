@@ -8,7 +8,13 @@ export async function loadCachedApiUrl(): Promise<string | null> {
   try {
     const url = await AsyncStorage.getItem(API_URL_KEY);
     if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
-      return url.replace(/\/$/, '');
+      const normalized = url.replace(/\/$/, '');
+      // Production builds must not stick to a Mac LAN IP when the laptop is off.
+      if (isProductionMode() && isLanBase(normalized)) {
+        await AsyncStorage.removeItem(API_URL_KEY);
+        return null;
+      }
+      return normalized;
     }
   } catch {
     // ignore
@@ -18,7 +24,11 @@ export async function loadCachedApiUrl(): Promise<string | null> {
 
 export async function saveCachedApiUrl(url: string): Promise<void> {
   try {
-    await AsyncStorage.setItem(API_URL_KEY, url.replace(/\/$/, ''));
+    const normalized = url.replace(/\/$/, '');
+    if (isProductionMode() && isLanBase(normalized)) {
+      return;
+    }
+    await AsyncStorage.setItem(API_URL_KEY, normalized);
   } catch {
     // ignore
   }
@@ -55,16 +65,10 @@ export function orderServerCandidates(
   if (isProductionMode()) {
     const cloudList =
       cloud && !cloud.includes('yourdomain.com') ? [cloud] : [];
-    const lanList = candidates.filter(isLanBase);
     const httpsCached =
       cached && cached.startsWith('https://') && cached !== cloud ? [cached] : [];
-    const lanCached = cached && isLanBase(cached) ? [cached] : [];
-
-    if (mode === 'lan-first') {
-      return unique([...lanCached, ...lanList, ...httpsCached, ...cloudList, ...candidates]);
-    }
-
-    return unique([...cloudList, ...httpsCached, ...lanList, ...candidates]);
+    // Never prefer LAN in production — phone must work with Mac powered off.
+    return unique([...cloudList, ...httpsCached]);
   }
 
   if (cached) {
