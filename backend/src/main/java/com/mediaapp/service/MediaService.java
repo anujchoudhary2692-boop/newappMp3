@@ -109,7 +109,7 @@ public class MediaService {
                             return musicCatalogService.searchCatalog(query, cappedLimit);
                         } catch (Exception e) {
                             log.debug("Catalog search failed: {}", e.getMessage());
-                            return List.of();
+                            return List.<MediaSearchResultDto>of();
                         }
                     });
             CompletableFuture<List<MediaSearchResultDto>> soundCloudFuture = CompletableFuture
@@ -118,7 +118,7 @@ public class MediaService {
                             return searchWithPrefix("scsearch", query, cappedLimit);
                         } catch (Exception e) {
                             log.debug("SoundCloud search failed: {}", e.getMessage());
-                            return List.of();
+                            return List.<MediaSearchResultDto>of();
                         }
                     });
             CompletableFuture<List<MediaSearchResultDto>> webFuture = CompletableFuture
@@ -127,13 +127,13 @@ public class MediaService {
                             return webSearchService.searchMedia(query, cappedLimit);
                         } catch (Exception e) {
                             log.debug("Google/web search failed: {}", e.getMessage());
-                            return List.of();
+                            return List.<MediaSearchResultDto>of();
                         }
                     })
                     .orTimeout(Math.max(20, searchTimeoutSeconds), TimeUnit.SECONDS)
                     .exceptionally(ex -> {
                         log.debug("Google/web search timed out or failed: {}", ex.getMessage());
-                        return List.of();
+                        return List.<MediaSearchResultDto>of();
                     });
 
             mergeSearchResults(results, seenUrls, catalogFuture.join());
