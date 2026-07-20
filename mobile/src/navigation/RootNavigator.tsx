@@ -82,6 +82,8 @@ function MainTabs(_props: {routeVersion: number}) {
           const hideBar = focused === 'CameraHome';
           return {
             title: 'Camera',
+            // Fully tear down camera/mic when leaving the tab so playback can own AVAudioSession.
+            unmountOnBlur: true,
             tabBarStyle: hideBar
               ? {...defaultTabBarStyle, display: 'none' as const, height: 0}
               : defaultTabBarStyle,

@@ -116,6 +116,7 @@ export function CameraScreen() {
   );
 
   const [sessionReady, setSessionReady] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const showToast = useCallback((message: string, icon = 'checkmark-circle') => {
     if (toastTimerRef.current) {
@@ -186,14 +187,18 @@ export function CameraScreen() {
       ]);
       return;
     }
-    await requestMic();
+    // Only grab the mic for video — holding mic in photo mode steals AVAudioSession from playback.
+    if (mode === 'video') {
+      await requestMic();
+    }
     deactivateEngine();
     setReady(true);
     refreshLocation();
-  }, [deactivateEngine, hasCamera, refreshLocation, requestCamera, requestMic]);
+  }, [deactivateEngine, hasCamera, mode, refreshLocation, requestCamera, requestMic]);
 
   useFocusEffect(
     useCallback(() => {
+      setIsFocused(true);
       setSessionReady(false);
       bootstrap();
       api.getCaptures().then(res => {
@@ -202,11 +207,21 @@ export function CameraScreen() {
         }
       }).catch(() => {});
       return () => {
+        // Critical: stop camera/mic so media playback can own AVAudioSession again.
+        setIsFocused(false);
+        setSessionReady(false);
+        setLiveIdentify(false);
+        setLiveMatch(null);
         if (countdownRef.current) {
           clearInterval(countdownRef.current);
+          countdownRef.current = null;
         }
         if (recorderRef.current?.isRecording) {
           recorderRef.current.stopRecording().catch(() => {});
+        }
+        if (locationWatchRef.current != null) {
+          clearLocationWatch(locationWatchRef.current);
+          locationWatchRef.current = null;
         }
       };
     }, [bootstrap]),
@@ -512,7 +527,7 @@ export function CameraScreen() {
       <Camera
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive
+        isActive={isFocused && ready}
         outputs={outputs}
         torchMode={flash === 'on' ? 'on' : 'off'}
         enableNativeTapToFocusGesture

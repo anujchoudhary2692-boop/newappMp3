@@ -32,6 +32,8 @@ export async function ensureCameraPermissions(videoMode: boolean): Promise<boole
 }
 
 export async function ensureLocationPermission(): Promise<boolean> {
+  // Avoid blocking the UI thread with a synchronous authorization probe.
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
   if (Platform.OS === 'ios') {
     const auth = await Geolocation.requestAuthorization('whenInUse');
     return auth === 'granted';
