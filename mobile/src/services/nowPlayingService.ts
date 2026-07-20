@@ -46,8 +46,8 @@ export function initNowPlayingControls(): boolean {
   try {
     const mod = require('react-native-music-control').default as MusicControlModule;
     MusicControl = mod;
-    mod.enableBackgroundMode(true);
-    mod.handleAudioInterruptions(true);
+    // Avoid enableBackgroundMode on cold start — it spams MRNowPlaying entitlement
+    // warnings in Debug builds before any track is playing.
     mod.enableControl('play', true);
     mod.enableControl('pause', true);
     mod.enableControl('nextTrack', true);
@@ -76,6 +76,21 @@ export function bindNowPlayingHandlers(next: RemoteHandlers | null): void {
   handlers = next;
 }
 
+let backgroundArmed = false;
+
+function armBackgroundMode(): void {
+  if (backgroundArmed || !MusicControl) {
+    return;
+  }
+  backgroundArmed = true;
+  try {
+    MusicControl.enableBackgroundMode(true);
+    MusicControl.handleAudioInterruptions(true);
+  } catch {
+    // Debug builds often lack mediaremote entitlements — keep playing in-app.
+  }
+}
+
 export function updateNowPlaying(info: {
   title: string;
   artist?: string;
@@ -86,10 +101,14 @@ export function updateNowPlaying(info: {
   hasNext?: boolean;
   hasPrevious?: boolean;
 }): void {
+  if (!MusicControl) {
+    initNowPlayingControls();
+  }
   const mc = MusicControl;
   if (!mc) {
     return;
   }
+  armBackgroundMode();
   try {
     const state = info.isPlaying ? mc.STATE_PLAYING : mc.STATE_PAUSED;
     mc.setNowPlaying({
@@ -110,7 +129,7 @@ export function updateNowPlaying(info: {
     mc.enableControl('nextTrack', !!info.hasNext);
     mc.enableControl('previousTrack', !!info.hasPrevious);
   } catch {
-    MusicControl = null;
+    // Ignore missing Debug entitlements (com.apple.mediaremote.set-playback-state).
   }
 }
 
@@ -118,6 +137,6 @@ export function clearNowPlaying(): void {
   try {
     MusicControl?.resetNowPlaying();
   } catch {
-    MusicControl = null;
+    // ignore
   }
 }

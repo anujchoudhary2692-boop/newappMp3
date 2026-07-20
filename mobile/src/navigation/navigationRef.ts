@@ -5,13 +5,32 @@ import {RootStackParamList, RootTabParamList} from './types';
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
+function whenReady(action: () => void, waitMs = 5000): void {
+  if (navigationRef.isReady()) {
+    action();
+    return;
+  }
+  const started = Date.now();
+  const timer = setInterval(() => {
+    if (navigationRef.isReady()) {
+      clearInterval(timer);
+      action();
+    } else if (Date.now() - started > waitMs) {
+      clearInterval(timer);
+    }
+  }, 50);
+}
+
 function getMainTabState() {
+  if (!navigationRef.isReady()) {
+    return null;
+  }
   const root = navigationRef.getRootState();
   if (!root) {
     return null;
   }
   const mainRoute = root.routes.find(r => r.name === 'Main') ?? root.routes[root.index ?? 0];
-  if (mainRoute.name !== 'Main' || !mainRoute.state) {
+  if (!mainRoute || mainRoute.name !== 'Main' || !mainRoute.state) {
     return null;
   }
   return mainRoute.state;
@@ -23,7 +42,7 @@ export function isPlayerScreenOpen(): boolean {
     return false;
   }
   const tab = tabState.routes[tabState.index ?? 0];
-  if (tab.name !== 'Media' || !tab.state) {
+  if (!tab || tab.name !== 'Media' || !tab.state) {
     return false;
   }
   const stack = tab.state as {routes: {name: string}[]; index?: number};
@@ -44,56 +63,45 @@ export function shouldHideMiniPlayer(): boolean {
 }
 
 export function openSettings(): void {
-  if (navigationRef.isReady()) {
-    navigationRef.navigate('Settings');
-  }
+  whenReady(() => navigationRef.navigate('Settings'));
 }
 
 export function openGuide(): void {
-  if (navigationRef.isReady()) {
-    navigationRef.navigate('Guide');
-  }
+  whenReady(() => navigationRef.navigate('Guide'));
 }
 
 export function goToHomeTab(): void {
-  if (navigationRef.isReady()) {
-    navigationRef.navigate('Main', {screen: 'Home'});
-  }
+  whenReady(() => navigationRef.navigate('Main', {screen: 'Home'}));
 }
 
 export function goToMediaTab(
   tab: 'SearchTab' | 'DownloadsTab' | 'PlaylistsTab' | 'FavoritesTab' | 'AudioTab' | 'VideoTab' = 'SearchTab',
   searchQuery?: string,
 ): void {
-  if (!navigationRef.isReady()) {
-    return;
-  }
-  if (searchQuery) {
-    setPendingSearchQuery(searchQuery);
-  }
-  navigationRef.navigate('Main', {
-    screen: 'Media',
-    params: {
-      screen: 'Search',
-      params: tab ? {tab} : undefined,
-    },
+  whenReady(() => {
+    if (searchQuery) {
+      setPendingSearchQuery(searchQuery);
+    }
+    navigationRef.navigate('Main', {
+      screen: 'Media',
+      params: {
+        screen: 'Search',
+        params: tab ? {tab} : undefined,
+      },
+    });
   });
 }
 
 export function goToCameraTab(): void {
-  if (navigationRef.isReady()) {
-    navigationRef.navigate('Main', {screen: 'Camera'});
-  }
+  whenReady(() => navigationRef.navigate('Main', {screen: 'Camera'}));
 }
 
 export function goToFacesTab(): void {
-  if (navigationRef.isReady()) {
-    navigationRef.navigate('Main', {screen: 'Faces'});
-  }
+  whenReady(() => navigationRef.navigate('Main', {screen: 'Faces'}));
 }
 
 export function openPlayerScreen(media: PlayableMedia, streamUrl: string): void {
-  const navigate = () => {
+  whenReady(() => {
     navigationRef.navigate('Main', {
       screen: 'Media',
       params: {
@@ -101,21 +109,7 @@ export function openPlayerScreen(media: PlayableMedia, streamUrl: string): void 
         params: {media, streamUrl},
       },
     });
-  };
-  if (navigationRef.isReady()) {
-    navigate();
-    return;
-  }
-  // Avoid "navigation object hasn't been initialized" during cold start.
-  const started = Date.now();
-  const timer = setInterval(() => {
-    if (navigationRef.isReady()) {
-      clearInterval(timer);
-      navigate();
-    } else if (Date.now() - started > 5000) {
-      clearInterval(timer);
-    }
-  }, 50);
+  });
 }
 
 /** @deprecated use goToMediaTab() */
