@@ -14,6 +14,23 @@ function pollDelay(attempt: number): number {
   return 600;
 }
 
+/** CDN links resolved on Render are IP-bound — prefer our proxy path. */
+function preferPlayableStreamPath(
+  streamPath: string,
+  videoId: string,
+  type: MediaType,
+  quality: MediaQuality,
+): string {
+  const trimmed = (streamPath || '').trim();
+  if (!trimmed || trimmed.startsWith('/files/') || trimmed.includes('/api/media/stream/')) {
+    return trimmed;
+  }
+  if (/googlevideo\.com|youtube\.com\/videoplayback|sndcdn\.com|cf-media\.sndcdn/i.test(trimmed)) {
+    return `/api/media/stream/${videoId}?type=${type}&quality=${encodeURIComponent(quality)}`;
+  }
+  return trimmed;
+}
+
 export async function pollPrepare(
   videoId: string,
   type: MediaType,
@@ -28,7 +45,9 @@ export async function pollPrepare(
       const res = await api.prepare(videoId, type, quality, sourceUrl);
       const d = res.data;
       if (d.status === 'FAILED') throw new Error(d.message || 'Prepare failed');
-      if (d.status === 'READY' && d.streamUrl) return d.streamUrl;
+      if (d.status === 'READY' && d.streamUrl) {
+        return preferPlayableStreamPath(d.streamUrl, videoId, type, quality);
+      }
       onStatus?.(d.message || 'Getting stream ready…');
     } catch (e) {
       if (e instanceof Error && !/502|503|504|timed out|network|abort/i.test(e.message)) throw e;

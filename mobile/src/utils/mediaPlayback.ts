@@ -7,10 +7,16 @@ export const MEDIA_STREAM_HEADERS: Record<string, string> = {
   Accept: '*/*',
 };
 
+export type StreamResolveOpts = {
+  videoId?: string;
+  type?: 'AUDIO' | 'VIDEO';
+  quality?: string;
+};
+
 /** CDN direct links resolved on Render are IP-bound — rewrite to our HTTPS proxy. */
 export function preferPlayableStreamUrl(
   streamPath: string,
-  opts?: {videoId?: string; type?: 'AUDIO' | 'VIDEO'; quality?: string},
+  opts?: StreamResolveOpts,
 ): string {
   const trimmed = (streamPath || '').trim();
   if (!trimmed || trimmed.startsWith('file://') || trimmed.startsWith('/files/')) {
@@ -21,7 +27,7 @@ export function preferPlayableStreamUrl(
   }
 
   const looksLikeCdn =
-    /googlevideo\.com|youtube\.com\/videoplayback|ytimg\.com|sndcdn\.com|cf-media\.sndcdn/i.test(
+    /googlevideo\.com|youtube\.com\/videoplayback|sndcdn\.com|cf-media\.sndcdn|audio-ak-spotify/i.test(
       trimmed,
     );
   if (isProductionMode() && looksLikeCdn && opts?.videoId && opts?.type) {
@@ -31,8 +37,12 @@ export function preferPlayableStreamUrl(
   return trimmed;
 }
 
-export function resolveStreamUrl(streamPath: string, baseOverride?: string): string {
-  const trimmed = preferPlayableStreamUrl(streamPath.trim());
+export function resolveStreamUrl(
+  streamPath: string,
+  baseOverride?: string,
+  opts?: StreamResolveOpts,
+): string {
+  const trimmed = preferPlayableStreamUrl(streamPath.trim(), opts);
   if (
     trimmed.startsWith('http://') ||
     trimmed.startsWith('https://') ||
@@ -60,7 +70,7 @@ export function buildMediaSource(streamUrl: string, type: 'AUDIO' | 'VIDEO', bas
       uri: streamUrl,
     };
   }
-  // Let AVPlayer sniff container — forcing mp4 breaks m4a/webm direct/proxy streams on iOS.
+  // Let AVPlayer sniff container — forcing mp4 breaks m4a/webm proxy streams on iOS.
   const lower = streamUrl.toLowerCase();
   const source: {uri: string; type?: 'mp4' | 'm3u8'; headers: Record<string, string>} = {
     uri: streamUrl,
@@ -68,7 +78,7 @@ export function buildMediaSource(streamUrl: string, type: 'AUDIO' | 'VIDEO', bas
   };
   if (lower.includes('.m3u8') || lower.includes('format=m3u8')) {
     source.type = 'm3u8';
-  } else if (type === 'VIDEO' && (lower.includes('.mp4') || lower.includes('/api/media/stream/'))) {
+  } else if (type === 'VIDEO' && lower.includes('.mp4') && !lower.includes('/api/media/stream/')) {
     source.type = 'mp4';
   }
   return source;

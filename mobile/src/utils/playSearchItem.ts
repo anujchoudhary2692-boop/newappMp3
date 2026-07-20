@@ -11,7 +11,7 @@ import {
   downloadSearchItemToDevice,
   getLocalPlaybackUri,
 } from './localMediaStore';
-import {resolveStreamUrl, preferPlayableStreamUrl} from './mediaPlayback';
+import {resolveStreamUrl} from './mediaPlayback';
 import {
   getPrefetchedStream,
   getPinnedServerBase,
@@ -131,12 +131,11 @@ function resolvePlaybackStreamUrl(
   type?: 'AUDIO' | 'VIDEO',
   quality?: MediaQuality,
 ): string {
-  const playable = preferPlayableStreamUrl(streamPath, {
+  return resolveStreamUrl(streamPath, pinnedPlaybackBase ?? getPinnedServerBase(), {
     videoId,
     type,
     quality: quality ? String(quality) : undefined,
   });
-  return resolveStreamUrl(playable, pinnedPlaybackBase ?? getPinnedServerBase());
 }
 
 async function assertPlaybackCapable(): Promise<void> {

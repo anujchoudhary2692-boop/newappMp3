@@ -1,4 +1,4 @@
-import {api, MediaItem, PlayableMedia} from '../api/client';
+import {MediaItem, PlayableMedia} from '../api/client';
 import {QueueTrack} from '../context/PlaybackContext';
 import {getLocalPlaybackUri} from './localMediaStore';
 import {resolveStreamUrl} from './mediaPlayback';
@@ -32,7 +32,10 @@ export async function libraryItemToTrack(item: MediaItem): Promise<QueueTrack> {
 
   const streamUrl = item.streamUrl.startsWith('file://')
     ? item.streamUrl
-    : api.getStreamUrl(item.streamUrl);
+    : resolveStreamUrl(item.streamUrl, undefined, {
+        videoId: videoId || undefined,
+        type: item.type,
+      });
   const media: PlayableMedia = {
     title: item.title,
     type: item.type,
@@ -61,5 +64,8 @@ export async function resolveLibraryStreamUrl(item: MediaItem): Promise<string> 
       return localUri;
     }
   }
-  return resolveStreamUrl(item.streamUrl);
+  return resolveStreamUrl(item.streamUrl, undefined, {
+    videoId: videoId || undefined,
+    type: item.type,
+  });
 }

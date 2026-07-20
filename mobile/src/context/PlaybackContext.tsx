@@ -11,7 +11,7 @@ import Video, {OnLoadData, OnProgressData, VideoRef} from 'react-native-video';
 import {Alert, StyleSheet, View} from 'react-native';
 import {PlayableMedia} from '../api/client';
 import {isPlayerScreenOpen, openPlayerScreen} from '../navigation/navigationRef';
-import {buildMediaSource} from '../utils/mediaPlayback';
+import {buildMediaSource, resolveStreamUrl} from '../utils/mediaPlayback';
 import {connectionErrorHint} from '../utils/serverConnection';
 import {pushRecentMedia} from '../utils/recentMedia';
 import {
@@ -128,14 +128,18 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   }, []);
 
   const applyTrack = useCallback((nextMedia: PlayableMedia, nextStreamUrl: string) => {
-    setMedia(nextMedia);
-    setStreamUrl(nextStreamUrl);
+    const safeUrl = resolveStreamUrl(nextStreamUrl, undefined, {
+      videoId: nextMedia.videoId,
+      type: nextMedia.type,
+    });
+    setMedia({...nextMedia, streamUrl: safeUrl});
+    setStreamUrl(safeUrl);
     setPaused(false);
     setCurrentTime(0);
     setDuration(0);
     setBuffering(true);
     setStreamKey(key => key + 1);
-    void pushRecentMedia(nextMedia, nextStreamUrl);
+    void pushRecentMedia({...nextMedia, streamUrl: safeUrl}, safeUrl);
   }, []);
 
   const beginPlayback = useCallback((nextMedia: PlayableMedia) => {
@@ -149,12 +153,16 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   }, [clearQueue]);
 
   const attachStreamUrl = useCallback((nextMedia: PlayableMedia, nextStreamUrl: string) => {
-    setMedia(nextMedia);
-    setStreamUrl(nextStreamUrl);
+    const safeUrl = resolveStreamUrl(nextStreamUrl, undefined, {
+      videoId: nextMedia.videoId,
+      type: nextMedia.type,
+    });
+    setMedia({...nextMedia, streamUrl: safeUrl});
+    setStreamUrl(safeUrl);
     setPaused(false);
     setBuffering(true);
     setStreamKey(key => key + 1);
-    void pushRecentMedia(nextMedia, nextStreamUrl);
+    void pushRecentMedia({...nextMedia, streamUrl: safeUrl}, safeUrl);
   }, []);
 
   const goToQueueIndex = useCallback((index: number) => {
@@ -311,7 +319,12 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
   }, [clearQueue, goToQueueIndex, media?.type]);
 
   const syncFromRoute = useCallback((nextMedia: PlayableMedia, nextStreamUrl: string) => {
-    const nextUrl = nextStreamUrl || '';
+    const nextUrl = nextStreamUrl
+      ? resolveStreamUrl(nextStreamUrl, undefined, {
+          videoId: nextMedia.videoId,
+          type: nextMedia.type,
+        })
+      : '';
     const currentUrl = streamUrl ?? '';
     const urlSame = currentUrl === nextUrl;
     const mediaSame =
@@ -324,7 +337,7 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
       return;
     }
 
-    setMedia(nextMedia);
+    setMedia({...nextMedia, streamUrl: nextUrl || nextMedia.streamUrl});
     if (!urlSame) {
       setStreamUrl(nextUrl || null);
       setStreamKey(key => key + 1);
