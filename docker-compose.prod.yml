@@ -44,7 +44,7 @@ services:
     networks:
       - mediaface
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/live"]
       interval: 30s
       timeout: 10s
       retries: 3

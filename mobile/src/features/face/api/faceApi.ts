@@ -130,4 +130,30 @@ export const faceApi = {
     httpRequest<unknown>(`/api/faces/clusters/${id}/name?name=${encodeURIComponent(name)}`, {
       method: 'POST',
     }),
+
+  mergeClusters: (sourceId: string, targetId: string) =>
+    httpRequest<unknown>(
+      `/api/faces/clusters/${sourceId}/merge?targetId=${encodeURIComponent(targetId)}`,
+      {method: 'POST'},
+    ),
+
+  gallerySearch: async (imageUri: string) => {
+    const uri = await normalizeFaceImage(imageUri);
+    const form = new FormData();
+    form.append('image', {
+      uri,
+      type: 'image/jpeg',
+      name: 'search.jpg',
+    } as unknown as Blob);
+    return httpRequest<
+      Array<{
+        personName?: string;
+        confidence?: number;
+        imageUrl?: string;
+        cropUrl?: string;
+        sourceId?: string;
+        sourceType?: string;
+      }>
+    >('/api/faces/gallery-search', {method: 'POST', body: form}, 60000);
+  },
 };

@@ -63,21 +63,21 @@ export async function wakeServer(maxMs = 180000): Promise<boolean> {
   while (Date.now() < deadline) {
     const remaining = deadline - Date.now();
     // Instant path: /api/live never waits on Mongo
-    const live = await fetchJson('/api/live', Math.min(12000, remaining));
+    const live = await fetchJson('/api/live', Math.min(5000, remaining));
     if (live?.success && (live.data?.status === 'UP' || live.data?.status === 'DEGRADED')) {
       return true;
     }
-    // Legacy / fuller check — accept DEGRADED (Mongo down still means JVM is up)
-    const health = await fetchJson('/api/health', Math.min(12000, remaining));
+    // Works on older deploys when /api/health hangs on Mongo
+    const features = await fetchJson('/api/features', Math.min(5000, remaining));
+    if (features?.success && features.data) {
+      return true;
+    }
+    // Fuller check — accept DEGRADED (Mongo down still means JVM is up)
+    const health = await fetchJson('/api/health', Math.min(8000, remaining));
     if (
       health?.success &&
       (health.data?.status === 'UP' || health.data?.status === 'DEGRADED')
     ) {
-      return true;
-    }
-    // Last resort while old deploy has no /api/live
-    const features = await fetchJson('/api/features', Math.min(8000, remaining));
-    if (features?.success && features.data) {
       return true;
     }
     await new Promise(r => setTimeout(r, 2000));

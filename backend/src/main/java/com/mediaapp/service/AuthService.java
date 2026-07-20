@@ -50,19 +50,24 @@ public class AuthService {
                 || adminPassword == null || adminPassword.isBlank()) {
             return;
         }
-        userRepository.findByUsernameIgnoreCase(adminUsername.trim()).orElseGet(() -> {
-            AppUser admin = AppUser.builder()
-                    .username(adminUsername.trim())
-                    .passwordHash(passwordEncoder.encode(adminPassword))
-                    .role(UserRole.ADMIN)
-                    .orgId("default")
-                    .active(true)
-                    .createdAt(Instant.now())
-                    .updatedAt(Instant.now())
-                    .build();
-            log.info("Seeded admin user: {}", admin.getUsername());
-            return userRepository.save(admin);
-        });
+        try {
+            userRepository.findByUsernameIgnoreCase(adminUsername.trim()).orElseGet(() -> {
+                AppUser admin = AppUser.builder()
+                        .username(adminUsername.trim())
+                        .passwordHash(passwordEncoder.encode(adminPassword))
+                        .role(UserRole.ADMIN)
+                        .orgId("default")
+                        .active(true)
+                        .createdAt(Instant.now())
+                        .updatedAt(Instant.now())
+                        .build();
+                log.info("Seeded admin user: {}", admin.getUsername());
+                return userRepository.save(admin);
+            });
+        } catch (Exception e) {
+            // Mongo may be unreachable at boot — do not prevent the JVM from serving /api/live.
+            log.warn("Admin seed skipped (database unavailable): {}", e.getMessage());
+        }
     }
 
     public boolean isAuthRequired() {

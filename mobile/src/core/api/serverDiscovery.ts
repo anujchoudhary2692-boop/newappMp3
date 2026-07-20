@@ -137,37 +137,42 @@ export async function probeServerCapabilities(
 
     // Prefer /api/live (instant) so cold wake is not blocked by Mongo ping.
     const live = await tryPath('/api/live', Math.min(10000, timeoutMs));
-    if (live?.success && live.data && isReachableHealthStatus(live.data.status ?? 'UP')) {
+    const liveOk =
+      !!live?.success && isReachableHealthStatus((live.data?.status as string) ?? 'UP');
+
+    // Always try health for playDownload when possible (live alone leaves status unknown).
+    const health = await tryPath('/api/health', Math.min(liveOk ? 6000 : timeoutMs, timeoutMs));
+    if (health?.success && health.data && isReachableHealthStatus(health.data.status)) {
+      const playDownload = health.data.media?.playDownload ?? 'DOWN';
       return {
         base,
         source: isCloudBase(base) ? 'cloud' : 'bonjour',
-        playDownload: 'UNKNOWN',
-        healthStatus: (live.data.status as string) ?? 'UP',
+        playDownload,
+        healthStatus: health.data.status ?? 'UP',
       };
     }
 
-    const health = await tryPath('/api/health', timeoutMs);
-    if (!health?.success || !health.data || !isReachableHealthStatus(health.data.status)) {
-      // Old deploy / partial wake: features endpoint alone proves HTTP is up.
-      const features = await tryPath('/api/features', Math.min(8000, timeoutMs));
-      if (features?.success && features.data) {
-        return {
-          base,
-          source: isCloudBase(base) ? 'cloud' : 'bonjour',
-          playDownload: 'UNKNOWN',
-          healthStatus: 'UP',
-        };
-      }
-      return null;
+    if (liveOk) {
+      // JVM is up; allow play attempts even if Mongo/health diagnostics timed out.
+      return {
+        base,
+        source: isCloudBase(base) ? 'cloud' : 'bonjour',
+        playDownload: 'UP',
+        healthStatus: 'UP',
+      };
     }
 
-    const playDownload = health.data.media?.playDownload ?? 'DOWN';
-    return {
-      base,
-      source: isCloudBase(base) ? 'cloud' : 'bonjour',
-      playDownload,
-      healthStatus: health.data.status ?? 'UP',
-    };
+    // Old deploy / partial wake: features endpoint alone proves HTTP is up.
+    const features = await tryPath('/api/features', Math.min(8000, timeoutMs));
+    if (features?.success && features.data) {
+      return {
+        base,
+        source: isCloudBase(base) ? 'cloud' : 'bonjour',
+        playDownload: 'UP',
+        healthStatus: 'UP',
+      };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -249,9 +254,9 @@ function rankMediaServer(a: ServerProbeResult, b: ServerProbeResult): number {
   return score(b) - score(a);
 }
 
-/** Cloud needs cookies; Mac/LAN can play even when status is LIMITED (legacy backends). */
+/** Cloud needs cookies for best results; UNKNOWN/live-only still allows play attempts. */
 export function isMediaPlayable(probe: ServerProbeResult): boolean {
-  if (probe.playDownload === 'UP') {
+  if (probe.playDownload === 'UP' || probe.playDownload === 'UNKNOWN') {
     return true;
   }
   return probe.playDownload === 'LIMITED' && !isCloudBase(probe.base);

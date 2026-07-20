@@ -66,6 +66,8 @@ export const api = {
   getAuditLog: faceApi.getAuditLog,
   listFaceClusters: faceApi.listClusters,
   nameFaceCluster: faceApi.nameCluster,
+  mergeFaceClusters: faceApi.mergeClusters,
+  galleryFaceSearch: faceApi.gallerySearch,
 
   getCaptures: captureApi.list,
   getCapture: captureApi.get,

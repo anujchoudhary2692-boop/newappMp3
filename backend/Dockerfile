@@ -19,7 +19,7 @@ ENV JAVA_OPTS="-Xmx1g -XX:+UseG1GC"
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=15s --start-period=180s --retries=3 \
-    CMD sh -c 'curl -sf "http://localhost:${PORT:-8080}/api/health" || exit 1'
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
+    CMD sh -c 'curl -sf "http://localhost:${PORT:-8080}/api/live" || exit 1'
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

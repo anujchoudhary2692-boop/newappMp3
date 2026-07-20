@@ -36,7 +36,7 @@ public class FaceClusterService {
     private final FaceAiEngine faceAiEngine;
     private final FaceRecognitionService faceRecognitionService;
 
-    @Value("${app.storage.base-path:./data}")
+    @Value("${app.storage.faces-dir:./storage/faces}")
     private String storageBase;
 
     private static final float CLUSTER_THRESHOLD = 0.55f;
