@@ -128,24 +128,15 @@ public class MediaCacheService {
 
     private void runPrepare(String key, String videoId, MediaType type, String qualityPreset) {
         try {
-            if (renderHost) {
-                try {
-                    Path cached = mediaService.ensureCachedPlaybackPublic(videoId, type);
-                    jobs.put(key, readyDto(videoId, type, cached, "Ready on cloud", qualityPreset));
-                    if (type == MediaType.VIDEO) {
-                        queueVideoFaceScan(videoId);
-                    }
-                } catch (Exception cacheEx) {
-                    log.error("Cloud cache prepare failed for {} {}: {}", videoId, type, cacheEx.getMessage());
-                    jobs.put(key, failedDto(videoId, type, mediaService.friendlyMediaError(cacheEx.getMessage())));
-                }
-                return;
-            }
-
+            // Prefer direct URL / proxy on cloud too — full download before READY makes first play very slow
+            // on Render free tier (ephemeral disk + cold start). Cache warms in the background.
             try {
                 String directUrl = mediaService.resolveDirectUrlFastForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);
                 jobs.put(key, readyDirectDto(videoId, type, directUrl, qualityPreset));
+                if (type == MediaType.VIDEO) {
+                    queueVideoFaceScan(videoId);
+                }
                 return;
             } catch (Exception fastEx) {
                 log.debug("Fast direct URL unavailable for {} {}: {}", videoId, type, fastEx.getMessage());
@@ -155,6 +146,9 @@ public class MediaCacheService {
                 String directUrl = mediaService.resolveDirectUrlForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);
                 jobs.put(key, readyDirectDto(videoId, type, directUrl, qualityPreset));
+                if (type == MediaType.VIDEO) {
+                    queueVideoFaceScan(videoId);
+                }
                 return;
             } catch (Exception directEx) {
                 log.info("Direct URL unavailable for {} {}: {}", videoId, type, directEx.getMessage());
@@ -168,10 +162,29 @@ public class MediaCacheService {
                 return;
             }
 
+            // Stream via server proxy immediately; optionally finish a disk cache in background.
             mediaService.warmCacheAsync(videoId, type);
             jobs.put(key, readyProxyDto(videoId, type, qualityPreset));
+            if (type == MediaType.VIDEO) {
+                queueVideoFaceScan(videoId);
+            }
         } catch (Exception e) {
             log.error("Prepare failed for {} {}", videoId, type, e);
+            // Last resort on cloud: try full cache download so play can still work.
+            if (renderHost) {
+                try {
+                    Path cached = mediaService.ensureCachedPlaybackPublic(videoId, type);
+                    jobs.put(key, readyDto(videoId, type, cached, "Ready on cloud", qualityPreset));
+                    if (type == MediaType.VIDEO) {
+                        queueVideoFaceScan(videoId);
+                    }
+                    return;
+                } catch (Exception cacheEx) {
+                    log.error("Cloud cache prepare failed for {} {}: {}", videoId, type, cacheEx.getMessage());
+                    jobs.put(key, failedDto(videoId, type, mediaService.friendlyMediaError(cacheEx.getMessage())));
+                    return;
+                }
+            }
             jobs.put(key, failedDto(videoId, type, mediaService.friendlyMediaError(e.getMessage())));
         } finally {
             jobStartedAt.remove(key);

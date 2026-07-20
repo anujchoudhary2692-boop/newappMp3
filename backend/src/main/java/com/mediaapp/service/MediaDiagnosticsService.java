@@ -78,11 +78,22 @@ public class MediaDiagnosticsService {
         }
     }
 
+    private Boolean ffmpegCached;
+    private long ffmpegCheckedAt;
+
     private boolean isFfmpegAvailable() {
+        if (ffmpegCached != null && System.currentTimeMillis() - ffmpegCheckedAt < 60_000) {
+            return ffmpegCached;
+        }
         try {
             Process process = new ProcessBuilder("ffmpeg", "-version").start();
-            return process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS) && process.exitValue() == 0;
+            boolean ok = process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS) && process.exitValue() == 0;
+            ffmpegCached = ok;
+            ffmpegCheckedAt = System.currentTimeMillis();
+            return ok;
         } catch (Exception e) {
+            ffmpegCached = false;
+            ffmpegCheckedAt = System.currentTimeMillis();
             return false;
         }
     }

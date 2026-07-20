@@ -136,12 +136,22 @@ export async function probeServerCapabilities(
     };
 
     // Prefer /api/live (instant) so cold wake is not blocked by Mongo ping.
-    const live = await tryPath('/api/live', Math.min(10000, timeoutMs));
+    const live = await tryPath('/api/live', Math.min(8000, timeoutMs));
     const liveOk =
       !!live?.success && isReachableHealthStatus((live.data?.status as string) ?? 'UP');
 
-    // Always try health for playDownload when possible (live alone leaves status unknown).
-    const health = await tryPath('/api/health', Math.min(liveOk ? 6000 : timeoutMs, timeoutMs));
+    if (liveOk) {
+      // Fast path for play: don't wait on /api/health (Mongo/media diagnostics).
+      return {
+        base,
+        source: isCloudBase(base) ? 'cloud' : 'bonjour',
+        playDownload: 'UP',
+        healthStatus: 'UP',
+      };
+    }
+
+    // Always try health for playDownload when live is unavailable (older deploys).
+    const health = await tryPath('/api/health', Math.min(timeoutMs, 10000));
     if (health?.success && health.data && isReachableHealthStatus(health.data.status)) {
       const playDownload = health.data.media?.playDownload ?? 'DOWN';
       return {
@@ -149,16 +159,6 @@ export async function probeServerCapabilities(
         source: isCloudBase(base) ? 'cloud' : 'bonjour',
         playDownload,
         healthStatus: health.data.status ?? 'UP',
-      };
-    }
-
-    if (liveOk) {
-      // JVM is up; allow play attempts even if Mongo/health diagnostics timed out.
-      return {
-        base,
-        source: isCloudBase(base) ? 'cloud' : 'bonjour',
-        playDownload: 'UP',
-        healthStatus: 'UP',
       };
     }
 

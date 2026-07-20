@@ -235,13 +235,17 @@ public class MediaService {
     }
 
     public void warmCacheAsync(String videoId, MediaType type) {
+        if (renderHost) {
+            // Free-tier disk is ephemeral; background full downloads steal CPU/bandwidth from live prepares.
+            return;
+        }
         new Thread(() -> {
             try {
                 ensureCachedPlayback(videoId, type);
             } catch (Exception e) {
                 log.debug("Background cache skipped for {} {}: {}", videoId, type, e.getMessage());
             }
-        }).start();
+        }, "cache-warm").start();
     }
 
     public void writeStream(String videoId, MediaType type, java.io.OutputStream outputStream)

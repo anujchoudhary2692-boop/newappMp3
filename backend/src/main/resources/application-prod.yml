@@ -38,8 +38,8 @@ app:
   discovery:
     bonjour-enabled: false
   media:
-    prepare-timeout-seconds: ${PREPARE_TIMEOUT_SECONDS:240}
-    yt-dlp-timeout-seconds: ${YT_DLP_TIMEOUT_SECONDS:480}
-    direct-url-timeout-seconds: ${DIRECT_URL_TIMEOUT_SECONDS:90}
-    search-timeout-seconds: ${SEARCH_TIMEOUT_SECONDS:120}
-    prepare-max-concurrent: ${PREPARE_MAX_CONCURRENT:2}
+    prepare-timeout-seconds: ${PREPARE_TIMEOUT_SECONDS:120}
+    yt-dlp-timeout-seconds: ${YT_DLP_TIMEOUT_SECONDS:180}
+    direct-url-timeout-seconds: ${DIRECT_URL_TIMEOUT_SECONDS:35}
+    search-timeout-seconds: ${SEARCH_TIMEOUT_SECONDS:45}
+    prepare-max-concurrent: ${PREPARE_MAX_CONCURRENT:3}

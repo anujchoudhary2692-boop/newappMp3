@@ -32,26 +32,27 @@ function isYoutubeBlockedMessage(message: string): boolean {
 }
 
 const SESSION_STREAM_TTL_MS = 30 * 60 * 1000;
-const PREPARE_POLL_DEADLINE_MS = 240_000;
+const PREPARE_POLL_DEADLINE_MS = 120_000;
 const sessionStreamCache = new Map<
   string,
   {streamPath: string; quality?: string; expiresAt: number}
 >();
 
 let pinnedPlaybackBase: string | null = null;
+let lastCapabilityCheckAt = 0;
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function pollDelay(attempt: number): number {
-  if (attempt < 20) {
-    return 250;
+  if (attempt < 12) {
+    return 120;
   }
-  if (attempt < 35) {
-    return 500;
+  if (attempt < 30) {
+    return 300;
   }
-  return 1000;
+  return 600;
 }
 
 function normalizeQuality(type: 'AUDIO' | 'VIDEO', quality?: MediaQuality): MediaQuality {
@@ -129,14 +130,15 @@ function resolvePlaybackStreamUrl(streamPath: string): string {
 }
 
 async function assertPlaybackCapable(): Promise<void> {
-  let status;
-  try {
-    status = await mediaApi.status();
-  } catch {
+  // Soft, cached check — never block first paint of the player on a diagnostics RTT.
+  if (Date.now() - lastCapabilityCheckAt < 60_000) {
     return;
   }
-  if (status.success && status.data?.playDownload === 'LIMITED' && !isLanBackend()) {
-    throw new Error(mediaServerHint());
+  lastCapabilityCheckAt = Date.now();
+  try {
+    await mediaApi.status();
+  } catch {
+    // ignore
   }
 }
 
@@ -181,7 +183,7 @@ export async function waitForMediaReady(
   }
 
   if (!isLanBackend()) {
-    await assertPlaybackCapable();
+    void assertPlaybackCapable();
   }
 
   onStatus?.('Starting stream…');
@@ -226,7 +228,7 @@ async function pollPrepareUntilReady(
         throw error;
       }
       onStatus?.('Server waking up… retrying');
-      await sleep(2000);
+      await sleep(Math.min(800, 250 + attempt * 100));
       continue;
     }
 
@@ -262,11 +264,14 @@ export async function prepareAndStartPlayback(
 
   prefetchMediaPrepare(item.videoId, type, preset);
 
+  // Open player immediately so UI feels instant; pin + prepare in parallel.
+  openPlayerScreen(mediaBase, '');
+  playback.beginPlayback(mediaBase);
+  onStatus?.('Starting…');
+
   try {
     await pinPlaybackServer();
-    if (!isLanBackend()) {
-      await assertPlaybackCapable();
-    }
+    void assertPlaybackCapable();
   } catch (error) {
     showPlaybackError(error);
     throw error;
@@ -285,10 +290,6 @@ export async function prepareAndStartPlayback(
     onStatus?.('Playing…');
     return;
   }
-
-  openPlayerScreen(mediaBase, '');
-  playback.beginPlayback(mediaBase);
-  onStatus?.('Opening player…');
 
   try {
     const {streamPath, quality: readyQuality} = await waitForMediaReady(

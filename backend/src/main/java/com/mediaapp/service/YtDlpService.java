@@ -322,7 +322,15 @@ public class YtDlpService {
                     ? "140/bestaudio[ext=m4a]/bestaudio/best"
                     : "18/best[height<=480][ext=mp4][vcodec^=avc1]/best[ext=mp4]/best";
 
+        long deadlineMs = System.currentTimeMillis() + Math.max(5, timeoutSeconds) * 1000L;
+        int profileBudget = Math.max(8, timeoutSeconds / Math.max(1, profiles.length));
+
         for (String profile : profiles) {
+            long remainingSec = (deadlineMs - System.currentTimeMillis()) / 1000L;
+            if (remainingSec < 3) {
+                break;
+            }
+            int attemptTimeout = (int) Math.min(profileBudget, remainingSec);
             List<String> cmd = new ArrayList<>();
             cmd.add(ytDlpPath);
             cmd.add(sourceUrl);
@@ -331,7 +339,7 @@ public class YtDlpService {
             cmd.add("-f");
             cmd.add(format);
 
-            RunResult result = runOnce(cmd, timeoutSeconds);
+            RunResult result = runOnce(cmd, attemptTimeout);
             if (result.exitCode() == 0) {
                 String url = result.output().lines()
                         .map(String::trim)
@@ -344,6 +352,10 @@ public class YtDlpService {
             }
             if (isBotBlock(result.output())) {
                 log.debug("Direct URL bot block with profile {}", profile);
+                // Don't burn remaining profiles with the same long timeout after a hard block
+                if (fastExtract) {
+                    break;
+                }
             }
         }
         throw new IllegalStateException("Could not resolve direct stream URL");

@@ -22,11 +22,15 @@ services:
       - key: RENDER
         value: "true"
       - key: DIRECT_URL_TIMEOUT_SECONDS
-        value: "90"
+        value: "35"
       - key: SEARCH_TIMEOUT_SECONDS
+        value: "45"
+      - key: PREPARE_TIMEOUT_SECONDS
         value: "120"
+      - key: YT_DLP_TIMEOUT_SECONDS
+        value: "180"
       - key: PREPARE_MAX_CONCURRENT
-        value: "2"
+        value: "3"
       - key: YOUTUBE_COOKIES_BASE64
         sync: false
       - key: FACE_ENGINE

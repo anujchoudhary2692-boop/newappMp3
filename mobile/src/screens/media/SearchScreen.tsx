@@ -402,7 +402,6 @@ export function SearchScreen() {
             onPress={() => openPicker(item, 'AUDIO', 'play')}
             onPressIn={() => {
               prefetchMediaPrepare(item.videoId, 'AUDIO');
-              prefetchMediaPrepare(item.videoId, 'VIDEO');
             }}
             onPlayAudio={() => openPicker(item, 'AUDIO', 'play')}
             onPlayVideo={() => openPicker(item, 'VIDEO', 'play')}

@@ -8,6 +8,12 @@ function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms));
 }
 
+function pollDelay(attempt: number): number {
+  if (attempt < 12) return 120;
+  if (attempt < 30) return 300;
+  return 600;
+}
+
 export async function pollPrepare(
   videoId: string,
   type: MediaType,
@@ -15,7 +21,7 @@ export async function pollPrepare(
   onStatus?: (msg: string) => void,
   sourceUrl?: string,
 ): Promise<string> {
-  const deadline = Date.now() + 240000;
+  const deadline = Date.now() + 120000;
   let attempt = 0;
   while (Date.now() < deadline) {
     try {
@@ -23,15 +29,18 @@ export async function pollPrepare(
       const d = res.data;
       if (d.status === 'FAILED') throw new Error(d.message || 'Prepare failed');
       if (d.status === 'READY' && d.streamUrl) return d.streamUrl;
-      onStatus?.(d.message || 'Preparing on cloud… first play can take 1–2 min');
+      onStatus?.(d.message || 'Getting stream ready…');
     } catch (e) {
-      if (e instanceof Error && !/502|503|504|timed out|network/i.test(e.message)) throw e;
+      if (e instanceof Error && !/502|503|504|timed out|network|abort/i.test(e.message)) throw e;
       onStatus?.('Server waking up…');
+      await sleep(Math.min(800, 250 + attempt * 80));
+      attempt++;
+      continue;
     }
-    await sleep(attempt < 20 ? 250 : attempt < 35 ? 500 : 1000);
+    await sleep(pollDelay(attempt));
     attempt++;
   }
-  throw new Error('Stream took too long. Try a SoundCloud/Web result or paste a direct link.');
+  throw new Error('Stream took too long. Try again or paste a direct link.');
 }
 
 export async function startPlayback(
@@ -41,6 +50,7 @@ export async function startPlayback(
   onStatus?: (msg: string) => void,
 ): Promise<{media: PlayableMedia; streamUrl: string}> {
   const preset = quality || defaultQuality(type);
+  // Kick prepare once; pollPrepare will keep calling until READY (idempotent on server).
   void api.prepare(item.videoId, type, preset, item.sourceUrl).catch(() => undefined);
   const streamPath = await pollPrepare(item.videoId, type, preset, onStatus, item.sourceUrl);
   const streamUrl = resolveUrl(streamPath);
