@@ -93,16 +93,29 @@ export function goToFacesTab(): void {
 }
 
 export function openPlayerScreen(media: PlayableMedia, streamUrl: string): void {
-  if (!navigationRef.isReady()) {
+  const navigate = () => {
+    navigationRef.navigate('Main', {
+      screen: 'Media',
+      params: {
+        screen: 'Player',
+        params: {media, streamUrl},
+      },
+    });
+  };
+  if (navigationRef.isReady()) {
+    navigate();
     return;
   }
-  navigationRef.navigate('Main', {
-    screen: 'Media',
-    params: {
-      screen: 'Player',
-      params: {media, streamUrl},
-    },
-  });
+  // Avoid "navigation object hasn't been initialized" during cold start.
+  const started = Date.now();
+  const timer = setInterval(() => {
+    if (navigationRef.isReady()) {
+      clearInterval(timer);
+      navigate();
+    } else if (Date.now() - started > 5000) {
+      clearInterval(timer);
+    }
+  }, 50);
 }
 
 /** @deprecated use goToMediaTab() */

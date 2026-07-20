@@ -642,14 +642,14 @@ export function PlayerScreen({route, navigation}: Props) {
             <Pressable
               style={[styles.videoStage, {width: videoWidth, height: videoHeight}]}
               onPress={toggleInlineControls}>
-              {streamReady && videoSource ? (
+              {streamReady && videoSource && !isFullscreen ? (
               <Video
                 ref={videoRef}
                 key={streamKey}
                 source={videoSource}
                 style={StyleSheet.absoluteFill}
                 resizeMode="contain"
-                paused={paused || isFullscreen}
+                paused={paused}
                 rate={playback.playbackRate}
                 controls={false}
                 {...videoProps}
@@ -667,7 +667,7 @@ export function PlayerScreen({route, navigation}: Props) {
               ) : (
                 <View style={styles.videoLoader}>
                   <ActivityIndicator size="large" color={COLORS.video} />
-                  <Text style={styles.tapHintText}>Loading stream…</Text>
+                  <Text style={styles.tapHintText}>{isFullscreen ? 'Fullscreen…' : 'Loading stream…'}</Text>
                 </View>
               )}
               {buffering && (
@@ -861,9 +861,9 @@ export function PlayerScreen({route, navigation}: Props) {
         )}
       </ScrollView>
 
-      {isVideo && (
+      {isVideo && isFullscreen && (
         <Modal
-          visible={isFullscreen}
+          visible
           animationType="fade"
           supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
           onRequestClose={exitFullscreen}>
@@ -873,6 +873,7 @@ export function PlayerScreen({route, navigation}: Props) {
               {streamReady && videoSource ? (
               <Video
                 ref={fullscreenVideoRef}
+                key={`fs-${streamKey}`}
                 source={videoSource}
                 style={styles.fullscreenVideo}
                 resizeMode="contain"

@@ -128,12 +128,14 @@ public class MediaCacheService {
 
     private void runPrepare(String key, String videoId, MediaType type, String qualityPreset) {
         try {
-            // Prefer direct URL / proxy on cloud too — full download before READY makes first play very slow
-            // on Render free tier (ephemeral disk + cold start). Cache warms in the background.
+            // Prefer fast extract first. On Render, never hand CDN URLs to the phone —
+            // googlevideo / similar links are IP-bound to the server and fail with -1008.
             try {
                 String directUrl = mediaService.resolveDirectUrlFastForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);
-                jobs.put(key, readyDirectDto(videoId, type, directUrl, qualityPreset));
+                jobs.put(key, renderHost
+                        ? readyProxyDto(videoId, type, qualityPreset)
+                        : readyDirectDto(videoId, type, directUrl, qualityPreset));
                 if (type == MediaType.VIDEO) {
                     queueVideoFaceScan(videoId);
                 }
@@ -145,7 +147,9 @@ public class MediaCacheService {
             try {
                 String directUrl = mediaService.resolveDirectUrlForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);
-                jobs.put(key, readyDirectDto(videoId, type, directUrl, qualityPreset));
+                jobs.put(key, renderHost
+                        ? readyProxyDto(videoId, type, qualityPreset)
+                        : readyDirectDto(videoId, type, directUrl, qualityPreset));
                 if (type == MediaType.VIDEO) {
                     queueVideoFaceScan(videoId);
                 }

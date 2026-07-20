@@ -534,8 +534,8 @@ export function PlaybackProvider({children}: {children: React.ReactNode}) {
     ],
   );
 
-  const videoSource = streamUrl && engineActive
-    ? buildMediaSource(streamUrl, media?.type === 'VIDEO' ? 'VIDEO' : 'AUDIO')
+  const videoSource = streamUrl && engineActive && media?.type !== 'VIDEO'
+    ? buildMediaSource(streamUrl, 'AUDIO')
     : null;
 
   return (

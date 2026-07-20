@@ -11,7 +11,7 @@ import {
   downloadSearchItemToDevice,
   getLocalPlaybackUri,
 } from './localMediaStore';
-import {resolveStreamUrl} from './mediaPlayback';
+import {resolveStreamUrl, preferPlayableStreamUrl} from './mediaPlayback';
 import {
   getPrefetchedStream,
   getPinnedServerBase,
@@ -125,8 +125,18 @@ async function pinPlaybackServer(): Promise<string> {
   return pinnedPlaybackBase;
 }
 
-function resolvePlaybackStreamUrl(streamPath: string): string {
-  return resolveStreamUrl(streamPath, pinnedPlaybackBase ?? getPinnedServerBase());
+function resolvePlaybackStreamUrl(
+  streamPath: string,
+  videoId?: string,
+  type?: 'AUDIO' | 'VIDEO',
+  quality?: MediaQuality,
+): string {
+  const playable = preferPlayableStreamUrl(streamPath, {
+    videoId,
+    type,
+    quality: quality ? String(quality) : undefined,
+  });
+  return resolveStreamUrl(playable, pinnedPlaybackBase ?? getPinnedServerBase());
 }
 
 async function assertPlaybackCapable(): Promise<void> {
@@ -279,7 +289,7 @@ export async function prepareAndStartPlayback(
 
   const instant = resolveReadyStream(item.videoId, type, preset);
   if (instant) {
-    const streamUrl = resolvePlaybackStreamUrl(instant.streamPath);
+    const streamUrl = resolvePlaybackStreamUrl(instant.streamPath, item.videoId, type, preset);
     const media: PlayableMedia = {
       ...mediaBase,
       streamUrl,
@@ -299,7 +309,7 @@ export async function prepareAndStartPlayback(
       item,
       preset,
     );
-    const streamUrl = resolvePlaybackStreamUrl(streamPath);
+    const streamUrl = resolvePlaybackStreamUrl(streamPath, item.videoId, type, preset);
     const media: PlayableMedia = {
       ...mediaBase,
       streamUrl,
@@ -334,7 +344,7 @@ export async function prepareQueueTrack(
   await pinPlaybackServer();
   const instant = resolveReadyStream(item.videoId, type, preset);
   if (instant) {
-    const streamUrl = resolvePlaybackStreamUrl(instant.streamPath);
+    const streamUrl = resolvePlaybackStreamUrl(instant.streamPath, item.videoId, type, preset);
     const media = {...mediaBase, streamUrl, quality: instant.quality || mediaBase.quality};
     return {
       id: `${item.videoId}:${type}:${Date.now()}`,
@@ -350,7 +360,7 @@ export async function prepareQueueTrack(
     item,
     preset,
   );
-  const streamUrl = resolvePlaybackStreamUrl(streamPath);
+  const streamUrl = resolvePlaybackStreamUrl(streamPath, item.videoId, type, preset);
   const media = {...mediaBase, streamUrl, quality: readyQuality || mediaBase.quality};
   return {
     id: `${item.videoId}:${type}:${Date.now()}`,
