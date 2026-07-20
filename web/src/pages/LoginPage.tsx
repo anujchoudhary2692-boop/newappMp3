@@ -38,6 +38,7 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
+        <img src="/logo.png" alt="MediaFace" className="brand-mark brand-mark--login" width={72} height={72} />
         <h1>MediaFace</h1>
         <p>
           {authRequired

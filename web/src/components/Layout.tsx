@@ -122,6 +122,7 @@ export function Layout() {
           </>
         ) : (
           <>
+            <img src="/logo.png" alt="" className="brand-mark brand-mark--gate" width={88} height={88} />
             <div className="spinner" />
             <p>Waking cloud server… {elapsed}s (can take up to 3 minutes on free tier).</p>
           </>

@@ -57,7 +57,10 @@ export function HomePage() {
   return (
     <div className="page">
       <div className="hero">
-        <h1>MediaFace</h1>
+        <div className="brand-hero">
+          <img src="/logo.png" alt="" className="brand-mark brand-mark--hero" width={72} height={72} />
+          <h1>MediaFace</h1>
+        </div>
         <p>
           {user
             ? `Welcome back, ${user.username} — your library syncs across devices.`
