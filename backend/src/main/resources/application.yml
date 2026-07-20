@@ -49,6 +49,8 @@ app:
     direct-url-timeout-seconds: ${DIRECT_URL_TIMEOUT_SECONDS:45}
     search-timeout-seconds: ${SEARCH_TIMEOUT_SECONDS:45}
     web-search-timeout-seconds: ${WEB_SEARCH_TIMEOUT_SECONDS:25}
+    google-api-key: ${GOOGLE_API_KEY:}
+    google-cse-id: ${GOOGLE_CSE_ID:}
     prepare-timeout-seconds: ${PREPARE_TIMEOUT_SECONDS:180}
     prepare-max-concurrent: ${PREPARE_MAX_CONCURRENT:4}
   cors:

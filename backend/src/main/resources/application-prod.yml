@@ -42,4 +42,7 @@ app:
     yt-dlp-timeout-seconds: ${YT_DLP_TIMEOUT_SECONDS:180}
     direct-url-timeout-seconds: ${DIRECT_URL_TIMEOUT_SECONDS:35}
     search-timeout-seconds: ${SEARCH_TIMEOUT_SECONDS:45}
+    web-search-timeout-seconds: ${WEB_SEARCH_TIMEOUT_SECONDS:20}
+    google-api-key: ${GOOGLE_API_KEY:}
+    google-cse-id: ${GOOGLE_CSE_ID:}
     prepare-max-concurrent: ${PREPARE_MAX_CONCURRENT:3}

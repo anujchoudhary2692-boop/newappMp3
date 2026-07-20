@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -101,14 +102,43 @@ public class MediaService {
             List<MediaSearchResultDto> results = new ArrayList<>();
             Set<String> seenUrls = new LinkedHashSet<>();
 
-            mergeSearchResults(results, seenUrls, musicCatalogService.searchCatalog(query, cappedLimit));
-            mergeSearchResults(results, seenUrls, searchWithPrefix("scsearch", query, cappedLimit));
-            if (results.size() < cappedLimit) {
-                mergeSearchResults(
-                        results,
-                        seenUrls,
-                        webSearchService.searchMedia(query, cappedLimit - results.size()));
-            }
+            // Run catalog, SoundCloud, and Google/web discovery in parallel for lower latency.
+            CompletableFuture<List<MediaSearchResultDto>> catalogFuture = CompletableFuture
+                    .supplyAsync(() -> {
+                        try {
+                            return musicCatalogService.searchCatalog(query, cappedLimit);
+                        } catch (Exception e) {
+                            log.debug("Catalog search failed: {}", e.getMessage());
+                            return List.of();
+                        }
+                    });
+            CompletableFuture<List<MediaSearchResultDto>> soundCloudFuture = CompletableFuture
+                    .supplyAsync(() -> {
+                        try {
+                            return searchWithPrefix("scsearch", query, cappedLimit);
+                        } catch (Exception e) {
+                            log.debug("SoundCloud search failed: {}", e.getMessage());
+                            return List.of();
+                        }
+                    });
+            CompletableFuture<List<MediaSearchResultDto>> webFuture = CompletableFuture
+                    .supplyAsync(() -> {
+                        try {
+                            return webSearchService.searchMedia(query, cappedLimit);
+                        } catch (Exception e) {
+                            log.debug("Google/web search failed: {}", e.getMessage());
+                            return List.of();
+                        }
+                    })
+                    .orTimeout(Math.max(20, searchTimeoutSeconds), TimeUnit.SECONDS)
+                    .exceptionally(ex -> {
+                        log.debug("Google/web search timed out or failed: {}", ex.getMessage());
+                        return List.of();
+                    });
+
+            mergeSearchResults(results, seenUrls, catalogFuture.join());
+            mergeSearchResults(results, seenUrls, soundCloudFuture.join());
+            mergeSearchResults(results, seenUrls, webFuture.join());
             if (results.size() < cappedLimit && (!renderHost || ytDlpService.hasCookies())) {
                 mergeSearchResults(
                         results,
@@ -118,7 +148,7 @@ public class MediaService {
 
             if (results.isEmpty()) {
                 throw new IllegalStateException(
-                        "No playable results. Web/SoundCloud search returned nothing. "
+                        "No playable results. Google/Web/SoundCloud search returned nothing. "
                                 + "YouTube is blocked on cloud without cookies.");
             }
 

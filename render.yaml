@@ -33,6 +33,10 @@ services:
         value: "3"
       - key: YOUTUBE_COOKIES_BASE64
         sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GOOGLE_CSE_ID
+        sync: false
       - key: FACE_ENGINE
         value: opencv
       - key: FCM_PROJECT_ID
