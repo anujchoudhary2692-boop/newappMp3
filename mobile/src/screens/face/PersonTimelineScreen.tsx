@@ -130,7 +130,7 @@ export function PersonTimelineScreen({route, navigation}: Props) {
         <FlatList
           data={sections}
           keyExtractor={item => item.title}
-          contentContainerStyle={{paddingBottom: layout.contentBottomPad, paddingHorizontal: layout.hPad}}
+          contentContainerStyle={{paddingBottom: layout.contentBottomPadWithPlayer, paddingHorizontal: layout.hPad}}
           ListEmptyComponent={<Text style={styles.empty}>No sightings yet. Scan library or use camera.</Text>}
           renderItem={({item: section}) => (
             <View style={styles.section}>
@@ -163,7 +163,7 @@ export function PersonTimelineScreen({route, navigation}: Props) {
         />
       )}
       <TouchableOpacity
-        style={[styles.fab, {bottom: layout.contentBottomPad}]}
+        style={[styles.fab, {bottom: layout.contentBottomPadWithPlayer, right: layout.hPad}]}
         onPress={() => navigation.navigate('PersonPhotos', {personId, personName})}>
         <Icon name="grid" size={22} color="#fff" />
         <Text style={styles.fabText}>Gallery</Text>
@@ -191,7 +191,6 @@ const styles = StyleSheet.create({
   sub: {fontSize: 12, color: COLORS.textMuted, marginTop: 2},
   fab: {
     position: 'absolute',
-    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

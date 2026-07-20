@@ -245,7 +245,7 @@ export function CameraPage() {
 
   return (
     <div className="page">
-      <Link to="/" className="btn btn-ghost page-back" style={{marginBottom: 12}}>
+      <Link to="/" className="btn btn-ghost page-back">
         ← Home
       </Link>
       <h1 style={{fontSize: 24, fontWeight: 800, marginBottom: 16}}>Geo Camera</h1>

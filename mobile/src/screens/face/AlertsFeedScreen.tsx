@@ -51,7 +51,7 @@ export function AlertsFeedScreen() {
         <FlatList
           data={alerts}
           keyExtractor={item => item.id}
-          contentContainerStyle={{padding: layout.hPad, paddingBottom: layout.contentBottomPad}}
+          contentContainerStyle={{padding: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer}}
           ListEmptyComponent={<Text style={styles.empty}>No recent face matches.</Text>}
           renderItem={({item}) => (
             <TouchableOpacity

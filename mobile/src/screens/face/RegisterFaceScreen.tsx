@@ -144,7 +144,7 @@ export function RegisterFaceScreen({navigation}: Props) {
       />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[styles.content, {padding: layout.hPad, paddingBottom: layout.contentBottomPad}]}>
+        contentContainerStyle={[styles.content, {padding: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer}]}>
         <Text style={styles.label}>Person Name</Text>
         <TextInput
           style={styles.input}

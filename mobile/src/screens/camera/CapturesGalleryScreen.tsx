@@ -315,7 +315,7 @@ export function CapturesGalleryScreen() {
         renderItem={viewMode === 'grid' ? renderGridItem : renderListItem}
         contentContainerStyle={[
           styles.list,
-          {paddingHorizontal: layout.hPad, paddingBottom: layout.tabBar + SPACING.lg},
+          {paddingHorizontal: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer},
         ]}
         ListHeaderComponent={
           <>

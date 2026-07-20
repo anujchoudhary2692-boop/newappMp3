@@ -133,7 +133,7 @@ export function CaptureDetailScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          {paddingHorizontal: layout.hPad, paddingBottom: layout.tabBar + SPACING.lg},
+          {paddingHorizontal: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer},
         ]}
         showsVerticalScrollIndicator={false}>
         <View style={[styles.mediaWrap, {borderRadius: RADIUS.lg}]}>

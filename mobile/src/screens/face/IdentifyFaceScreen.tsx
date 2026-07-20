@@ -79,7 +79,7 @@ export function IdentifyFaceScreen() {
       />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[styles.content, {paddingBottom: layout.contentBottomPad}]}>
+        contentContainerStyle={[styles.content, {paddingBottom: layout.contentBottomPadWithPlayer}]}>
       <View style={[styles.actions, {paddingHorizontal: layout.hPad}]}>
         <TouchableOpacity style={styles.actionBtn} onPress={() => launchImageLibrary({mediaType: 'photo', maxWidth: 1280, maxHeight: 1280}, handleImageResult)}>
           <Icon name="images" size={22} color={COLORS.face} />

@@ -11,12 +11,15 @@ import {useLayoutMetrics} from '../utils/layout';
 interface ScreenScrollProps extends ScrollViewProps {
   /** Extra bottom space when mini-player may show */
   withMiniPlayerPad?: boolean;
+  /** Apply responsive horizontal page padding */
+  padded?: boolean;
   children: React.ReactNode;
 }
 
 /** ScrollView with correct bottom inset for floating tab bar. */
 export function ScreenScroll({
   withMiniPlayerPad = false,
+  padded = true,
   contentContainerStyle,
   children,
   ...rest
@@ -30,7 +33,10 @@ export function ScreenScroll({
     <ScrollView
       {...rest}
       contentContainerStyle={[
-        {paddingBottom: bottomPad},
+        {
+          ...(padded ? {paddingHorizontal: layout.hPad} : null),
+          paddingBottom: bottomPad,
+        },
         contentContainerStyle,
       ]}>
       {children}

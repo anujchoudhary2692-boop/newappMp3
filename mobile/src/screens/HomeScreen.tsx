@@ -176,7 +176,7 @@ export function HomeScreen() {
             style={styles.nowPlaying}
             onPress={() => openPlayerScreen(media, streamUrl)}
             activeOpacity={0.94}>
-            <View style={styles.nowInner}>
+            <View style={[styles.nowInner, {paddingHorizontal: layout.hPad, gap: layout.gap + 4}]}>
               {media.thumbnailUrl ? (
                 <Image source={{uri: media.thumbnailUrl}} style={styles.nowThumb} />
               ) : (
@@ -292,11 +292,31 @@ export function HomeScreen() {
 
         <View style={[enterpriseStyles.section, {paddingHorizontal: layout.hPad}]}>
           <Text style={styles.promoTitle}>MediaFace Prime features</Text>
-          <View style={styles.promoGrid}>
-            <PromoTile icon="cloud-done" label="Cloud sync" detail="Works when Mac is off" />
-            <PromoTile icon="scan" label="Face AI" detail={`${peopleCount} people registered`} />
-            <PromoTile icon="location" label="Geo camera" detail="GPS tagged captures" />
-            <PromoTile icon="download" label="Offline mode" detail="Save MP3 & HD video" />
+          <View style={[styles.promoGrid, {gap: layout.gap}]}>
+            <PromoTile
+              icon="cloud-done"
+              label="Cloud sync"
+              detail="Works when Mac is off"
+              width={layout.halfGridWidth}
+            />
+            <PromoTile
+              icon="scan"
+              label="Face AI"
+              detail={`${peopleCount} people registered`}
+              width={layout.halfGridWidth}
+            />
+            <PromoTile
+              icon="location"
+              label="Geo camera"
+              detail="GPS tagged captures"
+              width={layout.halfGridWidth}
+            />
+            <PromoTile
+              icon="download"
+              label="Offline mode"
+              detail="Save MP3 & HD video"
+              width={layout.halfGridWidth}
+            />
           </View>
         </View>
       </ScrollView>
@@ -304,9 +324,19 @@ export function HomeScreen() {
   );
 }
 
-function PromoTile({icon, label, detail}: {icon: string; label: string; detail: string}) {
+function PromoTile({
+  icon,
+  label,
+  detail,
+  width,
+}: {
+  icon: string;
+  label: string;
+  detail: string;
+  width: number;
+}) {
   return (
-    <View style={styles.promoTile}>
+    <View style={[styles.promoTile, {width}]}>
       <Icon name={icon} size={20} color={ENTERPRISE.brand} />
       <Text style={styles.promoLabel}>{label}</Text>
       <Text style={styles.promoDetail}>{detail}</Text>
@@ -323,9 +353,7 @@ const styles = StyleSheet.create({
   nowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 12,
   },
   nowThumb: {
     width: 48,
@@ -373,11 +401,8 @@ const styles = StyleSheet.create({
   promoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
   },
   promoTile: {
-    width: '48%',
-    flexGrow: 1,
     backgroundColor: ENTERPRISE.pageBg,
     borderRadius: ENTERPRISE.radius.md,
     borderWidth: 1,

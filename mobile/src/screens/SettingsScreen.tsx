@@ -124,7 +124,7 @@ export function SettingsScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={[styles.content, {padding: layout.hPad, paddingBottom: layout.contentBottomPad}]}
+        contentContainerStyle={[styles.content, {padding: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer}]}
         showsVerticalScrollIndicator={false}>
         {/* Connection */}
         <Text style={[styles.sectionTitle, {color: '#fff'}]}>Connection</Text>

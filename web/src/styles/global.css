@@ -24,6 +24,8 @@
   --nav-h: 64px;
   --nav-total: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   --mini-h: 88px;
+  --page-pad: clamp(14px, 3.5vw, 20px);
+  --section-gap: clamp(16px, 3vw, 24px);
   --font: 'SF Pro Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
@@ -68,7 +70,16 @@ select {
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: clamp(12px, 3vw, 16px);
+  padding: var(--page-pad);
+  padding-bottom: calc(var(--page-pad) + 8px);
+}
+
+.page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  min-height: 36px;
 }
 
 .hero {
@@ -76,7 +87,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 28px 24px;
-  margin-bottom: 24px;
+  margin-bottom: var(--section-gap);
 }
 
 .brand-hero {
@@ -850,7 +861,7 @@ select {
   }
 
   .player-page {
-    padding: 16px 12px calc(var(--nav-total) + var(--mini-h) + 24px);
+    padding: var(--page-pad) var(--page-pad) calc(var(--nav-total) + var(--mini-h) + 24px);
   }
 
   .player-video-stage {
@@ -864,6 +875,7 @@ select {
 
   .hero {
     padding: 20px 16px;
+    margin-bottom: var(--section-gap);
   }
 
   .hero-result {
@@ -958,8 +970,8 @@ select {
   }
 
   .bottom-nav {
-    padding-left: 2px;
-    padding-right: 2px;
+    padding-left: 6px;
+    padding-right: 6px;
   }
 
   .nav-item span:last-child {
@@ -972,8 +984,11 @@ select {
     padding: 22px 16px;
   }
 
-  .page-back {
-    display: none;
+  .login-page {
+    padding: max(16px, env(safe-area-inset-top, 0px))
+      max(16px, env(safe-area-inset-right, 0px))
+      max(16px, env(safe-area-inset-bottom, 0px))
+      max(16px, env(safe-area-inset-left, 0px));
   }
 
   .tab {

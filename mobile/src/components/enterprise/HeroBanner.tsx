@@ -22,8 +22,24 @@ export function HeroBanner({title, subtitle, cta, colors, icon, onPress}: HeroBa
     <TouchableOpacity
       activeOpacity={0.94}
       onPress={onPress}
-      style={[styles.wrap, {marginHorizontal: layout.hPad, height}]}>
-      <LinearGradient colors={colors} style={styles.gradient}>
+      style={[
+        styles.wrap,
+        {
+          marginHorizontal: layout.hPad,
+          height,
+          marginTop: layout.gap,
+          marginBottom: layout.gap,
+        },
+      ]}>
+      <LinearGradient
+        colors={colors}
+        style={[
+          styles.gradient,
+          {
+            paddingHorizontal: layout.isCompact ? 14 : 20,
+            paddingVertical: layout.isCompact ? 14 : 18,
+          },
+        ]}>
         <View style={styles.copy}>
           <Text style={[styles.title, {fontSize: layout.font.xl}]}>{title}</Text>
           <Text style={[styles.subtitle, {fontSize: layout.font.sm, lineHeight: layout.font.lineMd}]}>
@@ -46,14 +62,11 @@ const styles = StyleSheet.create({
   wrap: {
     borderRadius: ENTERPRISE.radius.lg,
     overflow: 'hidden',
-    marginBottom: 4,
   },
   gradient: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
   },
   copy: {flex: 1, paddingRight: 12},
   title: {

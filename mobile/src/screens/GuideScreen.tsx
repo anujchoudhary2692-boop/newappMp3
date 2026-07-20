@@ -84,7 +84,7 @@ export function GuideScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={[styles.content, {padding: layout.hPad, paddingBottom: layout.contentBottomPad}]}
+        contentContainerStyle={[styles.content, {padding: layout.hPad, paddingBottom: layout.contentBottomPadWithPlayer}]}
         showsVerticalScrollIndicator={false}>
         {SECTIONS.map(section => {
           const accent = colors[section.colorKey];
