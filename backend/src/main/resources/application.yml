@@ -41,6 +41,8 @@ app:
   catalog:
     musicbrainz-enabled: ${CATALOG_MUSICBRAINZ:false}
     archive-enabled: ${CATALOG_ARCHIVE:true}
+    openverse-enabled: ${CATALOG_OPENVERSE:true}
+    ccmixter-enabled: ${CATALOG_CCMIXTER:true}
     jamendo-enabled: ${CATALOG_JAMENDO:true}
     jamendo-client-id: ${JAMENDO_CLIENT_ID:}
   media:

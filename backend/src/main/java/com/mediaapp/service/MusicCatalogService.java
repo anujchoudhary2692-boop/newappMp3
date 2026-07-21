@@ -22,11 +22,15 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Free/public media catalogs that work on cloud without YouTube cookies.
+ * Free/public media catalogs that work on cloud without YouTube cookies or paid API keys.
  *
- * <p>Primary: Internet Archive (archive.org) — no API key, direct MP3/MP4 download URLs.
- * Optional: Jamendo Creative Commons (needs JAMENDO_CLIENT_ID).
- * MusicBrainz is metadata-only and is not returned as playable (old SC search links failed prepare).
+ * <p>No account needed:
+ * <ul>
+ *   <li>Openverse — Creative Commons audio (Jamendo/Freesound CDN streams; works from cloud)</li>
+ *   <li>ccMixter — CC remix MP3s (proxy must send Referer)</li>
+ *   <li>Internet Archive — optional; many /download URLs are blocked from datacenter IPs</li>
+ * </ul>
+ * Optional: Jamendo direct API (needs {@code JAMENDO_CLIENT_ID}); usually unnecessary when Openverse is on.
  */
 @Slf4j
 @Service
@@ -45,6 +49,12 @@ public class MusicCatalogService {
     @Value("${app.catalog.archive-enabled:true}")
     private boolean archiveEnabled;
 
+    @Value("${app.catalog.openverse-enabled:true}")
+    private boolean openverseEnabled;
+
+    @Value("${app.catalog.ccmixter-enabled:true}")
+    private boolean ccMixterEnabled;
+
     @Value("${app.catalog.jamendo-enabled:true}")
     private boolean jamendoEnabled;
 
@@ -57,9 +67,18 @@ public class MusicCatalogService {
         }
         List<MediaSearchResultDto> results = new ArrayList<>();
 
-        if (archiveEnabled) {
-            // Prefer playable audio first, then movies for video.
-            results.addAll(searchInternetArchive(query, Math.max(3, limit / 2 + 1), "audio"));
+        // Openverse first: anonymous CC audio with CDN streams that work from cloud IPs.
+        // Internet Archive search works, but many /download URLs return 401/403 from datacenters.
+        if (openverseEnabled) {
+            results.addAll(searchOpenverse(query, Math.max(4, (limit * 2) / 3)));
+        }
+
+        if (ccMixterEnabled && results.size() < limit) {
+            results.addAll(searchCcMixter(query, Math.min(4, limit - results.size())));
+        }
+
+        if (archiveEnabled && results.size() < limit) {
+            results.addAll(searchInternetArchive(query, limit - results.size(), "audio"));
             if (results.size() < limit) {
                 results.addAll(searchInternetArchive(query, limit - results.size(), "movies"));
             }
@@ -74,10 +93,176 @@ public class MusicCatalogService {
                 mediaSourceRegistry.registerIfAbsent(
                         item.getVideoId(),
                         item.getSourceUrl(),
-                        item.getSource() != null ? item.getSource() : "Archive");
+                        item.getSource() != null ? item.getSource() : "Openverse");
             }
         }
         return results.stream().limit(limit).toList();
+    }
+
+    /** Creative Commons audio via Openverse — anonymous, no API key. */
+    private List<MediaSearchResultDto> searchOpenverse(String query, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        try {
+            String encoded = URLEncoder.encode(query.trim(), StandardCharsets.UTF_8);
+            String url = "https://api.openverse.org/v1/audio/?q=" + encoded
+                    + "&page_size=" + Math.min(Math.max(limit, 5), 20)
+                    + "&filter_dead=true";
+            // Avoid extension=mp3 filter — Jamendo uses query URLs (?format=mp32), not .mp3 paths.
+            JsonNode root = getJson(url);
+            List<MediaSearchResultDto> out = new ArrayList<>();
+            for (JsonNode track : root.path("results")) {
+                if (out.size() >= limit) {
+                    break;
+                }
+                String audio = track.path("url").asText(null);
+                String id = track.path("id").asText("");
+                String title = track.path("title").asText("");
+                if (audio == null || audio.isBlank() || id.isBlank() || title.isBlank()) {
+                    continue;
+                }
+                if (!looksPlayableAudioUrl(audio) || !isMobileFriendlyAudioUrl(audio)) {
+                    continue;
+                }
+                String creator = firstNonBlank(
+                        track.path("creator").asText(null),
+                        track.path("source").asText(null),
+                        "Openverse");
+                Integer durationSec = null;
+                if (track.path("duration").isNumber()) {
+                    long ms = track.path("duration").asLong();
+                    // Openverse returns milliseconds for most providers.
+                    durationSec = ms > 10_000 ? (int) (ms / 1000) : (int) ms;
+                }
+                String thumb = track.path("thumbnail").asText("");
+                String provider = track.path("source").asText("openverse");
+                String mediaId = "ov_" + id.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "_");
+                out.add(MediaSearchResultDto.builder()
+                        .videoId(mediaId)
+                        .title(title)
+                        .channel(creator)
+                        .artist(creator)
+                        .thumbnailUrl(thumb)
+                        .durationSeconds(durationSec)
+                        .sourceUrl(audio)
+                        .source("Openverse")
+                        .catalogSource("openverse:" + provider)
+                        .hasVideo(false)
+                        .build());
+            }
+            return out;
+        } catch (Exception e) {
+            log.debug("Openverse search failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /** ccMixter remix catalog — no API key, direct MP3 download URLs. */
+    private List<MediaSearchResultDto> searchCcMixter(String query, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        try {
+            String encoded = URLEncoder.encode(query.trim(), StandardCharsets.UTF_8);
+            String url = "https://ccmixter.org/api/query?f=json&limit="
+                    + Math.min(Math.max(limit, 5), 20)
+                    + "&search=" + encoded;
+            JsonNode root = getJson(url);
+            if (!root.isArray()) {
+                return List.of();
+            }
+            List<MediaSearchResultDto> out = new ArrayList<>();
+            for (JsonNode track : root) {
+                if (out.size() >= limit) {
+                    break;
+                }
+                String title = track.path("upload_name").asText("");
+                String id = track.path("upload_id").asText("");
+                if (title.isBlank() || id.isBlank()) {
+                    continue;
+                }
+                String mp3 = pickCcMixterMp3(track.path("files"));
+                if (mp3 == null) {
+                    continue;
+                }
+                String artist = firstNonBlank(
+                        track.path("user_real_name").asText(null),
+                        track.path("user_name").asText(null),
+                        "ccMixter");
+                String mediaId = "ccm_" + id;
+                out.add(MediaSearchResultDto.builder()
+                        .videoId(mediaId)
+                        .title(title)
+                        .channel(artist)
+                        .artist(artist)
+                        .thumbnailUrl("")
+                        .durationSeconds(null)
+                        .sourceUrl(mp3)
+                        .source("ccMixter")
+                        .catalogSource("ccmixter")
+                        .hasVideo(false)
+                        .build());
+            }
+            return out;
+        } catch (Exception e) {
+            log.debug("ccMixter search failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private static String pickCcMixterMp3(JsonNode files) {
+        if (files == null || !files.isArray()) {
+            return null;
+        }
+        String fallback = null;
+        for (JsonNode f : files) {
+            String dl = f.path("download_url").asText(null);
+            if (dl == null || dl.isBlank()) {
+                continue;
+            }
+            String lower = dl.toLowerCase(Locale.ROOT);
+            String mime = f.path("file_format_info").path("mime_type").asText("").toLowerCase(Locale.ROOT);
+            if (lower.endsWith(".mp3") || mime.contains("mpeg") || mime.contains("mp3")) {
+                return dl;
+            }
+            if (fallback == null && (lower.endsWith(".m4a") || lower.endsWith(".ogg") || lower.endsWith(".oga"))) {
+                fallback = dl;
+            }
+        }
+        return fallback;
+    }
+
+    private static boolean looksPlayableAudioUrl(String url) {
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (lower.contains("storage.jamendo.com")
+                || lower.contains("cdn.freesound.org")
+                || lower.contains("ccmixter.org/content/")
+                || lower.contains("upload.wikimedia.org")) {
+            return true;
+        }
+        int q = lower.indexOf('?');
+        String path = q >= 0 ? lower.substring(0, q) : lower;
+        return path.endsWith(".mp3")
+                || path.endsWith(".m4a")
+                || path.endsWith(".aac")
+                || path.endsWith(".ogg")
+                || path.endsWith(".oga")
+                || path.endsWith(".wav")
+                || path.endsWith(".flac");
+    }
+
+    /** Formats that play reliably on iOS/Android without extra codecs. */
+    private static boolean isMobileFriendlyAudioUrl(String url) {
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (lower.contains("storage.jamendo.com")
+                || lower.contains("cdn.freesound.org")
+                || lower.contains("ccmixter.org/content/")) {
+            return true;
+        }
+        int q = lower.indexOf('?');
+        String path = q >= 0 ? lower.substring(0, q) : lower;
+        return path.endsWith(".mp3") || path.endsWith(".m4a") || path.endsWith(".aac");
     }
 
     private List<MediaSearchResultDto> searchJamendo(String query, int limit) {
@@ -257,12 +442,14 @@ public class MusicCatalogService {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
-    private static String firstNonBlank(String a, String b) {
-        if (a != null && !a.isBlank()) {
-            return a;
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
         }
-        if (b != null && !b.isBlank()) {
-            return b;
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
         }
         return null;
     }

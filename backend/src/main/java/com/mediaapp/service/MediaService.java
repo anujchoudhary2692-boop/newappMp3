@@ -401,7 +401,11 @@ public class MediaService {
             return false;
         }
         String lower = url.toLowerCase(Locale.ROOT);
-        if (lower.contains("archive.org/download/") || lower.contains("storage.jamendo.com")) {
+        if (lower.contains("archive.org/download/")
+                || lower.contains("storage.jamendo.com")
+                || lower.contains("cdn.freesound.org")
+                || lower.contains("ccmixter.org/content/")
+                || lower.contains("upload.wikimedia.org")) {
             return true;
         }
         int q = lower.indexOf('?');
@@ -454,6 +458,15 @@ public class MediaService {
         conn.setRequestProperty(HttpHeaders.USER_AGENT, YT_USER_AGENT);
         conn.setRequestProperty(HttpHeaders.ACCEPT, "*/*");
         conn.setRequestProperty(HttpHeaders.CONNECTION, "keep-alive");
+        String lower = directUrl.toLowerCase(Locale.ROOT);
+        // ccMixter hotlink protection requires a site Referer.
+        if (lower.contains("ccmixter.org")) {
+            conn.setRequestProperty("Referer", "https://ccmixter.org/");
+        } else if (lower.contains("archive.org") || lower.contains("us.archive.org")) {
+            conn.setRequestProperty("Referer", "https://archive.org/");
+        } else if (lower.contains("freesound.org")) {
+            conn.setRequestProperty("Referer", "https://freesound.org/");
+        }
         if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
             conn.setRequestProperty(HttpHeaders.RANGE, rangeHeader);
         }
@@ -821,6 +834,12 @@ public class MediaService {
         }
         if (lower.contains("jamendo.com")) {
             return "Jamendo";
+        }
+        if (lower.contains("ccmixter.org")) {
+            return "ccMixter";
+        }
+        if (lower.contains("freesound.org")) {
+            return "Freesound";
         }
         if (lower.contains("bandcamp.com")) {
             return "Bandcamp";

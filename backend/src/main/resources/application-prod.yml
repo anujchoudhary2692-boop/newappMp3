@@ -37,6 +37,14 @@ app:
     camera-geotag: ${FEATURE_CAMERA_GEOTAG:true}
   discovery:
     bonjour-enabled: false
+  catalog:
+    musicbrainz-enabled: ${CATALOG_MUSICBRAINZ:false}
+    # IA /download often 401/403 from cloud IPs — prefer Openverse on Render.
+    archive-enabled: ${CATALOG_ARCHIVE:false}
+    openverse-enabled: ${CATALOG_OPENVERSE:true}
+    ccmixter-enabled: ${CATALOG_CCMIXTER:true}
+    jamendo-enabled: ${CATALOG_JAMENDO:true}
+    jamendo-client-id: ${JAMENDO_CLIENT_ID:}
   media:
     prepare-timeout-seconds: ${PREPARE_TIMEOUT_SECONDS:120}
     yt-dlp-timeout-seconds: ${YT_DLP_TIMEOUT_SECONDS:180}
