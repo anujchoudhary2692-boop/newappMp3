@@ -91,8 +91,13 @@ public class MediaController {
             @PathVariable String videoId,
             @RequestParam MediaType type,
             @RequestParam(required = false) String quality,
+            @RequestParam(required = false) String sourceUrl,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
         try {
+            if (sourceUrl != null && !sourceUrl.isBlank()) {
+                mediaService.registerSource(videoId, sourceUrl);
+            }
+
             var cached = mediaService.tryServeCachedStream(videoId, type, rangeHeader);
             if (cached.isPresent()) {
                 return cached.get();
@@ -119,7 +124,7 @@ public class MediaController {
                 }
                 return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                         .body(ApiResponse.error(
-                                "Could not proxy YouTube video. Try Openverse/SoundCloud results, "
+                                "Could not proxy YouTube video. Try Openverse results, "
                                         + "refresh YOUTUBE_COOKIES_BASE64 on Render, or use Mac backend."));
             }
 

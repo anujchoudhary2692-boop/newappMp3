@@ -85,14 +85,21 @@ export function canClientStreamDirect(url?: string | null): boolean {
   );
 }
 
-/** Instant proxy path — no prepare poll. Source must already be registered (search or prepare). */
+/** Instant proxy path — pass sourceUrl so play works even if registry expired. */
 export function directCatalogStreamPath(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
   quality?: string,
+  sourceUrl?: string,
 ): string {
-  const q = quality ? `&quality=${encodeURIComponent(quality)}` : '';
-  return `/api/media/stream/${videoId}?type=${type}${q}`;
+  const parts = [`type=${type}`];
+  if (quality) {
+    parts.push(`quality=${encodeURIComponent(quality)}`);
+  }
+  if (sourceUrl) {
+    parts.push(`sourceUrl=${encodeURIComponent(sourceUrl)}`);
+  }
+  return `/api/media/stream/${videoId}?${parts.join('&')}`;
 }
 
 export function resolveStreamUrl(

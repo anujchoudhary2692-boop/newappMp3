@@ -152,8 +152,18 @@ public class MediaService {
                     });
 
             mergeSearchResults(results, seenUrls, catalogFuture.join());
-            mergeSearchResults(results, seenUrls, soundCloudFuture.join());
-            mergeSearchResults(results, seenUrls, webFuture.join());
+
+            // Catalog already filled the page — don't wait on SoundCloud/web (big cloud latency win).
+            if (results.size() < cappedLimit) {
+                mergeSearchResults(results, seenUrls, soundCloudFuture.join());
+            } else {
+                soundCloudFuture.cancel(true);
+            }
+            if (results.size() < cappedLimit) {
+                mergeSearchResults(results, seenUrls, webFuture.join());
+            } else {
+                webFuture.cancel(true);
+            }
 
             // YouTube search is unreliable on Render (bot checks / stale cookies) — skip on cloud.
             if (results.size() < cappedLimit && !renderHost) {
@@ -505,9 +515,14 @@ public class MediaService {
 
         String upstreamType = conn.getContentType();
         String resolvedType = contentType;
-        if (upstreamType != null && !upstreamType.isBlank()
+        // Prefer our catalog MIME when we already know the format (Jamendo sometimes omits type).
+        boolean knownCatalog = contentType != null && (
+                contentType.equals("audio/mpeg") || contentType.equals("audio/ogg") || contentType.equals("audio/wav"));
+        if (!knownCatalog && upstreamType != null && !upstreamType.isBlank()
                 && !upstreamType.toLowerCase(Locale.ROOT).startsWith("text/")) {
             resolvedType = upstreamType.split(";")[0].trim();
+        } else if (upstreamType != null && upstreamType.toLowerCase(Locale.ROOT).contains("mpeg")) {
+            resolvedType = "audio/mpeg";
         }
 
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(status)

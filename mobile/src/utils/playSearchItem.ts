@@ -216,7 +216,7 @@ export async function waitForMediaReady(
     } catch {
       // Fall through to known proxy path; search usually already registered the source.
     }
-    const streamPath = directCatalogStreamPath(videoId, type, preset);
+    const streamPath = directCatalogStreamPath(videoId, type, preset, sourceUrl);
     putSessionStream(videoId, type, streamPath, preset, 'Direct stream');
     return {streamPath, quality: 'Direct stream'};
   }

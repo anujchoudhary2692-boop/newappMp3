@@ -29,10 +29,16 @@ public class MediaDiagnosticsService {
         media.put("youtubeCookies", ytDlpService.hasCookies() ? "CONFIGURED" : "MISSING");
         media.put("playDownload", computePlayDownloadStatus());
         media.put("cacheDirWritable", isCacheWritable());
+        media.put("fastCatalog", "Openverse/Jamendo/Freesound (no YouTube needed)");
 
         Map<String, Object> hints = new LinkedHashMap<>();
+        if (renderHost) {
+            hints.put("playback", "Search Openverse results for instant play. YouTube on Render often still fails even with cookies.");
+        }
         if (!ytDlpService.hasCookies()) {
             hints.put("cloud", "Set YOUTUBE_COOKIES_BASE64 on Render for play/download when Mac is off.");
+        } else if (renderHost) {
+            hints.put("youtube", "Cookies are set but YouTube may still block datacenter IPs — re-export fresh cookies if YT fails.");
         }
         if (!ytDlpService.isAvailable()) {
             hints.put("ytDlp", "Install yt-dlp: brew install yt-dlp");

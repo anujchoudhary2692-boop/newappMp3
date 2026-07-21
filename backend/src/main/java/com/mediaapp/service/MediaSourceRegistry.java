@@ -11,6 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MediaSourceRegistry {
 
     private static final long TTL_SECONDS = 45 * 60;
+    /** Direct catalog CDNs stay registered longer — play after search should not 502. */
+    private static final long CATALOG_TTL_SECONDS = 6 * 60 * 60;
 
     private record Entry(String sourceUrl, String extractor, Instant expiresAt) {}
 
@@ -20,7 +22,7 @@ public class MediaSourceRegistry {
         if (mediaId == null || mediaId.isBlank() || sourceUrl == null || sourceUrl.isBlank()) {
             return;
         }
-        entries.put(mediaId, new Entry(sourceUrl, extractor, Instant.now().plusSeconds(TTL_SECONDS)));
+        entries.put(mediaId, new Entry(sourceUrl, extractor, Instant.now().plusSeconds(ttlFor(sourceUrl))));
     }
 
     public Optional<String> getSourceUrl(String mediaId) {
@@ -39,8 +41,24 @@ public class MediaSourceRegistry {
         if (mediaId == null || mediaId.isBlank() || sourceUrl == null || sourceUrl.isBlank()) {
             return;
         }
-        entries.computeIfAbsent(
-                mediaId,
-                id -> new Entry(sourceUrl, extractor, Instant.now().plusSeconds(TTL_SECONDS)));
+        entries.compute(mediaId, (id, existing) -> {
+            if (existing != null && existing.expiresAt.isAfter(Instant.now())) {
+                return existing;
+            }
+            return new Entry(sourceUrl, extractor, Instant.now().plusSeconds(ttlFor(sourceUrl)));
+        });
+    }
+
+    private static long ttlFor(String sourceUrl) {
+        String lower = sourceUrl.toLowerCase();
+        if (lower.contains("storage.jamendo.com")
+                || lower.contains("cdn.freesound.org")
+                || lower.contains("ccmixter.org")
+                || lower.contains("archive.org")
+                || lower.endsWith(".mp3")
+                || lower.contains("format=mp3")) {
+            return CATALOG_TTL_SECONDS;
+        }
+        return TTL_SECONDS;
     }
 }
