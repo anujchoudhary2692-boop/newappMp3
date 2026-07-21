@@ -4,7 +4,10 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json* ./
 RUN npm install
 COPY web/ .
+# Must match backend API_KEY / mobile PRODUCTION_API_KEY for production.
+ARG VITE_API_KEY=c25daa68d397e64c4a7694a53d5c1f4dccfdfee444451287
 ENV VITE_API_URL=
+ENV VITE_API_KEY=$VITE_API_KEY
 RUN npm run build
 
 # Stage 2 — Spring Boot backend + embedded SPA
@@ -29,6 +32,7 @@ COPY --from=build /build/target/media-face-backend-*.jar app.jar
 
 ENV SPRING_PROFILES_ACTIVE=prod
 ENV JAVA_OPTS="-Xmx512m -XX:+UseG1GC"
+ENV REQUIRE_API_KEY=true
 
 EXPOSE 8080
 

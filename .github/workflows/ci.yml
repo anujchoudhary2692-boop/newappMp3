@@ -16,9 +16,27 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Compile backend
+      - name: Compile + unit tests
         working-directory: backend
-        run: mvn -B -q compile test-compile -DskipTests
+        run: mvn -B -q test
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      - name: Typecheck + build
+        working-directory: web
+        env:
+          VITE_API_KEY: ci-test-key
+        run: npm run build
 
   mobile:
     runs-on: ubuntu-latest

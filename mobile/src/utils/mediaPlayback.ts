@@ -108,15 +108,32 @@ export function resolveStreamUrl(
   opts?: StreamResolveOpts,
 ): string {
   const trimmed = preferPlayableStreamUrl(streamPath.trim(), opts);
-  if (
-    trimmed.startsWith('http://') ||
-    trimmed.startsWith('https://') ||
-    trimmed.startsWith('file://')
-  ) {
+  if (trimmed.startsWith('file://')) {
     return trimmed;
   }
-  const base = (baseOverride || getApiBaseUrl()).replace(/\/$/, '');
-  return `${base}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`;
+  let absolute: string;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    absolute = trimmed;
+  } else {
+    const base = (baseOverride || getApiBaseUrl()).replace(/\/$/, '');
+    absolute = `${base}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`;
+  }
+  return appendApiKeyQuery(absolute);
+}
+
+/** Query fallback when native players omit custom headers on redirects. */
+function appendApiKeyQuery(url: string): string {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return url;
+  }
+  if (!url.includes('/api/') && !url.includes('/files/')) {
+    return url;
+  }
+  if (url.includes('apiKey=') || url.includes('key=')) {
+    return url;
+  }
+  return `${url}${url.includes('?') ? '&' : '?'}apiKey=${encodeURIComponent(apiKey)}`;
 }
 
 export function mediaStreamHeaders(streamUrl: string, baseOverride?: string): Record<string, string> {

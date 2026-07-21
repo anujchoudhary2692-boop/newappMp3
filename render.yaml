@@ -1,5 +1,6 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
-# Set MONGODB_URI in the Render dashboard (MongoDB Atlas connection string).
+# After first deploy, confirm these dashboard secrets match mobile/web:
+#   API_KEY, MONGODB_URI, YOUTUBE_COOKIES_BASE64 (optional), ADMIN_* (optional)
 
 services:
   - type: web
@@ -8,14 +9,20 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /api/live
+    dockerBuildArgs:
+      VITE_API_KEY: c25daa68d397e64c4a7694a53d5c1f4dccfdfee444451287
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
       - key: MONGODB_URI
         sync: false
-      - key: CORS_ALLOWED_ORIGINS
-        value: "*"
+      - key: API_KEY
+        value: c25daa68d397e64c4a7694a53d5c1f4dccfdfee444451287
       - key: REQUIRE_API_KEY
+        value: "true"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://newappmp3.onrender.com"
+      - key: REQUIRE_AUTH
         value: "false"
       - key: JAVA_OPTS
         value: "-Xmx512m -XX:+UseG1GC"
@@ -49,5 +56,3 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-      - key: REQUIRE_AUTH
-        value: "false"

@@ -36,14 +36,18 @@ public class ApiKeyFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        if (!requireApiKey || apiKey == null || apiKey.isBlank()) {
+        if (!requireApiKey) {
             return true;
+        }
+        // Fail closed when production requires a key but none is configured.
+        if (apiKey == null || apiKey.isBlank()) {
+            return false;
         }
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
         String path = request.getRequestURI();
-        return PUBLIC_PATHS.contains(path);
+        return PUBLIC_PATHS.contains(path) || path.startsWith("/assets/");
     }
 
     @Override
@@ -51,7 +55,16 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String provided = request.getHeader("X-API-Key");
+        if (apiKey == null || apiKey.isBlank()) {
+            response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            objectMapper.writeValue(
+                    response.getWriter(),
+                    ApiResponse.error("Server misconfigured: API_KEY is required in production"));
+            return;
+        }
+
+        String provided = extractApiKey(request);
         if (apiKey.equals(provided)) {
             filterChain.doFilter(request, response);
             return;
@@ -62,5 +75,26 @@ public class ApiKeyFilter extends OncePerRequestFilter {
         objectMapper.writeValue(
                 response.getWriter(),
                 ApiResponse.error("Invalid or missing API key"));
+    }
+
+    /** Header preferred; query param allowed for &lt;audio&gt;/&lt;video&gt; and players. */
+    static String extractApiKey(HttpServletRequest request) {
+        String header = request.getHeader("X-API-Key");
+        if (header != null && !header.isBlank()) {
+            return header.trim();
+        }
+        String auth = request.getHeader("Authorization");
+        if (auth != null && auth.regionMatches(true, 0, "ApiKey ", 0, 7)) {
+            return auth.substring(7).trim();
+        }
+        String queryKey = request.getParameter("apiKey");
+        if (queryKey != null && !queryKey.isBlank()) {
+            return queryKey.trim();
+        }
+        String shortKey = request.getParameter("key");
+        if (shortKey != null && !shortKey.isBlank()) {
+            return shortKey.trim();
+        }
+        return null;
     }
 }

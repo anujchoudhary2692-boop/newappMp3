@@ -37,7 +37,8 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       MONGODB_URI: mongodb://${MONGO_ROOT_USER:-mediaface}:${MONGO_ROOT_PASSWORD}@mongodb:27017/mediaface?authSource=admin
       API_KEY: ${API_KEY:?Set API_KEY in .env}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      REQUIRE_API_KEY: ${REQUIRE_API_KEY:-true}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://newappmp3.onrender.com}
       YT_DLP_PATH: yt-dlp
     volumes:
       - mediaface_storage:/app/storage

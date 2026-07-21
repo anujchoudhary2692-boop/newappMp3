@@ -48,7 +48,10 @@ export async function wakeServer(maxMs = 180000): Promise<boolean> {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(`${base()}${path}`, {
-        headers: {Accept: 'application/json'},
+        headers: {
+          Accept: 'application/json',
+          ...(getApiKey() ? {'X-API-Key': getApiKey()} : {}),
+        },
         signal: controller.signal,
       });
       if (!res.ok) return null;
@@ -86,8 +89,21 @@ export async function wakeServer(maxMs = 180000): Promise<boolean> {
 }
 
 export function resolveUrl(path: string): string {
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  return `${getApiBase()}${path.startsWith('/') ? path : `/${path}`}`;
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) {
+    return withApiKey(path);
+  }
+  const absolute = `${getApiBase()}${path.startsWith('/') ? path : `/${path}`}`;
+  return withApiKey(absolute);
+}
+
+/** Attach apiKey query for media elements that cannot send X-API-Key headers. */
+function withApiKey(url: string): string {
+  const key = getApiKey();
+  if (!key) return url;
+  if (!url.includes('/api/') && !url.includes('/files/')) return url;
+  if (url.includes('apiKey=') || url.includes('key=')) return url;
+  const join = url.includes('?') ? '&' : '?';
+  return `${url}${join}apiKey=${encodeURIComponent(key)}`;
 }
 
 export const api = {
