@@ -11,7 +11,7 @@ import {
   downloadSearchItemToDevice,
   getLocalPlaybackUri,
 } from './localMediaStore';
-import {directCatalogStreamPath, isDirectCatalogSourceUrl, resolveStreamUrl} from './mediaPlayback';
+import {canClientStreamDirect, directCatalogStreamPath, isDirectCatalogSourceUrl, resolveStreamUrl} from './mediaPlayback';
 import {
   getPrefetchedStream,
   getPinnedServerBase,
@@ -189,6 +189,14 @@ export async function waitForMediaReady(
     onStatus?.('Playing from device storage…');
     putSessionStream(videoId, type, localUri, preset, 'On device · Offline');
     return {streamPath: localUri, quality: 'On device · Offline'};
+  }
+
+  // Fastest path: play Jamendo/Freesound CDN directly (no Render hop).
+  if (canClientStreamDirect(sourceUrl) && sourceUrl) {
+    onStatus?.('Playing…');
+    void mediaApi.prepare(videoId, type, preset, sourceUrl).catch(() => undefined);
+    putSessionStream(videoId, type, sourceUrl, preset, 'Direct CDN');
+    return {streamPath: sourceUrl, quality: 'Direct CDN'};
   }
 
   // Openverse / Jamendo / Freesound / ccMixter — prepare is sync READY; one round-trip, no poll.

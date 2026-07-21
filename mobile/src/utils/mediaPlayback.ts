@@ -62,6 +62,29 @@ export function isDirectCatalogSourceUrl(url?: string | null): boolean {
   );
 }
 
+/** Safe to play from the device without going through Render (faster). */
+export function canClientStreamDirect(url?: string | null): boolean {
+  if (!isDirectCatalogSourceUrl(url) || !url) {
+    return false;
+  }
+  const lower = url.toLowerCase();
+  if (
+    lower.includes('ccmixter.org') ||
+    lower.includes('archive.org/download/') ||
+    lower.includes('us.archive.org')
+  ) {
+    return false;
+  }
+  return (
+    lower.includes('storage.jamendo.com') ||
+    lower.includes('cdn.freesound.org') ||
+    lower.includes('upload.wikimedia.org') ||
+    lower.split('?')[0].endsWith('.mp3') ||
+    lower.split('?')[0].endsWith('.m4a') ||
+    lower.split('?')[0].endsWith('.aac')
+  );
+}
+
 /** Instant proxy path — no prepare poll. Source must already be registered (search or prepare). */
 export function directCatalogStreamPath(
   videoId: string,

@@ -102,7 +102,12 @@ public class MediaService {
             List<MediaSearchResultDto> results = new ArrayList<>();
             Set<String> seenUrls = new LinkedHashSet<>();
 
-            // Run catalog, SoundCloud, and Google/web discovery in parallel for lower latency.
+            // Catalog first (Openverse etc.), then optional SoundCloud/web — with short cloud timeouts
+            // so search stays fast when yt-dlp sources hang.
+            int auxTimeoutSec = renderHost
+                    ? Math.min(14, Math.max(8, searchTimeoutSeconds / 3))
+                    : Math.max(20, searchTimeoutSeconds);
+
             CompletableFuture<List<MediaSearchResultDto>> catalogFuture = CompletableFuture
                     .supplyAsync(() -> {
                         try {
@@ -111,26 +116,36 @@ public class MediaService {
                             log.debug("Catalog search failed: {}", e.getMessage());
                             return List.<MediaSearchResultDto>of();
                         }
+                    })
+                    .orTimeout(18, TimeUnit.SECONDS)
+                    .exceptionally(ex -> {
+                        log.debug("Catalog search timed out or failed: {}", ex.getMessage());
+                        return List.<MediaSearchResultDto>of();
                     });
             CompletableFuture<List<MediaSearchResultDto>> soundCloudFuture = CompletableFuture
                     .supplyAsync(() -> {
                         try {
-                            return searchWithPrefix("scsearch", query, cappedLimit);
+                            return searchWithPrefix("scsearch", query, Math.min(cappedLimit, 6));
                         } catch (Exception e) {
                             log.debug("SoundCloud search failed: {}", e.getMessage());
                             return List.<MediaSearchResultDto>of();
                         }
+                    })
+                    .orTimeout(auxTimeoutSec, TimeUnit.SECONDS)
+                    .exceptionally(ex -> {
+                        log.debug("SoundCloud search timed out or failed: {}", ex.getMessage());
+                        return List.<MediaSearchResultDto>of();
                     });
             CompletableFuture<List<MediaSearchResultDto>> webFuture = CompletableFuture
                     .supplyAsync(() -> {
                         try {
-                            return webSearchService.searchMedia(query, cappedLimit);
+                            return webSearchService.searchMedia(query, Math.min(cappedLimit, 8));
                         } catch (Exception e) {
                             log.debug("Google/web search failed: {}", e.getMessage());
                             return List.<MediaSearchResultDto>of();
                         }
                     })
-                    .orTimeout(Math.max(20, searchTimeoutSeconds), TimeUnit.SECONDS)
+                    .orTimeout(auxTimeoutSec, TimeUnit.SECONDS)
                     .exceptionally(ex -> {
                         log.debug("Google/web search timed out or failed: {}", ex.getMessage());
                         return List.<MediaSearchResultDto>of();
@@ -139,17 +154,25 @@ public class MediaService {
             mergeSearchResults(results, seenUrls, catalogFuture.join());
             mergeSearchResults(results, seenUrls, soundCloudFuture.join());
             mergeSearchResults(results, seenUrls, webFuture.join());
-            if (results.size() < cappedLimit && (!renderHost || ytDlpService.hasCookies())) {
+
+            // YouTube search is unreliable on Render (bot checks / stale cookies) — skip on cloud.
+            if (results.size() < cappedLimit && !renderHost) {
                 mergeSearchResults(
                         results,
                         seenUrls,
                         searchWithPrefix("ytsearch", query, cappedLimit - results.size()));
             }
 
+            if (renderHost) {
+                results.removeIf(r -> isYouTubeUrl(r.getSourceUrl()));
+            }
+
+            // Prefer instantly playable catalog CDNs over yt-dlp sources.
+            results.sort(java.util.Comparator.comparingInt(this::playabilityRank));
+
             if (results.isEmpty()) {
                 throw new IllegalStateException(
-                        "No playable results. Google/Web/SoundCloud search returned nothing. "
-                                + "YouTube is blocked on cloud without cookies.");
+                        "No playable results. Try another search — Openverse/SoundCloud work without YouTube cookies.");
             }
 
             List<MediaSearchResultDto> finalResults = results.stream()
@@ -178,6 +201,50 @@ public class MediaService {
                 target.add(item);
             }
         }
+    }
+
+    /** Lower rank = shown first. Direct CDN audio is preferred for reliable cloud playback. */
+    private int playabilityRank(MediaSearchResultDto item) {
+        String url = item.getSourceUrl();
+        if (url == null || url.isBlank()) {
+            return 9;
+        }
+        if (canClientStreamDirect(url)) {
+            return 0;
+        }
+        if (isDirectMediaFileUrl(url)) {
+            return 1;
+        }
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (lower.contains("soundcloud.com")) {
+            return 2;
+        }
+        if (isYouTubeUrl(url)) {
+            return 8;
+        }
+        return 4;
+    }
+
+    /**
+     * True when the phone/browser can stream this URL directly (no Render proxy).
+     * Jamendo/Freesound CDNs are fine; ccMixter/Archive often need server Referer or are IP-blocked.
+     */
+    public boolean canClientStreamDirect(String url) {
+        if (!isDirectMediaFileUrl(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (lower.contains("ccmixter.org")
+                || lower.contains("archive.org/download/")
+                || lower.contains("us.archive.org")) {
+            return false;
+        }
+        return lower.contains("storage.jamendo.com")
+                || lower.contains("cdn.freesound.org")
+                || lower.contains("upload.wikimedia.org")
+                || lower.split("\\?")[0].endsWith(".mp3")
+                || lower.split("\\?")[0].endsWith(".m4a")
+                || lower.split("\\?")[0].endsWith(".aac");
     }
 
     private List<MediaSearchResultDto> searchWithPrefix(String prefix, String query, int limit)
@@ -493,13 +560,16 @@ public class MediaService {
                         .build();
             }
 
-            // Catalog direct files — skip prepare-poll hop; client can hit /stream immediately.
+            // Catalog direct files — prefer CDN URL to the client when safe (fast path).
             String sourceUrl = resolveSourceUrl(videoId);
             if (isDirectMediaFileUrl(sourceUrl)) {
+                boolean proxy = renderHost && !canClientStreamDirect(sourceUrl);
                 return PlayUrlDto.builder()
                         .videoId(videoId)
                         .type(type)
-                        .streamUrl("/api/media/stream/" + videoId + "?type=" + type)
+                        .streamUrl(proxy
+                                ? "/api/media/stream/" + videoId + "?type=" + type
+                                : sourceUrl)
                         .contentType(getStreamContentType(type))
                         .quality(type == MediaType.AUDIO ? "Direct Audio" : "Direct Video")
                         .cached(false)

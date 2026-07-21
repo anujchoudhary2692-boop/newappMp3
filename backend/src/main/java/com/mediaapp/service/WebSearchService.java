@@ -241,9 +241,9 @@ public class WebSearchService {
                 || lower.contains("schema.org") || lower.contains("w3.org")) {
             return false;
         }
-        // Allow YouTube when cookies exist (cloud) or always on Mac/LAN — Google often finds the best watch URLs.
+        // Allow YouTube only off Render — cloud cookies are often rejected by YouTube bot checks.
         if (lower.contains("youtube.com") || lower.contains("youtu.be") || lower.contains("music.youtube.com")) {
-            return ytDlpService.hasCookies() || !renderHost;
+            return !renderHost;
         }
         if (lower.endsWith(".mp3") || lower.endsWith(".mp4") || lower.endsWith(".m4a") || lower.endsWith(".webm")) {
             return true;

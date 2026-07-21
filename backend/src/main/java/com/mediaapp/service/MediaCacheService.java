@@ -79,10 +79,11 @@ public class MediaCacheService {
         }
 
         // Direct catalog files (Openverse/Jamendo/Freesound/ccMixter) — READY on first call, no poll wait.
+        // On Render, hand CDN URLs straight to the client when safe (much faster than proxying).
         String sourceUrl = mediaService.resolveSourceUrl(videoId);
         if (mediaService.isDirectMediaFileUrl(sourceUrl)) {
             mediaService.warmCacheAsync(videoId, type);
-            PrepareStatusDto ready = renderHost
+            PrepareStatusDto ready = (renderHost && !mediaService.canClientStreamDirect(sourceUrl))
                     ? readyProxyDto(videoId, type, preset)
                     : readyDirectDto(videoId, type, sourceUrl, preset);
             jobs.put(key, ready);
@@ -148,7 +149,8 @@ public class MediaCacheService {
             try {
                 String directUrl = mediaService.resolveDirectUrlFastForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);
-                jobs.put(key, renderHost
+                boolean proxy = renderHost && !mediaService.canClientStreamDirect(directUrl);
+                jobs.put(key, proxy
                         ? readyProxyDto(videoId, type, qualityPreset)
                         : readyDirectDto(videoId, type, directUrl, qualityPreset));
                 if (type == MediaType.VIDEO) {
@@ -163,7 +165,8 @@ public class MediaCacheService {
             try {
                 String directUrl = mediaService.resolveDirectUrlForClient(videoId, type, qualityPreset);
                 mediaService.warmCacheAsync(videoId, type);
-                jobs.put(key, renderHost
+                boolean proxy = renderHost && !mediaService.canClientStreamDirect(directUrl);
+                jobs.put(key, proxy
                         ? readyProxyDto(videoId, type, qualityPreset)
                         : readyDirectDto(videoId, type, directUrl, qualityPreset));
                 if (type == MediaType.VIDEO) {

@@ -46,6 +46,18 @@ function isDirectCatalogSourceUrl(url?: string | null): boolean {
   return path.endsWith('.mp3') || path.endsWith('.m4a') || path.endsWith('.aac');
 }
 
+function canClientStreamDirect(url?: string | null): boolean {
+  if (!isDirectCatalogSourceUrl(url) || !url) return false;
+  const lower = url.toLowerCase();
+  if (lower.includes('ccmixter.org') || lower.includes('archive.org/download/')) return false;
+  return (
+    lower.includes('storage.jamendo.com') ||
+    lower.includes('cdn.freesound.org') ||
+    lower.split('?')[0].endsWith('.mp3') ||
+    lower.split('?')[0].endsWith('.m4a')
+  );
+}
+
 export async function pollPrepare(
   videoId: string,
   type: MediaType,
@@ -84,6 +96,24 @@ export async function startPlayback(
   onStatus?: (msg: string) => void,
 ): Promise<{media: PlayableMedia; streamUrl: string}> {
   const preset = quality || defaultQuality(type);
+
+  // Fastest: Jamendo/Freesound CDN — play in browser immediately.
+  if (canClientStreamDirect(item.sourceUrl) && item.sourceUrl) {
+    onStatus?.('Playing…');
+    void api.prepare(item.videoId, type, preset, item.sourceUrl).catch(() => undefined);
+    const streamUrl = item.sourceUrl;
+    const media: PlayableMedia = {
+      title: item.title,
+      type,
+      streamUrl,
+      thumbnailUrl: item.thumbnailUrl,
+      sourceUrl: item.sourceUrl,
+      videoId: item.videoId,
+      quality: preset,
+    };
+    pushRecent(media, streamUrl);
+    return {media, streamUrl};
+  }
 
   // Direct catalog files: one prepare call returns READY immediately (no poll loop).
   if (isDirectCatalogSourceUrl(item.sourceUrl)) {
