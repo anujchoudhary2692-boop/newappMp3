@@ -62,11 +62,15 @@ public final class MediaQualityPresets {
             case "1080" -> 1080;
             default -> 720;
         };
+        // Prefer progressive MP4 with audio — DASH video-only breaks simple HTTP proxy playback.
         if (height <= 360) {
-            return "18/best[height<=360][ext=mp4][vcodec^=avc1]/best[height<=360][ext=mp4]/best[ext=mp4]/best";
+            return "18/best[height<=360][ext=mp4][acodec!=none]/"
+                    + "best[height<=360][ext=mp4][vcodec^=avc1][acodec!=none]/"
+                    + "best[height<=360][ext=mp4]/best[ext=mp4]/best";
         }
-        return "best[height<=" + height + "][ext=mp4][vcodec^=avc1]/best[height<="
-                + height + "][ext=mp4]/best[ext=mp4]/best";
+        return "best[height<=" + height + "][ext=mp4][vcodec^=avc1][acodec!=none]/"
+                + "best[height<=" + height + "][ext=mp4][acodec!=none]/"
+                + "22/18/best[height<=480][ext=mp4]/best[ext=mp4]/best";
     }
 
     public static String mp3QualityArg(String preset) {

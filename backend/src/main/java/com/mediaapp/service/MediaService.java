@@ -424,11 +424,14 @@ public class MediaService {
             String directUrl, String rangeHeader, String contentType) throws IOException {
         HttpURLConnection conn = openDirectConnection(directUrl, rangeHeader);
         int code = conn.getResponseCode();
+        if (code >= 400) {
+            throw new IOException("Upstream media host returned HTTP " + code);
+        }
         HttpStatus status = code == HttpStatus.PARTIAL_CONTENT.value()
                 ? HttpStatus.PARTIAL_CONTENT
                 : HttpStatus.OK;
 
-        InputStream bodyStream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+        InputStream bodyStream = conn.getInputStream();
         if (bodyStream == null) {
             throw new IOException("Empty response from media host");
         }

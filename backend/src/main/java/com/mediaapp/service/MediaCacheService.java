@@ -141,6 +141,7 @@ public class MediaCacheService {
     }
 
     private void runPrepare(String key, String videoId, MediaType type, String qualityPreset) {
+        String lastError = null;
         try {
             // Prefer fast extract first. On Render, never hand CDN URLs to the phone —
             // googlevideo / similar links are IP-bound to the server and fail with -1008.
@@ -155,6 +156,7 @@ public class MediaCacheService {
                 }
                 return;
             } catch (Exception fastEx) {
+                lastError = fastEx.getMessage();
                 log.debug("Fast direct URL unavailable for {} {}: {}", videoId, type, fastEx.getMessage());
             }
 
@@ -169,6 +171,7 @@ public class MediaCacheService {
                 }
                 return;
             } catch (Exception directEx) {
+                lastError = directEx.getMessage();
                 log.info("Direct URL unavailable for {} {}: {}", videoId, type, directEx.getMessage());
             }
 
@@ -180,7 +183,14 @@ public class MediaCacheService {
                 return;
             }
 
-            // Stream via server proxy immediately; optionally finish a disk cache in background.
+            // YouTube extract already failed above — do not advertise READY/proxy (stream would 500).
+            if (mediaService.isYouTubeMedia(videoId)) {
+                String detail = lastError != null ? lastError : "YouTube stream unavailable";
+                jobs.put(key, failedDto(videoId, type, mediaService.friendlyMediaError(detail)));
+                return;
+            }
+
+            // Non-YouTube: stream via server proxy; optionally finish a disk cache in background.
             mediaService.warmCacheAsync(videoId, type);
             jobs.put(key, readyProxyDto(videoId, type, qualityPreset));
             if (type == MediaType.VIDEO) {
@@ -189,7 +199,7 @@ public class MediaCacheService {
         } catch (Exception e) {
             log.error("Prepare failed for {} {}", videoId, type, e);
             // Last resort on cloud: try full cache download so play can still work.
-            if (renderHost) {
+            if (renderHost && !mediaService.isYouTubeMedia(videoId)) {
                 try {
                     Path cached = mediaService.ensureCachedPlaybackPublic(videoId, type);
                     jobs.put(key, readyDto(videoId, type, cached, "Ready on cloud", qualityPreset));

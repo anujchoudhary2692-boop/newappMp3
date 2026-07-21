@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -101,23 +102,50 @@ public class MediaController {
             if (direct.isPresent()) {
                 return direct.get();
             }
-        } catch (Exception e) {
-            log.debug("Fast stream path failed for {} {}: {}", videoId, type, e.getMessage());
-        }
 
-        StreamingResponseBody body = outputStream -> {
-            try {
-                mediaService.writeStreamPipe(videoId, type, outputStream, quality);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("Stream interrupted");
+            // YouTube (and similar) often fail extract on cloud — fail with a clear message
+            // instead of returning StreamingResponseBody that later becomes opaque HTTP 500.
+            if (mediaService.isYouTubeMedia(videoId)) {
+                try {
+                    mediaService.resolveDirectUrlForClient(videoId, type, quality);
+                } catch (Exception e) {
+                    String msg = mediaService.friendlyMediaError(e.getMessage());
+                    log.warn("YouTube stream unavailable for {}: {}", videoId, msg);
+                    return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiResponse.error(msg));
+                }
+                direct = mediaService.tryServeDirectStream(videoId, type, rangeHeader, quality);
+                if (direct.isPresent()) {
+                    return direct.get();
+                }
+                return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                        .body(ApiResponse.error(
+                                "Could not proxy YouTube video. Try Openverse/SoundCloud results, "
+                                        + "refresh YOUTUBE_COOKIES_BASE64 on Render, or use Mac backend."));
             }
-        };
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_TYPE, mediaService.getStreamContentType(type))
-                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                .header(HttpHeaders.CACHE_CONTROL, "no-cache")
-                .body(body);
+
+            StreamingResponseBody body = outputStream -> {
+                try {
+                    mediaService.writeStreamPipe(videoId, type, outputStream, quality);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Stream interrupted");
+                } catch (Exception e) {
+                    throw new IllegalStateException(mediaService.friendlyMediaError(e.getMessage()), e);
+                }
+            };
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_TYPE, mediaService.getStreamContentType(type))
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .header(HttpHeaders.CACHE_CONTROL, "no-cache")
+                    .body(body);
+        } catch (IllegalStateException e) {
+            log.warn("Stream rejected for {} {}: {}", videoId, type, e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Stream failed for {} {}", videoId, type, e);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(ApiResponse.error(mediaService.friendlyMediaError(e.getMessage())));
+        }
     }
 
     @PostMapping("/download")
