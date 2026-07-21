@@ -78,6 +78,20 @@ public class MediaCacheService {
             return failedDto(videoId, type, cloudCookiesRequiredMessage());
         }
 
+        // Direct catalog files (Openverse/Jamendo/Freesound/ccMixter) — READY on first call, no poll wait.
+        String sourceUrl = mediaService.resolveSourceUrl(videoId);
+        if (mediaService.isDirectMediaFileUrl(sourceUrl)) {
+            mediaService.warmCacheAsync(videoId, type);
+            PrepareStatusDto ready = renderHost
+                    ? readyProxyDto(videoId, type, preset)
+                    : readyDirectDto(videoId, type, sourceUrl, preset);
+            jobs.put(key, ready);
+            if (type == MediaType.VIDEO) {
+                queueVideoFaceScan(videoId);
+            }
+            return ready;
+        }
+
         PrepareStatusDto existing = jobs.get(key);
         if (existing != null) {
             if (existing.getStatus() == PrepareStatusDto.Status.READY && existing.getStreamUrl() != null) {

@@ -249,10 +249,10 @@ export function PlayerScreen({route, navigation}: Props) {
     playWhenInactive: true,
     pictureInPicture: true,
     bufferConfig: {
-      minBufferMs: 800,
-      maxBufferMs: 12000,
-      bufferForPlaybackMs: 250,
-      bufferForPlaybackAfterRebufferMs: 500,
+      minBufferMs: 1200,
+      maxBufferMs: 25000,
+      bufferForPlaybackMs: 150,
+      bufferForPlaybackAfterRebufferMs: 350,
     },
   };
 

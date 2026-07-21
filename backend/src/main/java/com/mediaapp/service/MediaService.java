@@ -453,8 +453,8 @@ public class MediaService {
     private HttpURLConnection openDirectConnection(String directUrl, String rangeHeader) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(directUrl).openConnection();
         conn.setInstanceFollowRedirects(true);
-        conn.setConnectTimeout(15000);
-        conn.setReadTimeout(120000);
+        conn.setConnectTimeout(8000);
+        conn.setReadTimeout(90000);
         conn.setRequestProperty(HttpHeaders.USER_AGENT, YT_USER_AGENT);
         conn.setRequestProperty(HttpHeaders.ACCEPT, "*/*");
         conn.setRequestProperty(HttpHeaders.CONNECTION, "keep-alive");
@@ -487,6 +487,19 @@ public class MediaService {
                         .contentType(type == MediaType.AUDIO ? "audio/mp4" : "video/mp4")
                         .quality(type == MediaType.AUDIO ? "Cached Audio" : videoQualityLabel())
                         .cached(true)
+                        .build();
+            }
+
+            // Catalog direct files — skip prepare-poll hop; client can hit /stream immediately.
+            String sourceUrl = resolveSourceUrl(videoId);
+            if (isDirectMediaFileUrl(sourceUrl)) {
+                return PlayUrlDto.builder()
+                        .videoId(videoId)
+                        .type(type)
+                        .streamUrl("/api/media/stream/" + videoId + "?type=" + type)
+                        .contentType(getStreamContentType(type))
+                        .quality(type == MediaType.AUDIO ? "Direct Audio" : "Direct Video")
+                        .cached(false)
                         .build();
             }
 

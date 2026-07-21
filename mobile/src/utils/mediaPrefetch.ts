@@ -142,6 +142,7 @@ export function prefetchMediaPrepare(
   videoId: string,
   type: 'AUDIO' | 'VIDEO' = 'AUDIO',
   quality?: MediaQuality,
+  sourceUrl?: string,
 ): void {
   const key = jobKey(videoId, type, quality);
   if (prefetched.has(key) || getPrefetchedStream(videoId, type, quality)) {
@@ -150,7 +151,27 @@ export function prefetchMediaPrepare(
   prefetched.add(key);
 
   void warmMediaServer()
-    .then(() => pollPrepareUntilReady(videoId, type, quality))
+    .then(async () => {
+      const preset = quality || defaultQuality(type);
+      // Direct catalogs: one sync READY prepare — cache stream path for instant play.
+      if (sourceUrl) {
+        try {
+          const response = await mediaApi.prepare(videoId, type, preset, sourceUrl);
+          if (
+            response.success &&
+            response.data?.status === 'READY' &&
+            response.data.streamUrl &&
+            isPlayablePath(response.data.streamUrl)
+          ) {
+            putPrefetchedStream(videoId, type, response.data.streamUrl, response.data.quality, preset);
+            return;
+          }
+        } catch {
+          // fall through to poll
+        }
+      }
+      await pollPrepareUntilReady(videoId, type, quality);
+    })
     .catch(() => {
       prefetched.delete(key);
     });
@@ -159,13 +180,13 @@ export function prefetchMediaPrepare(
 /** Warm server and prefetch top search hits while the list is visible. */
 export function prefetchSearchResults(
   items: MediaSearchResult[],
-  limit = isProductionMode() ? 2 : 8,
+  limit = isProductionMode() ? 3 : 8,
 ): void {
   if (items.length === 0) {
     return;
   }
   void warmMediaServer().catch(() => undefined);
   items.slice(0, limit).forEach(item => {
-    prefetchMediaPrepare(item.videoId, 'AUDIO');
+    prefetchMediaPrepare(item.videoId, 'AUDIO', undefined, item.sourceUrl);
   });
 }

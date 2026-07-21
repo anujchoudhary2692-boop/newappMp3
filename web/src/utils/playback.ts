@@ -9,9 +9,9 @@ function sleep(ms: number) {
 }
 
 function pollDelay(attempt: number): number {
-  if (attempt < 12) return 120;
-  if (attempt < 30) return 300;
-  return 600;
+  if (attempt < 20) return 80;
+  if (attempt < 40) return 200;
+  return 450;
 }
 
 /** CDN links resolved on Render are IP-bound — prefer our proxy path. */
@@ -29,6 +29,21 @@ function preferPlayableStreamPath(
     return `/api/media/stream/${videoId}?type=${type}&quality=${encodeURIComponent(quality)}`;
   }
   return trimmed;
+}
+
+function isDirectCatalogSourceUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  if (
+    lower.includes('storage.jamendo.com') ||
+    lower.includes('cdn.freesound.org') ||
+    lower.includes('ccmixter.org/content/') ||
+    lower.includes('archive.org/download/')
+  ) {
+    return true;
+  }
+  const path = lower.split('?')[0];
+  return path.endsWith('.mp3') || path.endsWith('.m4a') || path.endsWith('.aac');
 }
 
 export async function pollPrepare(
@@ -69,6 +84,25 @@ export async function startPlayback(
   onStatus?: (msg: string) => void,
 ): Promise<{media: PlayableMedia; streamUrl: string}> {
   const preset = quality || defaultQuality(type);
+
+  // Direct catalog files: one prepare call returns READY immediately (no poll loop).
+  if (isDirectCatalogSourceUrl(item.sourceUrl)) {
+    onStatus?.('Starting stream…');
+    const streamPath = await pollPrepare(item.videoId, type, preset, onStatus, item.sourceUrl);
+    const streamUrl = resolveUrl(streamPath);
+    const media: PlayableMedia = {
+      title: item.title,
+      type,
+      streamUrl,
+      thumbnailUrl: item.thumbnailUrl,
+      sourceUrl: item.sourceUrl,
+      videoId: item.videoId,
+      quality: preset,
+    };
+    pushRecent(media, streamUrl);
+    return {media, streamUrl};
+  }
+
   // Kick prepare once; pollPrepare will keep calling until READY (idempotent on server).
   void api.prepare(item.videoId, type, preset, item.sourceUrl).catch(() => undefined);
   const streamPath = await pollPrepare(item.videoId, type, preset, onStatus, item.sourceUrl);

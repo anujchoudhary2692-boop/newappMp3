@@ -108,7 +108,7 @@ export function SearchScreen() {
   };
 
   const runPlay = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', quality: MediaQuality) => {
-    prefetchMediaPrepare(item.videoId, type, quality);
+    prefetchMediaPrepare(item.videoId, type, quality, item.sourceUrl);
     setPlaying(prev => ({...prev, [item.videoId]: type}));
     void prepareAndStartPlayback(item, type, playback, undefined, quality)
       .catch(() => undefined)
@@ -149,7 +149,7 @@ export function SearchScreen() {
 
   const runDownload = (item: MediaSearchResult, type: 'AUDIO' | 'VIDEO', quality: MediaQuality) => {
     void warmMediaServer();
-    prefetchMediaPrepare(item.videoId, type);
+    prefetchMediaPrepare(item.videoId, type, undefined, item.sourceUrl);
     setDownloading(prev => ({...prev, [item.videoId]: type}));
     setDownloadProgress(prev => ({...prev, [item.videoId]: 0}));
     void downloadSearchItemToDevice(
@@ -401,7 +401,7 @@ export function SearchScreen() {
             playing={playing[item.videoId] || null}
             onPress={() => openPicker(item, 'AUDIO', 'play')}
             onPressIn={() => {
-              prefetchMediaPrepare(item.videoId, 'AUDIO');
+              prefetchMediaPrepare(item.videoId, 'AUDIO', undefined, item.sourceUrl);
             }}
             onPlayAudio={() => openPicker(item, 'AUDIO', 'play')}
             onPlayVideo={() => openPicker(item, 'VIDEO', 'play')}

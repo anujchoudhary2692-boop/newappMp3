@@ -37,6 +37,41 @@ export function preferPlayableStreamUrl(
   return trimmed;
 }
 
+/** Catalog CDN / direct files that need no yt-dlp prepare (Openverse, Jamendo, Freesound, ccMixter). */
+export function isDirectCatalogSourceUrl(url?: string | null): boolean {
+  if (!url) {
+    return false;
+  }
+  const lower = url.toLowerCase();
+  if (
+    lower.includes('storage.jamendo.com') ||
+    lower.includes('cdn.freesound.org') ||
+    lower.includes('ccmixter.org/content/') ||
+    lower.includes('archive.org/download/') ||
+    lower.includes('upload.wikimedia.org')
+  ) {
+    return true;
+  }
+  const path = lower.split('?')[0];
+  return (
+    path.endsWith('.mp3') ||
+    path.endsWith('.m4a') ||
+    path.endsWith('.aac') ||
+    path.endsWith('.mp4') ||
+    path.endsWith('.m4v')
+  );
+}
+
+/** Instant proxy path — no prepare poll. Source must already be registered (search or prepare). */
+export function directCatalogStreamPath(
+  videoId: string,
+  type: 'AUDIO' | 'VIDEO',
+  quality?: string,
+): string {
+  const q = quality ? `&quality=${encodeURIComponent(quality)}` : '';
+  return `/api/media/stream/${videoId}?type=${type}${q}`;
+}
+
 export function resolveStreamUrl(
   streamPath: string,
   baseOverride?: string,

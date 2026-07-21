@@ -11,7 +11,7 @@ import {
   downloadSearchItemToDevice,
   getLocalPlaybackUri,
 } from './localMediaStore';
-import {resolveStreamUrl} from './mediaPlayback';
+import {directCatalogStreamPath, isDirectCatalogSourceUrl, resolveStreamUrl} from './mediaPlayback';
 import {
   getPrefetchedStream,
   getPinnedServerBase,
@@ -46,13 +46,13 @@ function sleep(ms: number): Promise<void> {
 }
 
 function pollDelay(attempt: number): number {
-  if (attempt < 12) {
-    return 120;
+  if (attempt < 20) {
+    return 80;
   }
-  if (attempt < 30) {
-    return 300;
+  if (attempt < 40) {
+    return 200;
   }
-  return 600;
+  return 450;
 }
 
 function normalizeQuality(type: 'AUDIO' | 'VIDEO', quality?: MediaQuality): MediaQuality {
@@ -160,7 +160,7 @@ function resolveReadyStream(
   return getSessionStream(videoId, type, preset) || getPrefetchedStream(videoId, type, preset);
 }
 
-/** Fast playback: session/prefetch cache → device file → prepare poll. */
+/** Fast playback: session/prefetch cache → device file → direct catalog stream → prepare poll. */
 export async function waitForMediaReady(
   videoId: string,
   type: 'AUDIO' | 'VIDEO',
@@ -189,6 +189,28 @@ export async function waitForMediaReady(
     onStatus?.('Playing from device storage…');
     putSessionStream(videoId, type, localUri, preset, 'On device · Offline');
     return {streamPath: localUri, quality: 'On device · Offline'};
+  }
+
+  // Openverse / Jamendo / Freesound / ccMixter — prepare is sync READY; one round-trip, no poll.
+  if (isDirectCatalogSourceUrl(sourceUrl)) {
+    onStatus?.('Starting stream…');
+    try {
+      const status = await mediaApi.prepare(videoId, type, preset, sourceUrl);
+      if (
+        status.success &&
+        status.data?.status === 'READY' &&
+        status.data.streamUrl &&
+        isPlayablePath(status.data.streamUrl)
+      ) {
+        putSessionStream(videoId, type, status.data.streamUrl, preset, status.data.quality);
+        return {streamPath: status.data.streamUrl, quality: status.data.quality || 'Direct stream'};
+      }
+    } catch {
+      // Fall through to known proxy path; search usually already registered the source.
+    }
+    const streamPath = directCatalogStreamPath(videoId, type, preset);
+    putSessionStream(videoId, type, streamPath, preset, 'Direct stream');
+    return {streamPath, quality: 'Direct stream'};
   }
 
   if (!isLanBackend()) {
@@ -271,7 +293,7 @@ export async function prepareAndStartPlayback(
     videoId: item.videoId,
   };
 
-  prefetchMediaPrepare(item.videoId, type, preset);
+  prefetchMediaPrepare(item.videoId, type, preset, item.sourceUrl);
 
   // Open player immediately so UI feels instant; pin + prepare in parallel.
   openPlayerScreen(mediaBase, '');
@@ -339,7 +361,7 @@ export async function prepareQueueTrack(
     sourceUrl: item.sourceUrl,
     videoId: item.videoId,
   };
-  prefetchMediaPrepare(item.videoId, type, preset);
+  prefetchMediaPrepare(item.videoId, type, preset, item.sourceUrl);
   await pinPlaybackServer();
   const instant = resolveReadyStream(item.videoId, type, preset);
   if (instant) {
