@@ -231,7 +231,7 @@ public class MediaCacheService {
                 .type(type)
                 .status(PrepareStatusDto.Status.READY)
                 .streamUrl(directUrl)
-                .contentType(mediaService.getStreamContentType(type))
+                .contentType(mediaService.contentTypeForUrl(directUrl, type))
                 .quality(label)
                 .message("Direct stream")
                 .build();
@@ -267,12 +267,13 @@ public class MediaCacheService {
         String label = type == MediaType.AUDIO
                 ? MediaQualityPresets.audioLabel(qualityPreset)
                 : MediaQualityPresets.videoLabel(qualityPreset);
+        String sourceUrl = mediaService.resolveSourceUrl(videoId);
         return PrepareStatusDto.builder()
                 .videoId(videoId)
                 .type(type)
                 .status(PrepareStatusDto.Status.READY)
                 .streamUrl("/api/media/stream/" + videoId + "?type=" + type + "&quality=" + qualityPreset)
-                .contentType(mediaService.getStreamContentType(type))
+                .contentType(mediaService.contentTypeForUrl(sourceUrl, type))
                 .quality(label)
                 .message("Stream proxy")
                 .build();

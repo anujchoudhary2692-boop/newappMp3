@@ -318,7 +318,7 @@ public class MediaService {
         try {
             String directUrl = resolveDirectUrl(videoId, type, false, qualityPreset);
             warmCacheAsync(videoId, type);
-            return Optional.of(proxyHttpStream(directUrl, rangeHeader, getStreamContentType(type)));
+            return Optional.of(proxyHttpStream(directUrl, rangeHeader, contentTypeForUrl(directUrl, type)));
         } catch (Exception e) {
             log.debug("Direct stream unavailable for {} {}: {}", videoId, type, e.getMessage());
             return Optional.empty();
@@ -503,8 +503,15 @@ public class MediaService {
             throw new IOException("Empty response from media host");
         }
 
+        String upstreamType = conn.getContentType();
+        String resolvedType = contentType;
+        if (upstreamType != null && !upstreamType.isBlank()
+                && !upstreamType.toLowerCase(Locale.ROOT).startsWith("text/")) {
+            resolvedType = upstreamType.split(";")[0].trim();
+        }
+
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(status)
-                .header(HttpHeaders.CONTENT_TYPE, contentType)
+                .header(HttpHeaders.CONTENT_TYPE, resolvedType)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CACHE_CONTROL, "no-cache");
 
@@ -518,6 +525,34 @@ public class MediaService {
         }
 
         return builder.body(new InputStreamResource(bodyStream));
+    }
+
+    /** Prefer real container MIME — forcing audio/mp4 on MP3 catalogs breaks iOS AVPlayer. */
+    public String contentTypeForUrl(String url, MediaType type) {
+        if (url != null) {
+            String lower = url.toLowerCase(Locale.ROOT);
+            String path = lower.split("\\?", 2)[0];
+            if (path.endsWith(".mp3") || lower.contains("format=mp32") || lower.contains("format=mp3")
+                    || lower.contains("storage.jamendo.com") || lower.contains("cdn.freesound.org")) {
+                return "audio/mpeg";
+            }
+            if (path.endsWith(".m4a") || path.endsWith(".aac")) {
+                return "audio/mp4";
+            }
+            if (path.endsWith(".ogg") || path.endsWith(".oga")) {
+                return "audio/ogg";
+            }
+            if (path.endsWith(".wav")) {
+                return "audio/wav";
+            }
+            if (path.endsWith(".mp4") || path.endsWith(".m4v")) {
+                return "video/mp4";
+            }
+            if (path.endsWith(".webm")) {
+                return type == MediaType.AUDIO ? "audio/webm" : "video/webm";
+            }
+        }
+        return getStreamContentType(type);
     }
 
     private HttpURLConnection openDirectConnection(String directUrl, String rangeHeader) throws IOException {
@@ -570,7 +605,7 @@ public class MediaService {
                         .streamUrl(proxy
                                 ? "/api/media/stream/" + videoId + "?type=" + type
                                 : sourceUrl)
-                        .contentType(getStreamContentType(type))
+                        .contentType(contentTypeForUrl(sourceUrl, type))
                         .quality(type == MediaType.AUDIO ? "Direct Audio" : "Direct Video")
                         .cached(false)
                         .build();
