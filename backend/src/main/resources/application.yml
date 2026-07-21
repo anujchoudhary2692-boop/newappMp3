@@ -39,8 +39,10 @@ app:
     admin-password: ${ADMIN_PASSWORD:}
     session-hours: ${AUTH_SESSION_HOURS:168}
   catalog:
-    musicbrainz-enabled: ${CATALOG_MUSICBRAINZ:true}
+    musicbrainz-enabled: ${CATALOG_MUSICBRAINZ:false}
     archive-enabled: ${CATALOG_ARCHIVE:true}
+    jamendo-enabled: ${CATALOG_JAMENDO:true}
+    jamendo-client-id: ${JAMENDO_CLIENT_ID:}
   media:
     yt-dlp-path: ${YT_DLP_PATH:yt-dlp}
     youtube-cookies-file: ${YOUTUBE_COOKIES_FILE:}

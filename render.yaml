@@ -37,6 +37,8 @@ services:
         sync: false
       - key: GOOGLE_CSE_ID
         sync: false
+      - key: JAMENDO_CLIENT_ID
+        sync: false
       - key: FACE_ENGINE
         value: opencv
       - key: FCM_PROJECT_ID

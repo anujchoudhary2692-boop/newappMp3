@@ -250,6 +250,7 @@ public class WebSearchService {
         }
         return lower.contains("soundcloud.com")
                 || lower.contains("archive.org")
+                || lower.contains("jamendo.com")
                 || lower.contains("bandcamp.com")
                 || lower.contains("mixcloud.com")
                 || lower.contains("audiomack.com")

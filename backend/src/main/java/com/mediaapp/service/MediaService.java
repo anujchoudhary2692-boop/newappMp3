@@ -215,6 +215,12 @@ public class MediaService {
     }
 
     private MediaSearchResultDto enrichWithStreamUrls(MediaSearchResultDto result) {
+        if (result.getVideoId() != null && result.getSourceUrl() != null) {
+            mediaSourceRegistry.registerIfAbsent(
+                    result.getVideoId(),
+                    result.getSourceUrl(),
+                    result.getSource() != null ? result.getSource() : guessExtractor(result.getSourceUrl()));
+        }
         result.setAudioFormat("MP3 / M4A");
         result.setVideoFormat("MP4 / HD");
         result.setAudioStreamUrl("/api/media/stream/" + result.getVideoId() + "?type=AUDIO");
@@ -362,6 +368,13 @@ public class MediaService {
                 return cached.url;
             }
 
+            String sourceUrl = resolveSourceUrl(videoId);
+            // Free catalogs (Archive/Jamendo) already give direct file URLs — skip yt-dlp.
+            if (isDirectMediaFileUrl(sourceUrl)) {
+                directUrlCache.put(key, new DirectUrlEntry(sourceUrl, Instant.now().plus(Duration.ofHours(6))));
+                return sourceUrl;
+            }
+
             YtDlpService.MediaTypeArg arg = type == MediaType.AUDIO
                     ? YtDlpService.MediaTypeArg.AUDIO
                     : YtDlpService.MediaTypeArg.VIDEO;
@@ -374,12 +387,33 @@ public class MediaService {
                     ? MediaQualityPresets.ytDlpAudioFormat(qualityPreset)
                     : MediaQualityPresets.ytDlpVideoFormat(qualityPreset);
             String url = fast
-                    ? ytDlpService.resolveDirectUrlFast(resolveSourceUrl(videoId), arg, timeout, format)
-                    : ytDlpService.resolveDirectUrl(resolveSourceUrl(videoId), arg, timeout, format);
+                    ? ytDlpService.resolveDirectUrlFast(sourceUrl, arg, timeout, format)
+                    : ytDlpService.resolveDirectUrl(sourceUrl, arg, timeout, format);
 
             directUrlCache.put(key, new DirectUrlEntry(url, Instant.now().plus(Duration.ofMinutes(45))));
             return url;
         }
+    }
+
+    /** True when the source is already a streamable file (no yt-dlp extract needed). */
+    public boolean isDirectMediaFileUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (lower.contains("archive.org/download/") || lower.contains("storage.jamendo.com")) {
+            return true;
+        }
+        int q = lower.indexOf('?');
+        String path = q >= 0 ? lower.substring(0, q) : lower;
+        return path.endsWith(".mp3")
+                || path.endsWith(".m4a")
+                || path.endsWith(".aac")
+                || path.endsWith(".ogg")
+                || path.endsWith(".oga")
+                || path.endsWith(".mp4")
+                || path.endsWith(".m4v")
+                || path.endsWith(".webm");
     }
 
     private ResponseEntity<Resource> proxyHttpStream(
@@ -784,6 +818,9 @@ public class MediaService {
         }
         if (lower.contains("archive.org")) {
             return "Archive";
+        }
+        if (lower.contains("jamendo.com")) {
+            return "Jamendo";
         }
         if (lower.contains("bandcamp.com")) {
             return "Bandcamp";
